@@ -4,7 +4,7 @@ github.com/BurntSushi/toml
 # github.com/armon/go-metrics v0.3.6
 ## explicit
 github.com/armon/go-metrics
-# github.com/aws/aws-sdk-go v1.37.12
+# github.com/aws/aws-sdk-go v1.42.30
 ## explicit
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/awserr
@@ -212,8 +212,6 @@ github.com/sirupsen/logrus
 ## explicit
 # github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5
 ## explicit
-# go.etcd.io/bbolt v1.3.5
-## explicit
 # go.etcd.io/etcd v3.3.25+incompatible
 ## explicit
 go.etcd.io/etcd/clientv3
@@ -237,7 +235,7 @@ golang.org/x/crypto/ed25519/internal/edwards25519
 golang.org/x/crypto/pbkdf2
 # golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 ## explicit
-# golang.org/x/net v0.0.0-20210119194325-5f4716e94777
+# golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
 ## explicit
 golang.org/x/net/context
 golang.org/x/net/http/httpguts
@@ -246,13 +244,11 @@ golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
-# golang.org/x/sys v0.0.0-20210216224549-f992740a1bac
-## explicit
+# golang.org/x/sys v0.0.0-20210423082822-04245dca01da
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.3.5
-## explicit
+# golang.org/x/text v0.3.6
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
