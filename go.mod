@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go v1.43.36
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/fatih/color v1.10.0 // indirect
-	github.com/fsnotify/fsnotify v1.5.1
+	github.com/fsnotify/fsnotify v1.5.3
 	github.com/garyburd/redigo v1.6.3
 	github.com/go-zookeeper/zk v1.0.2
 	github.com/hashicorp/consul/api v1.12.0

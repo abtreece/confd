@@ -65,7 +65,7 @@ github.com/coreos/go-systemd/v22/journal
 # github.com/fatih/color v1.10.0
 ## explicit; go 1.13
 github.com/fatih/color
-# github.com/fsnotify/fsnotify v1.5.1
+# github.com/fsnotify/fsnotify v1.5.3
 ## explicit; go 1.13
 github.com/fsnotify/fsnotify
 # github.com/garyburd/redigo v1.6.3
