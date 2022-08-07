@@ -3,7 +3,7 @@ module github.com/abtreece/confd
 go 1.17
 
 require (
-	github.com/BurntSushi/toml v1.1.0
+	github.com/BurntSushi/toml v1.2.0
 	github.com/armon/go-metrics v0.3.9 // indirect
 	github.com/aws/aws-sdk-go v1.44.66
 	github.com/coreos/go-semver v0.3.0 // indirect
