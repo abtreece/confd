@@ -68,7 +68,7 @@ github.com/fatih/color
 # github.com/fsnotify/fsnotify v1.5.4
 ## explicit; go 1.16
 github.com/fsnotify/fsnotify
-# github.com/garyburd/redigo v1.6.3
+# github.com/garyburd/redigo v1.6.4
 ## explicit; go 1.17
 github.com/garyburd/redigo/internal
 github.com/garyburd/redigo/redis
