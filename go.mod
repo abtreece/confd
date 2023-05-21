@@ -14,7 +14,7 @@ require (
 	github.com/hashicorp/consul/api v1.18.0
 	github.com/hashicorp/vault/api v1.8.3
 	github.com/kelseyhightower/memkv v0.1.1
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.2
 	go.etcd.io/etcd/client/v3 v3.5.7
 	gopkg.in/yaml.v2 v2.4.0
 )

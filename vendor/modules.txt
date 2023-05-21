@@ -217,7 +217,7 @@ github.com/pierrec/lz4/internal/xxh32
 # github.com/ryanuber/go-glob v1.0.0
 ## explicit
 github.com/ryanuber/go-glob
-# github.com/sirupsen/logrus v1.9.0
+# github.com/sirupsen/logrus v1.9.2
 ## explicit; go 1.13
 github.com/sirupsen/logrus
 # go.etcd.io/etcd/api/v3 v3.5.7
