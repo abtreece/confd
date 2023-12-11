@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MIT
+
 package hclog
 
 import (
@@ -8,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"reflect"
 	"runtime"
 	"sort"
@@ -17,6 +19,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/fatih/color"
 )
@@ -84,6 +88,8 @@ type intLogger struct {
 
 	// create subloggers with their own level setting
 	independentLevels bool
+
+	subloggerHook func(sub Logger) Logger
 }
 
 // New returns a configured logger.
@@ -150,6 +156,7 @@ func newLogger(opts *LoggerOptions) *intLogger {
 		independentLevels: opts.IndependentLevels,
 		headerColor:       headerColor,
 		fieldColor:        fieldColor,
+		subloggerHook:     opts.SubloggerHook,
 	}
 	if opts.IncludeLocation {
 		l.callerOffset = offsetIntLogger + opts.AdditionalLocationOffset
@@ -165,11 +172,19 @@ func newLogger(opts *LoggerOptions) *intLogger {
 		l.timeFormat = opts.TimeFormat
 	}
 
+	if l.subloggerHook == nil {
+		l.subloggerHook = identityHook
+	}
+
 	l.setColorization(opts)
 
 	atomic.StoreInt32(l.level, int32(level))
 
 	return l
+}
+
+func identityHook(logger Logger) Logger {
+	return logger
 }
 
 // offsetIntLogger is the stack frame offset in the call stack for the caller to
@@ -259,7 +274,6 @@ func needsQuoting(str string) bool {
 //  2. Color the whole log line, based on the level.
 //  3. Color only the header (level) part of the log line.
 //  4. Color both the header and fields of the log line.
-//
 func (l *intLogger) logPlain(t time.Time, name string, level Level, msg string, args ...interface{}) {
 
 	if !l.disableTime {
@@ -420,7 +434,9 @@ func (l *intLogger) logPlain(t time.Time, name string, level Level, msg string, 
 				} else {
 					l.writer.WriteByte('=')
 				}
-				l.writer.WriteString(strconv.Quote(val))
+				l.writer.WriteByte('"')
+				writeEscapedForOutput(l.writer, val, true)
+				l.writer.WriteByte('"')
 			} else {
 				l.writer.WriteByte(' ')
 				l.writer.WriteString(key)
@@ -448,17 +464,96 @@ func writeIndent(w *writer, str string, indent string) {
 		if nl == -1 {
 			if str != "" {
 				w.WriteString(indent)
-				w.WriteString(str)
+				writeEscapedForOutput(w, str, false)
 				w.WriteString("\n")
 			}
 			return
 		}
 
 		w.WriteString(indent)
-		w.WriteString(str[:nl])
+		writeEscapedForOutput(w, str[:nl], false)
 		w.WriteString("\n")
 		str = str[nl+1:]
 	}
+}
+
+func needsEscaping(str string) bool {
+	for _, b := range str {
+		if !unicode.IsPrint(b) || b == '"' {
+			return true
+		}
+	}
+
+	return false
+}
+
+const (
+	lowerhex = "0123456789abcdef"
+)
+
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+func writeEscapedForOutput(w io.Writer, str string, escapeQuotes bool) {
+	if !needsEscaping(str) {
+		w.Write([]byte(str))
+		return
+	}
+
+	bb := bufPool.Get().(*bytes.Buffer)
+	bb.Reset()
+
+	defer bufPool.Put(bb)
+
+	for _, r := range str {
+		if escapeQuotes && r == '"' {
+			bb.WriteString(`\"`)
+		} else if unicode.IsPrint(r) {
+			bb.WriteRune(r)
+		} else {
+			switch r {
+			case '\a':
+				bb.WriteString(`\a`)
+			case '\b':
+				bb.WriteString(`\b`)
+			case '\f':
+				bb.WriteString(`\f`)
+			case '\n':
+				bb.WriteString(`\n`)
+			case '\r':
+				bb.WriteString(`\r`)
+			case '\t':
+				bb.WriteString(`\t`)
+			case '\v':
+				bb.WriteString(`\v`)
+			default:
+				switch {
+				case r < ' ':
+					bb.WriteString(`\x`)
+					bb.WriteByte(lowerhex[byte(r)>>4])
+					bb.WriteByte(lowerhex[byte(r)&0xF])
+				case !utf8.ValidRune(r):
+					r = 0xFFFD
+					fallthrough
+				case r < 0x10000:
+					bb.WriteString(`\u`)
+					for s := 12; s >= 0; s -= 4 {
+						bb.WriteByte(lowerhex[r>>uint(s)&0xF])
+					}
+				default:
+					bb.WriteString(`\U`)
+					for s := 28; s >= 0; s -= 4 {
+						bb.WriteByte(lowerhex[r>>uint(s)&0xF])
+					}
+				}
+			}
+		}
+	}
+
+	w.Write(bb.Bytes())
 }
 
 func (l *intLogger) renderSlice(v reflect.Value) string {
@@ -693,7 +788,7 @@ func (l *intLogger) With(args ...interface{}) Logger {
 		sl.implied = append(sl.implied, MissingKey, extra)
 	}
 
-	return sl
+	return l.subloggerHook(sl)
 }
 
 // Create a new sub-Logger that a name decending from the current name.
@@ -707,7 +802,7 @@ func (l *intLogger) Named(name string) Logger {
 		sl.name = name
 	}
 
-	return sl
+	return l.subloggerHook(sl)
 }
 
 // Create a new sub-Logger with an explicit name. This ignores the current
@@ -718,7 +813,7 @@ func (l *intLogger) ResetNamed(name string) Logger {
 
 	sl.name = name
 
-	return sl
+	return l.subloggerHook(sl)
 }
 
 func (l *intLogger) ResetOutput(opts *LoggerOptions) error {
@@ -762,6 +857,11 @@ func (l *intLogger) SetLevel(level Level) {
 	atomic.StoreInt32(l.level, int32(level))
 }
 
+// Returns the current level
+func (l *intLogger) GetLevel() Level {
+	return Level(atomic.LoadInt32(l.level))
+}
+
 // Create a *log.Logger that will send it's data through this Logger. This
 // allows packages that expect to be using the standard library log to actually
 // use this logger.
@@ -787,16 +887,6 @@ func (l *intLogger) StandardWriter(opts *StandardLoggerOptions) io.Writer {
 		inferLevelsWithTimestamp: opts.InferLevelsWithTimestamp,
 		forceLevel:               opts.ForceLevel,
 	}
-}
-
-// checks if the underlying io.Writer is a file, and
-// panics if not. For use by colorization.
-func (l *intLogger) checkWriterIsFile() *os.File {
-	fi, ok := l.writer.w.(*os.File)
-	if !ok {
-		panic("Cannot enable coloring of non-file Writers")
-	}
-	return fi
 }
 
 // Accept implements the SinkAdapter interface
