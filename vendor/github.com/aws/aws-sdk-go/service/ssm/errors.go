@@ -586,6 +586,12 @@ const (
 	// The OpsItem already exists.
 	ErrCodeOpsItemAlreadyExistsException = "OpsItemAlreadyExistsException"
 
+	// ErrCodeOpsItemConflictException for service response error code
+	// "OpsItemConflictException".
+	//
+	// The specified OpsItem is in the process of being deleted.
+	ErrCodeOpsItemConflictException = "OpsItemConflictException"
+
 	// ErrCodeOpsItemInvalidParameterException for service response error code
 	// "OpsItemInvalidParameterException".
 	//
@@ -596,8 +602,7 @@ const (
 	// ErrCodeOpsItemLimitExceededException for service response error code
 	// "OpsItemLimitExceededException".
 	//
-	// The request caused OpsItems to exceed one or more quotas. For information
-	// about OpsItem quotas, see What are the resource limits for OpsCenter? (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-learn-more.html#OpsCenter-learn-more-limits).
+	// The request caused OpsItems to exceed one or more quotas.
 	ErrCodeOpsItemLimitExceededException = "OpsItemLimitExceededException"
 
 	// ErrCodeOpsItemNotFoundException for service response error code
@@ -996,6 +1001,7 @@ var exceptionFromCode = map[string]func(protocol.ResponseMetadata) error{
 	"MaxDocumentSizeExceeded":                        newErrorMaxDocumentSizeExceeded,
 	"OpsItemAccessDeniedException":                   newErrorOpsItemAccessDeniedException,
 	"OpsItemAlreadyExistsException":                  newErrorOpsItemAlreadyExistsException,
+	"OpsItemConflictException":                       newErrorOpsItemConflictException,
 	"OpsItemInvalidParameterException":               newErrorOpsItemInvalidParameterException,
 	"OpsItemLimitExceededException":                  newErrorOpsItemLimitExceededException,
 	"OpsItemNotFoundException":                       newErrorOpsItemNotFoundException,

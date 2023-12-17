@@ -135,6 +135,12 @@ const (
 	// are allowed per account.
 	//
 	// There is a soft account quota of 2,500 tables.
+	//
+	// GetRecords was called with a value of more than 1000 for the limit request
+	// parameter.
+	//
+	// More than 2 processes are reading from the same streams shard at the same
+	// time. Exceeding this limit may result in request throttling.
 	ErrCodeLimitExceededException = "LimitExceededException"
 
 	// ErrCodePointInTimeRecoveryUnavailableException for service response error code
@@ -232,6 +238,10 @@ const (
 	//    of changes made by the transaction.
 	//
 	//    * There is a user error, such as an invalid data format.
+	//
+	//    * There is an ongoing TransactWriteItems operation that conflicts with
+	//    a concurrent TransactWriteItems request. In this case the TransactWriteItems
+	//    operation fails with a TransactionCanceledException.
 	//
 	// DynamoDB cancels a TransactGetItems request under the following circumstances:
 	//

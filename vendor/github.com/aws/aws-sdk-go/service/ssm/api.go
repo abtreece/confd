@@ -205,8 +205,7 @@ func (c *SSM) AssociateOpsItemRelatedItemRequest(input *AssociateOpsItemRelatedI
 //     The specified OpsItem ID doesn't exist. Verify the ID and try again.
 //
 //   - OpsItemLimitExceededException
-//     The request caused OpsItems to exceed one or more quotas. For information
-//     about OpsItem quotas, see What are the resource limits for OpsCenter? (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-learn-more.html#OpsCenter-learn-more-limits).
+//     The request caused OpsItems to exceed one or more quotas.
 //
 //   - OpsItemInvalidParameterException
 //     A specified parameter argument isn't valid. Verify the available arguments
@@ -214,6 +213,9 @@ func (c *SSM) AssociateOpsItemRelatedItemRequest(input *AssociateOpsItemRelatedI
 //
 //   - OpsItemRelatedItemAlreadyExistsException
 //     The Amazon Resource Name (ARN) is already associated with the OpsItem.
+//
+//   - OpsItemConflictException
+//     The specified OpsItem is in the process of being deleted.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/ssm-2014-11-06/AssociateOpsItemRelatedItem
 func (c *SSM) AssociateOpsItemRelatedItem(input *AssociateOpsItemRelatedItemInput) (*AssociateOpsItemRelatedItemOutput, error) {
@@ -1043,8 +1045,8 @@ func (c *SSM) CreateOpsItemRequest(input *CreateOpsItemInput) (req *request.Requ
 // CreateOpsItem API operation for Amazon Simple Systems Manager (SSM).
 //
 // Creates a new OpsItem. You must have permission in Identity and Access Management
-// (IAM) to create a new OpsItem. For more information, see Getting started
-// with OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-getting-started.html)
+// (IAM) to create a new OpsItem. For more information, see Set up OpsCenter
+// (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-setup.html)
 // in the Amazon Web Services Systems Manager User Guide.
 //
 // Operations engineers and IT professionals use Amazon Web Services Systems
@@ -1069,8 +1071,7 @@ func (c *SSM) CreateOpsItemRequest(input *CreateOpsItemInput) (req *request.Requ
 //     The OpsItem already exists.
 //
 //   - OpsItemLimitExceededException
-//     The request caused OpsItems to exceed one or more quotas. For information
-//     about OpsItem quotas, see What are the resource limits for OpsCenter? (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-learn-more.html#OpsCenter-learn-more-limits).
+//     The request caused OpsItems to exceed one or more quotas.
 //
 //   - OpsItemInvalidParameterException
 //     A specified parameter argument isn't valid. Verify the available arguments
@@ -1878,6 +1879,112 @@ func (c *SSM) DeleteMaintenanceWindow(input *DeleteMaintenanceWindowInput) (*Del
 // for more information on using Contexts.
 func (c *SSM) DeleteMaintenanceWindowWithContext(ctx aws.Context, input *DeleteMaintenanceWindowInput, opts ...request.Option) (*DeleteMaintenanceWindowOutput, error) {
 	req, out := c.DeleteMaintenanceWindowRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opDeleteOpsItem = "DeleteOpsItem"
+
+// DeleteOpsItemRequest generates a "aws/request.Request" representing the
+// client's request for the DeleteOpsItem operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See DeleteOpsItem for more information on using the DeleteOpsItem
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//	// Example sending a request using the DeleteOpsItemRequest method.
+//	req, resp := client.DeleteOpsItemRequest(params)
+//
+//	err := req.Send()
+//	if err == nil { // resp is now filled
+//	    fmt.Println(resp)
+//	}
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ssm-2014-11-06/DeleteOpsItem
+func (c *SSM) DeleteOpsItemRequest(input *DeleteOpsItemInput) (req *request.Request, output *DeleteOpsItemOutput) {
+	op := &request.Operation{
+		Name:       opDeleteOpsItem,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &DeleteOpsItemInput{}
+	}
+
+	output = &DeleteOpsItemOutput{}
+	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(jsonrpc.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
+	return
+}
+
+// DeleteOpsItem API operation for Amazon Simple Systems Manager (SSM).
+//
+// Delete an OpsItem. You must have permission in Identity and Access Management
+// (IAM) to delete an OpsItem.
+//
+// Note the following important information about this operation.
+//
+//   - Deleting an OpsItem is irreversible. You can't restore a deleted OpsItem.
+//
+//   - This operation uses an eventual consistency model, which means the system
+//     can take a few minutes to complete this operation. If you delete an OpsItem
+//     and immediately call, for example, GetOpsItem, the deleted OpsItem might
+//     still appear in the response.
+//
+//   - This operation is idempotent. The system doesn't throw an exception
+//     if you repeatedly call this operation for the same OpsItem. If the first
+//     call is successful, all additional calls return the same successful response
+//     as the first call.
+//
+//   - This operation doesn't support cross-account calls. A delegated administrator
+//     or management account can't delete OpsItems in other accounts, even if
+//     OpsCenter has been set up for cross-account administration. For more information
+//     about cross-account administration, see Setting up OpsCenter to centrally
+//     manage OpsItems across accounts (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-setting-up-cross-account.html)
+//     in the Systems Manager User Guide.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Simple Systems Manager (SSM)'s
+// API operation DeleteOpsItem for usage and error information.
+//
+// Returned Error Types:
+//
+//   - InternalServerError
+//     An error occurred on the server side.
+//
+//   - OpsItemInvalidParameterException
+//     A specified parameter argument isn't valid. Verify the available arguments
+//     and try again.
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ssm-2014-11-06/DeleteOpsItem
+func (c *SSM) DeleteOpsItem(input *DeleteOpsItemInput) (*DeleteOpsItemOutput, error) {
+	req, out := c.DeleteOpsItemRequest(input)
+	return out, req.Send()
+}
+
+// DeleteOpsItemWithContext is the same as DeleteOpsItem with the addition of
+// the ability to pass a context and additional request options.
+//
+// See DeleteOpsItem for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *SSM) DeleteOpsItemWithContext(ctx aws.Context, input *DeleteOpsItemInput, opts ...request.Option) (*DeleteOpsItemOutput, error) {
+	req, out := c.DeleteOpsItemRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -4414,18 +4521,19 @@ func (c *SSM) DescribeInstanceInformationRequest(input *DescribeInstanceInformat
 
 // DescribeInstanceInformation API operation for Amazon Simple Systems Manager (SSM).
 //
-// Describes one or more of your managed nodes, including information about
-// the operating system platform, the version of SSM Agent installed on the
-// managed node, node status, and so on.
+// Provides information about one or more of your managed nodes, including the
+// operating system platform, SSM Agent version, association status, and IP
+// address. This operation does not return information for nodes that are either
+// Stopped or Terminated.
 //
-// If you specify one or more managed node IDs, it returns information for those
-// managed nodes. If you don't specify node IDs, it returns information for
-// all your managed nodes. If you specify a node ID that isn't valid or a node
-// that you don't own, you receive an error.
+// If you specify one or more node IDs, the operation returns information for
+// those managed nodes. If you don't specify node IDs, it returns information
+// for all your managed nodes. If you specify a node ID that isn't valid or
+// a node that you don't own, you receive an error.
 //
-// The IamRole field for this API operation is the Identity and Access Management
-// (IAM) role assigned to on-premises managed nodes. This call doesn't return
-// the IAM role for EC2 instances.
+// The IamRole field returned for this API operation is the Identity and Access
+// Management (IAM) role assigned to on-premises managed nodes. This operation
+// does not return the IAM role for EC2 instances.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6303,8 +6411,8 @@ func (c *SSM) DescribeOpsItemsRequest(input *DescribeOpsItemsInput) (req *reques
 // DescribeOpsItems API operation for Amazon Simple Systems Manager (SSM).
 //
 // Query a set of OpsItems. You must have permission in Identity and Access
-// Management (IAM) to query a list of OpsItems. For more information, see Getting
-// started with OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-getting-started.html)
+// Management (IAM) to query a list of OpsItems. For more information, see Set
+// up OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-setup.html)
 // in the Amazon Web Services Systems Manager User Guide.
 //
 // Operations engineers and IT professionals use Amazon Web Services Systems
@@ -7307,6 +7415,9 @@ func (c *SSM) DisassociateOpsItemRelatedItemRequest(input *DisassociateOpsItemRe
 //   - OpsItemInvalidParameterException
 //     A specified parameter argument isn't valid. Verify the available arguments
 //     and try again.
+//
+//   - OpsItemConflictException
+//     The specified OpsItem is in the process of being deleted.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/ssm-2014-11-06/DisassociateOpsItemRelatedItem
 func (c *SSM) DisassociateOpsItemRelatedItem(input *DisassociateOpsItemRelatedItemInput) (*DisassociateOpsItemRelatedItemOutput, error) {
@@ -8761,7 +8872,7 @@ func (c *SSM) GetOpsItemRequest(input *GetOpsItemInput) (req *request.Request, o
 //
 // Get information about an OpsItem by using the ID. You must have permission
 // in Identity and Access Management (IAM) to view information about an OpsItem.
-// For more information, see Getting started with OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-getting-started.html)
+// For more information, see Set up OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-setup.html)
 // in the Amazon Web Services Systems Manager User Guide.
 //
 // Operations engineers and IT professionals use Amazon Web Services Systems
@@ -11525,8 +11636,7 @@ func (c *SSM) ListOpsItemEventsRequest(input *ListOpsItemEventsInput) (req *requ
 //     The specified OpsItem ID doesn't exist. Verify the ID and try again.
 //
 //   - OpsItemLimitExceededException
-//     The request caused OpsItems to exceed one or more quotas. For information
-//     about OpsItem quotas, see What are the resource limits for OpsCenter? (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-learn-more.html#OpsCenter-learn-more-limits).
+//     The request caused OpsItems to exceed one or more quotas.
 //
 //   - OpsItemInvalidParameterException
 //     A specified parameter argument isn't valid. Verify the available arguments
@@ -15459,8 +15569,8 @@ func (c *SSM) UpdateOpsItemRequest(input *UpdateOpsItemInput) (req *request.Requ
 // UpdateOpsItem API operation for Amazon Simple Systems Manager (SSM).
 //
 // Edit or change an OpsItem. You must have permission in Identity and Access
-// Management (IAM) to update an OpsItem. For more information, see Getting
-// started with OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-getting-started.html)
+// Management (IAM) to update an OpsItem. For more information, see Set up OpsCenter
+// (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-setup.html)
 // in the Amazon Web Services Systems Manager User Guide.
 //
 // Operations engineers and IT professionals use Amazon Web Services Systems
@@ -15488,8 +15598,7 @@ func (c *SSM) UpdateOpsItemRequest(input *UpdateOpsItemInput) (req *request.Requ
 //     The OpsItem already exists.
 //
 //   - OpsItemLimitExceededException
-//     The request caused OpsItems to exceed one or more quotas. For information
-//     about OpsItem quotas, see What are the resource limits for OpsCenter? (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-learn-more.html#OpsCenter-learn-more-limits).
+//     The request caused OpsItems to exceed one or more quotas.
 //
 //   - OpsItemInvalidParameterException
 //     A specified parameter argument isn't valid. Verify the available arguments
@@ -15499,6 +15608,9 @@ func (c *SSM) UpdateOpsItemRequest(input *UpdateOpsItemInput) (req *request.Requ
 //     You don't have permission to view OpsItems in the specified account. Verify
 //     that your account is configured either as a Systems Manager delegated administrator
 //     or that you are logged into the Organizations management account.
+//
+//   - OpsItemConflictException
+//     The specified OpsItem is in the process of being deleted.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/ssm-2014-11-06/UpdateOpsItem
 func (c *SSM) UpdateOpsItem(input *UpdateOpsItemInput) (*UpdateOpsItemOutput, error) {
@@ -16085,7 +16197,8 @@ type AddTagsToResourceInput struct {
 	// object with an ARN of arn:aws:ssm:us-east-2:1234567890:opsmetadata/aws/ssm/MyGroup/appmanager
 	// has a ResourceID of either aws/ssm/MyGroup/appmanager or /aws/ssm/MyGroup/appmanager.
 	//
-	// For the Document and Parameter values, use the name of the resource.
+	// For the Document and Parameter values, use the name of the resource. If you're
+	// tagging a shared document, you must use the full ARN of the document.
 	//
 	// ManagedInstance: mi-012345abcde
 	//
@@ -18715,6 +18828,9 @@ type AutomationExecution struct {
 
 	// The CloudWatch alarm that was invoked by the automation.
 	TriggeredAlarms []*AlarmStateInformation `min:"1" type:"list"`
+
+	// Variables defined for the automation.
+	Variables map[string][]*string `min:"1" type:"map"`
 }
 
 // String returns the string representation.
@@ -18930,6 +19046,12 @@ func (s *AutomationExecution) SetTargets(v []*Target) *AutomationExecution {
 // SetTriggeredAlarms sets the TriggeredAlarms field's value.
 func (s *AutomationExecution) SetTriggeredAlarms(v []*AlarmStateInformation) *AutomationExecution {
 	s.TriggeredAlarms = v
+	return s
+}
+
+// SetVariables sets the Variables field's value.
+func (s *AutomationExecution) SetVariables(v map[string][]*string) *AutomationExecution {
+	s.Variables = v
 	return s
 }
 
@@ -22795,8 +22917,7 @@ type CreateOpsItemInput struct {
 
 	// The target Amazon Web Services account where you want to create an OpsItem.
 	// To make this call, your account must be configured to work with OpsItems
-	// across accounts. For more information, see Setting up OpsCenter to work with
-	// OpsItems across accounts (https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-OpsCenter-multiple-accounts.html)
+	// across accounts. For more information, see Set up OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-setup.html)
 	// in the Amazon Web Services Systems Manager User Guide.
 	AccountId *string `type:"string"`
 
@@ -22811,7 +22932,11 @@ type CreateOpsItemInput struct {
 	// Specify a category to assign to an OpsItem.
 	Category *string `min:"1" type:"string"`
 
-	// Information about the OpsItem.
+	// User-defined text that contains information about the OpsItem, in Markdown
+	// format.
+	//
+	// Provide enough information so that users viewing this OpsItem for the first
+	// time understand the issue.
 	//
 	// Description is a required field
 	Description *string `min:"1" type:"string" required:"true"`
@@ -22839,7 +22964,7 @@ type CreateOpsItemInput struct {
 	// Use the /aws/resources key in OperationalData to specify a related resource
 	// in the request. Use the /aws/automations key in OperationalData to associate
 	// an Automation runbook with the OpsItem. To view Amazon Web Services CLI example
-	// commands that use these keys, see Creating OpsItems manually (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-creating-OpsItems.html#OpsCenter-manually-create-OpsItems)
+	// commands that use these keys, see Creating OpsItems manually (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-manually-create-OpsItems.html)
 	// in the Amazon Web Services Systems Manager User Guide.
 	OperationalData map[string]*OpsItemDataValue `type:"map"`
 
@@ -22852,7 +22977,7 @@ type CreateOpsItemInput struct {
 	//    * /aws/changerequest This type of OpsItem is used by Change Manager for
 	//    reviewing and approving or rejecting change requests.
 	//
-	//    * /aws/insights This type of OpsItem is used by OpsCenter for aggregating
+	//    * /aws/insight This type of OpsItem is used by OpsCenter for aggregating
 	//    and reporting on duplicate OpsItems.
 	OpsItemType *string `type:"string"`
 
@@ -22882,10 +23007,7 @@ type CreateOpsItemInput struct {
 	// Source is a required field
 	Source *string `min:"1" type:"string" required:"true"`
 
-	// Optional metadata that you assign to a resource. You can restrict access
-	// to OpsItems by using an inline IAM policy that specifies tags. For more information,
-	// see Getting started with OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-getting-started.html#OpsCenter-getting-started-user-permissions)
-	// in the Amazon Web Services Systems Manager User Guide.
+	// Optional metadata that you assign to a resource.
 	//
 	// Tags use a key-value pair. For example:
 	//
@@ -24163,6 +24285,74 @@ func (s DeleteMaintenanceWindowOutput) GoString() string {
 func (s *DeleteMaintenanceWindowOutput) SetWindowId(v string) *DeleteMaintenanceWindowOutput {
 	s.WindowId = &v
 	return s
+}
+
+type DeleteOpsItemInput struct {
+	_ struct{} `type:"structure"`
+
+	// The ID of the OpsItem that you want to delete.
+	//
+	// OpsItemId is a required field
+	OpsItemId *string `type:"string" required:"true"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteOpsItemInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteOpsItemInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *DeleteOpsItemInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "DeleteOpsItemInput"}
+	if s.OpsItemId == nil {
+		invalidParams.Add(request.NewErrParamRequired("OpsItemId"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetOpsItemId sets the OpsItemId field's value.
+func (s *DeleteOpsItemInput) SetOpsItemId(v string) *DeleteOpsItemInput {
+	s.OpsItemId = &v
+	return s
+}
+
+type DeleteOpsItemOutput struct {
+	_ struct{} `type:"structure"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteOpsItemOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DeleteOpsItemOutput) GoString() string {
+	return s.String()
 }
 
 type DeleteOpsMetadataInput struct {
@@ -26597,8 +26787,9 @@ type DescribeInstanceInformationInput struct {
 	_ struct{} `type:"structure"`
 
 	// One or more filters. Use a filter to return a more specific list of managed
-	// nodes. You can filter based on tags applied to your managed nodes. Use this
-	// Filters data type instead of InstanceInformationFilterList, which is deprecated.
+	// nodes. You can filter based on tags applied to your managed nodes. Tag filters
+	// can't be combined with other filter types. Use this Filters data type instead
+	// of InstanceInformationFilterList, which is deprecated.
 	Filters []*InstanceInformationStringFilter `type:"list"`
 
 	// This is a legacy method. We recommend that you don't use this method. Instead,
@@ -26611,7 +26802,7 @@ type DescribeInstanceInformationInput struct {
 
 	// The maximum number of items to return for this call. The call also returns
 	// a token that you can specify in a subsequent call to get the next set of
-	// results.
+	// results. The default value is 10 items.
 	MaxResults *int64 `min:"5" type:"integer"`
 
 	// The token for the next set of items to return. (You received this token from
@@ -26996,6 +27187,9 @@ type DescribeInstancePatchesInput struct {
 	//    * Severity Sample values: Important | Medium | Low
 	//
 	//    * State Sample values: Installed | InstalledOther | InstalledPendingReboot
+	//    For lists of all State values, see Understanding patch compliance state
+	//    values (https://docs.aws.amazon.com/systems-manager/latest/userguide/patch-manager-compliance-states.html)
+	//    in the Amazon Web Services Systems Manager User Guide.
 	Filters []*PatchOrchestratorFilter `type:"list"`
 
 	// The ID of the managed node whose patch state information should be retrieved.
@@ -28390,6 +28584,8 @@ type DescribeOpsItemsInput struct {
 	//    * Key: ResourceId Operations: Contains
 	//
 	//    * Key: AutomationId Operations: Equals
+	//
+	//    * Key: AccountId Operations: Equals
 	//
 	// *The Equals operator for Title matches the first 100 characters. If you specify
 	// more than 100 characters, they system returns an error that the filter value
@@ -35897,7 +36093,7 @@ type InstanceInformation struct {
 	// Elastic Compute Cloud (Amazon EC2) instances. To retrieve the IAM role for
 	// an EC2 instance, use the Amazon EC2 DescribeInstances operation. For information,
 	// see DescribeInstances (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html)
-	// in the Amazon EC2 API Reference or describe-instances (https://docs.aws.amazon.com/cli/latest/ec2/describe-instances.html)
+	// in the Amazon EC2 API Reference or describe-instances (https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html)
 	// in the Amazon Web Services CLI Command Reference.
 	IamRole *string `type:"string"`
 
@@ -35928,7 +36124,7 @@ type InstanceInformation struct {
 	// and Install SSM Agent for a hybrid environment (Windows) (https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-managed-win.html).
 	// To retrieve the Name tag of an EC2 instance, use the Amazon EC2 DescribeInstances
 	// operation. For information, see DescribeInstances (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html)
-	// in the Amazon EC2 API Reference or describe-instances (https://docs.aws.amazon.com/cli/latest/ec2/describe-instances.html)
+	// in the Amazon EC2 API Reference or describe-instances (https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html)
 	// in the Amazon Web Services CLI Command Reference.
 	Name *string `type:"string"`
 
@@ -45290,7 +45486,7 @@ type OpsItem struct {
 	// Use the /aws/resources key in OperationalData to specify a related resource
 	// in the request. Use the /aws/automations key in OperationalData to associate
 	// an Automation runbook with the OpsItem. To view Amazon Web Services CLI example
-	// commands that use these keys, see Creating OpsItems manually (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-creating-OpsItems.html#OpsCenter-manually-create-OpsItems)
+	// commands that use these keys, see Creating OpsItems manually (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-manually-create-OpsItems.html)
 	// in the Amazon Web Services Systems Manager User Guide.
 	OperationalData map[string]*OpsItemDataValue `type:"map"`
 
@@ -45308,7 +45504,7 @@ type OpsItem struct {
 	//    * /aws/changerequest This type of OpsItem is used by Change Manager for
 	//    reviewing and approving or rejecting change requests.
 	//
-	//    * /aws/insights This type of OpsItem is used by OpsCenter for aggregating
+	//    * /aws/insight This type of OpsItem is used by OpsCenter for aggregating
 	//    and reporting on duplicate OpsItems.
 	OpsItemType *string `type:"string"`
 
@@ -45628,6 +45824,70 @@ func (s *OpsItemAlreadyExistsException) StatusCode() int {
 
 // RequestID returns the service's response RequestID for request.
 func (s *OpsItemAlreadyExistsException) RequestID() string {
+	return s.RespMetadata.RequestID
+}
+
+// The specified OpsItem is in the process of being deleted.
+type OpsItemConflictException struct {
+	_            struct{}                  `type:"structure"`
+	RespMetadata protocol.ResponseMetadata `json:"-" xml:"-"`
+
+	Message_ *string `locationName:"Message" type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s OpsItemConflictException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s OpsItemConflictException) GoString() string {
+	return s.String()
+}
+
+func newErrorOpsItemConflictException(v protocol.ResponseMetadata) error {
+	return &OpsItemConflictException{
+		RespMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s *OpsItemConflictException) Code() string {
+	return "OpsItemConflictException"
+}
+
+// Message returns the exception's message.
+func (s *OpsItemConflictException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s *OpsItemConflictException) OrigErr() error {
+	return nil
+}
+
+func (s *OpsItemConflictException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s *OpsItemConflictException) StatusCode() int {
+	return s.RespMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s *OpsItemConflictException) RequestID() string {
 	return s.RespMetadata.RequestID
 }
 
@@ -46013,8 +46273,7 @@ func (s *OpsItemInvalidParameterException) RequestID() string {
 	return s.RespMetadata.RequestID
 }
 
-// The request caused OpsItems to exceed one or more quotas. For information
-// about OpsItem quotas, see What are the resource limits for OpsCenter? (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-learn-more.html#OpsCenter-learn-more-limits).
+// The request caused OpsItems to exceed one or more quotas.
 type OpsItemLimitExceededException struct {
 	_            struct{}                  `type:"structure"`
 	RespMetadata protocol.ResponseMetadata `json:"-" xml:"-"`
@@ -46536,7 +46795,7 @@ type OpsItemSummary struct {
 	//    * /aws/changerequest This type of OpsItem is used by Change Manager for
 	//    reviewing and approving or rejecting change requests.
 	//
-	//    * /aws/insights This type of OpsItem is used by OpsCenter for aggregating
+	//    * /aws/insight This type of OpsItem is used by OpsCenter for aggregating
 	//    and reporting on duplicate OpsItems.
 	OpsItemType *string `type:"string"`
 
@@ -48383,6 +48642,74 @@ func (s *ParametersFilter) SetKey(v string) *ParametersFilter {
 // SetValues sets the Values field's value.
 func (s *ParametersFilter) SetValues(v []*string) *ParametersFilter {
 	s.Values = v
+	return s
+}
+
+// A detailed status of the parent step.
+type ParentStepDetails struct {
+	_ struct{} `type:"structure"`
+
+	// The name of the automation action.
+	Action *string `type:"string"`
+
+	// The current repetition of the loop represented by an integer.
+	Iteration *int64 `type:"integer"`
+
+	// The current value of the specified iterator in the loop.
+	IteratorValue *string `type:"string"`
+
+	// The unique ID of a step execution.
+	StepExecutionId *string `type:"string"`
+
+	// The name of the step.
+	StepName *string `type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ParentStepDetails) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ParentStepDetails) GoString() string {
+	return s.String()
+}
+
+// SetAction sets the Action field's value.
+func (s *ParentStepDetails) SetAction(v string) *ParentStepDetails {
+	s.Action = &v
+	return s
+}
+
+// SetIteration sets the Iteration field's value.
+func (s *ParentStepDetails) SetIteration(v int64) *ParentStepDetails {
+	s.Iteration = &v
+	return s
+}
+
+// SetIteratorValue sets the IteratorValue field's value.
+func (s *ParentStepDetails) SetIteratorValue(v string) *ParentStepDetails {
+	s.IteratorValue = &v
+	return s
+}
+
+// SetStepExecutionId sets the StepExecutionId field's value.
+func (s *ParentStepDetails) SetStepExecutionId(v string) *ParentStepDetails {
+	s.StepExecutionId = &v
+	return s
+}
+
+// SetStepName sets the StepName field's value.
+func (s *ParentStepDetails) SetStepName(v string) *ParentStepDetails {
+	s.StepName = &v
 	return s
 }
 
@@ -55154,6 +55481,9 @@ type StepExecution struct {
 	// A user-specified list of parameters to override when running a step.
 	OverriddenParameters map[string][]*string `min:"1" type:"map"`
 
+	// Information about the parent step.
+	ParentStepDetails *ParentStepDetails `type:"structure"`
+
 	// A message associated with the response code for an execution.
 	Response *string `type:"string"`
 
@@ -55286,6 +55616,12 @@ func (s *StepExecution) SetOverriddenParameters(v map[string][]*string) *StepExe
 	return s
 }
 
+// SetParentStepDetails sets the ParentStepDetails field's value.
+func (s *StepExecution) SetParentStepDetails(v *ParentStepDetails) *StepExecution {
+	s.ParentStepDetails = v
+	return s
+}
+
 // SetResponse sets the Response field's value.
 func (s *StepExecution) SetResponse(v string) *StepExecution {
 	s.Response = &v
@@ -55351,9 +55687,7 @@ func (s *StepExecution) SetValidNextSteps(v []*string) *StepExecution {
 type StepExecutionFilter struct {
 	_ struct{} `type:"structure"`
 
-	// One or more keys to limit the results. Valid filter keys include the following:
-	// StepName, Action, StepExecutionId, StepExecutionStatus, StartTimeBefore,
-	// StartTimeAfter.
+	// One or more keys to limit the results.
 	//
 	// Key is a required field
 	Key *string `type:"string" required:"true" enum:"StepExecutionFilterKey"`
@@ -58873,8 +59207,8 @@ type UpdateOpsItemInput struct {
 	// Specify a new category for an OpsItem.
 	Category *string `min:"1" type:"string"`
 
-	// Update the information about the OpsItem. Provide enough information so that
-	// users reading this OpsItem for the first time understand the issue.
+	// User-defined text that contains information about the OpsItem, in Markdown
+	// format.
 	Description *string `min:"1" type:"string"`
 
 	// The Amazon Resource Name (ARN) of an SNS topic where notifications are sent
@@ -58903,7 +59237,7 @@ type UpdateOpsItemInput struct {
 	// Use the /aws/resources key in OperationalData to specify a related resource
 	// in the request. Use the /aws/automations key in OperationalData to associate
 	// an Automation runbook with the OpsItem. To view Amazon Web Services CLI example
-	// commands that use these keys, see Creating OpsItems manually (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-creating-OpsItems.html#OpsCenter-manually-create-OpsItems)
+	// commands that use these keys, see Creating OpsItems manually (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-manually-create-OpsItems.html)
 	// in the Amazon Web Services Systems Manager User Guide.
 	OperationalData map[string]*OpsItemDataValue `type:"map"`
 
@@ -58938,7 +59272,7 @@ type UpdateOpsItemInput struct {
 	Severity *string `min:"1" type:"string"`
 
 	// The OpsItem status. Status can be Open, In Progress, or Resolved. For more
-	// information, see Editing OpsItem details (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-working-with-OpsItems.html#OpsCenter-working-with-OpsItems-editing-details)
+	// information, see Editing OpsItem details (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-working-with-OpsItems-editing-details.html)
 	// in the Amazon Web Services Systems Manager User Guide.
 	Status *string `type:"string" enum:"OpsItemStatus"`
 
@@ -59737,23 +60071,25 @@ type UpdateServiceSettingInput struct {
 	// The new value to specify for the service setting. The following list specifies
 	// the available values for each setting.
 	//
-	//    * /ssm/managed-instance/default-ec2-instance-management-role: The name
-	//    of an IAM role
+	//    * For /ssm/managed-instance/default-ec2-instance-management-role, enter
+	//    the name of an IAM role.
 	//
-	//    * /ssm/automation/customer-script-log-destination: CloudWatch
+	//    * For /ssm/automation/customer-script-log-destination, enter CloudWatch.
 	//
-	//    * /ssm/automation/customer-script-log-group-name: The name of an Amazon
-	//    CloudWatch Logs log group
+	//    * For /ssm/automation/customer-script-log-group-name, enter the name of
+	//    an Amazon CloudWatch Logs log group.
 	//
-	//    * /ssm/documents/console/public-sharing-permission: Enable or Disable
+	//    * For /ssm/documents/console/public-sharing-permission, enter Enable or
+	//    Disable.
 	//
-	//    * /ssm/managed-instance/activation-tier: standard or advanced
+	//    * For /ssm/managed-instance/activation-tier, enter standard or advanced.
 	//
-	//    * /ssm/opsinsights/opscenter: Enabled or Disabled
+	//    * For /ssm/opsinsights/opscenter, enter Enabled or Disabled.
 	//
-	//    * /ssm/parameter-store/default-parameter-tier: Standard, Advanced, Intelligent-Tiering
+	//    * For /ssm/parameter-store/default-parameter-tier, enter Standard, Advanced,
+	//    or Intelligent-Tiering
 	//
-	//    * /ssm/parameter-store/high-throughput-enabled: true or false
+	//    * For /ssm/parameter-store/high-throughput-enabled, enter true or false.
 	//
 	// SettingValue is a required field
 	SettingValue *string `min:"1" type:"string" required:"true"`
@@ -60140,6 +60476,9 @@ const (
 
 	// AutomationExecutionStatusCompletedWithFailure is a AutomationExecutionStatus enum value
 	AutomationExecutionStatusCompletedWithFailure = "CompletedWithFailure"
+
+	// AutomationExecutionStatusExited is a AutomationExecutionStatus enum value
+	AutomationExecutionStatusExited = "Exited"
 )
 
 // AutomationExecutionStatus_Values returns all elements of the AutomationExecutionStatus enum
@@ -60163,6 +60502,7 @@ func AutomationExecutionStatus_Values() []string {
 		AutomationExecutionStatusChangeCalendarOverrideRejected,
 		AutomationExecutionStatusCompletedWithSuccess,
 		AutomationExecutionStatusCompletedWithFailure,
+		AutomationExecutionStatusExited,
 	}
 }
 
@@ -60440,17 +60780,17 @@ func ComplianceUploadType_Values() []string {
 
 const (
 	// ConnectionStatusConnected is a ConnectionStatus enum value
-	ConnectionStatusConnected = "Connected"
+	ConnectionStatusConnected = "connected"
 
-	// ConnectionStatusNotConnected is a ConnectionStatus enum value
-	ConnectionStatusNotConnected = "NotConnected"
+	// ConnectionStatusNotconnected is a ConnectionStatus enum value
+	ConnectionStatusNotconnected = "notconnected"
 )
 
 // ConnectionStatus_Values returns all elements of the ConnectionStatus enum
 func ConnectionStatus_Values() []string {
 	return []string{
 		ConnectionStatusConnected,
-		ConnectionStatusNotConnected,
+		ConnectionStatusNotconnected,
 	}
 }
 
@@ -61855,9 +62195,6 @@ const (
 	// ResourceTypeManagedInstance is a ResourceType enum value
 	ResourceTypeManagedInstance = "ManagedInstance"
 
-	// ResourceTypeDocument is a ResourceType enum value
-	ResourceTypeDocument = "Document"
-
 	// ResourceTypeEc2instance is a ResourceType enum value
 	ResourceTypeEc2instance = "EC2Instance"
 )
@@ -61866,7 +62203,6 @@ const (
 func ResourceType_Values() []string {
 	return []string{
 		ResourceTypeManagedInstance,
-		ResourceTypeDocument,
 		ResourceTypeEc2instance,
 	}
 }
@@ -62085,6 +62421,15 @@ const (
 
 	// StepExecutionFilterKeyAction is a StepExecutionFilterKey enum value
 	StepExecutionFilterKeyAction = "Action"
+
+	// StepExecutionFilterKeyParentStepExecutionId is a StepExecutionFilterKey enum value
+	StepExecutionFilterKeyParentStepExecutionId = "ParentStepExecutionId"
+
+	// StepExecutionFilterKeyParentStepIteration is a StepExecutionFilterKey enum value
+	StepExecutionFilterKeyParentStepIteration = "ParentStepIteration"
+
+	// StepExecutionFilterKeyParentStepIteratorValue is a StepExecutionFilterKey enum value
+	StepExecutionFilterKeyParentStepIteratorValue = "ParentStepIteratorValue"
 )
 
 // StepExecutionFilterKey_Values returns all elements of the StepExecutionFilterKey enum
@@ -62096,6 +62441,9 @@ func StepExecutionFilterKey_Values() []string {
 		StepExecutionFilterKeyStepExecutionId,
 		StepExecutionFilterKeyStepName,
 		StepExecutionFilterKeyAction,
+		StepExecutionFilterKeyParentStepExecutionId,
+		StepExecutionFilterKeyParentStepIteration,
+		StepExecutionFilterKeyParentStepIteratorValue,
 	}
 }
 
