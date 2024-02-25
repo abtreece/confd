@@ -10,7 +10,7 @@ require (
 	github.com/fatih/color v1.14.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-zookeeper/zk v1.0.3
-	github.com/gomodule/redigo v1.8.9
+	github.com/gomodule/redigo v1.9.1
 	github.com/hashicorp/consul/api v1.27.0
 	github.com/hashicorp/vault/api v1.10.0
 	github.com/kelseyhightower/memkv v0.1.1
