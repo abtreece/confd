@@ -89,8 +89,8 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/gomodule/redigo v1.8.9
-## explicit; go 1.16
+# github.com/gomodule/redigo v1.9.2
+## explicit; go 1.17
 github.com/gomodule/redigo/redis
 # github.com/hashicorp/consul/api v1.27.0
 ## explicit; go 1.19
