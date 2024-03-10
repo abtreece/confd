@@ -2456,10 +2456,18 @@ func (c *SSM) DeleteResourcePolicyRequest(input *DeleteResourcePolicyInput) (req
 //
 // Deletes a Systems Manager resource policy. A resource policy helps you to
 // define the IAM entity (for example, an Amazon Web Services account) that
-// can manage your Systems Manager resources. Currently, OpsItemGroup is the
-// only resource that supports Systems Manager resource policies. The resource
-// policy for OpsItemGroup enables Amazon Web Services accounts to view and
-// interact with OpsCenter operational work items (OpsItems).
+// can manage your Systems Manager resources. The following resources support
+// Systems Manager resource policies.
+//
+//   - OpsItemGroup - The resource policy for OpsItemGroup enables Amazon Web
+//     Services accounts to view and interact with OpsCenter operational work
+//     items (OpsItems).
+//
+//   - Parameter - The resource policy is used to share a parameter with other
+//     accounts using Resource Access Manager (RAM). For more information about
+//     cross-account sharing of parameters, see Working with shared parameters
+//     (systems-manager/latest/userguide/parameter-store-shared-parameters.html)
+//     in the Amazon Web Services Systems Manager User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2481,6 +2489,16 @@ func (c *SSM) DeleteResourcePolicyRequest(input *DeleteResourcePolicyInput) (req
 //     The hash provided in the call doesn't match the stored hash. This exception
 //     is thrown when trying to update an obsolete policy version or when multiple
 //     requests to update a policy are sent.
+//
+//   - ResourceNotFoundException
+//     The specified parameter to be shared could not be found.
+//
+//   - MalformedResourcePolicyDocumentException
+//     The specified policy document is malformed or invalid, or excessive PutResourcePolicy
+//     or DeleteResourcePolicy calls have been made.
+//
+//   - ResourcePolicyNotFoundException
+//     No policies with the specified policy ID and hash could be found.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/ssm-2014-11-06/DeleteResourcePolicy
 func (c *SSM) DeleteResourcePolicy(input *DeleteResourcePolicyInput) (*DeleteResourcePolicyOutput, error) {
@@ -3745,6 +3763,9 @@ func (c *SSM) DescribeAvailablePatchesRequest(input *DescribeAvailablePatchesInp
 // DescribeAvailablePatches API operation for Amazon Simple Systems Manager (SSM).
 //
 // Lists all patches eligible to be included in a patch baseline.
+//
+// Currently, DescribeAvailablePatches supports only the Amazon Linux 1, Amazon
+// Linux 2, and Windows Server operating systems.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6554,7 +6575,9 @@ func (c *SSM) DescribeParametersRequest(input *DescribeParametersInput) (req *re
 
 // DescribeParameters API operation for Amazon Simple Systems Manager (SSM).
 //
-// Get information about a parameter.
+// Lists the parameters in your Amazon Web Services account or the parameters
+// shared with you when you enable the Shared (https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DescribeParameters.html#systemsmanager-DescribeParameters-request-Shared)
+// option.
 //
 // Request results are returned on a best-effort basis. If you specify MaxResults
 // in the request, the response includes information up to the limit specified.
@@ -9890,6 +9913,9 @@ func (c *SSM) GetResourcePoliciesRequest(input *GetResourcePoliciesInput) (req *
 //     One or more parameters specified for the call aren't valid. Verify the parameters
 //     and their values and try again.
 //
+//   - ResourceNotFoundException
+//     The specified parameter to be shared could not be found.
+//
 // See also, https://docs.aws.amazon.com/goto/WebAPI/ssm-2014-11-06/GetResourcePolicies
 func (c *SSM) GetResourcePolicies(input *GetResourcePoliciesInput) (*GetResourcePoliciesOutput, error) {
 	req, out := c.GetResourcePoliciesRequest(input)
@@ -12953,10 +12979,36 @@ func (c *SSM) PutResourcePolicyRequest(input *PutResourcePolicyInput) (req *requ
 //
 // Creates or updates a Systems Manager resource policy. A resource policy helps
 // you to define the IAM entity (for example, an Amazon Web Services account)
-// that can manage your Systems Manager resources. Currently, OpsItemGroup is
-// the only resource that supports Systems Manager resource policies. The resource
-// policy for OpsItemGroup enables Amazon Web Services accounts to view and
-// interact with OpsCenter operational work items (OpsItems).
+// that can manage your Systems Manager resources. The following resources support
+// Systems Manager resource policies.
+//
+//   - OpsItemGroup - The resource policy for OpsItemGroup enables Amazon Web
+//     Services accounts to view and interact with OpsCenter operational work
+//     items (OpsItems).
+//
+//   - Parameter - The resource policy is used to share a parameter with other
+//     accounts using Resource Access Manager (RAM). To share a parameter, it
+//     must be in the advanced parameter tier. For information about parameter
+//     tiers, see Managing parameter tiers (https://docs.aws.amazon.com/parameter-store-
+//     advanced-parameters.html). For information about changing an existing
+//     standard parameter to an advanced parameter, see Changing a standard parameter
+//     to an advanced parameter (https://docs.aws.amazon.com/parameter-store-advanced-parameters.html#parameter-
+//     store-advanced-parameters-enabling). To share a SecureString parameter,
+//     it must be encrypted with a customer managed key, and you must share the
+//     key separately through Key Management Service. Amazon Web Services managed
+//     keys cannot be shared. Parameters encrypted with the default Amazon Web
+//     Services managed key can be updated to use a customer managed key instead.
+//     For KMS key definitions, see KMS concepts (https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#key-mgmt)
+//     in the Key Management Service Developer Guide. While you can share a parameter
+//     using the Systems Manager PutResourcePolicy operation, we recommend using
+//     Resource Access Manager (RAM) instead. This is because using PutResourcePolicy
+//     requires the extra step of promoting the parameter to a standard RAM Resource
+//     Share using the RAM PromoteResourceShareCreatedFromPolicy (https://docs.aws.amazon.com/ram/latest/APIReference/API_PromoteResourceShareCreatedFromPolicy.html)
+//     API operation. Otherwise, the parameter won't be returned by the Systems
+//     Manager DescribeParameters (https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DescribeParameters.html)
+//     API operation using the --shared option. For more information, see Sharing
+//     a parameter (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-shared-parameters.html#share)
+//     in the Amazon Web Services Systems Manager User Guide
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -12983,6 +13035,16 @@ func (c *SSM) PutResourcePolicyRequest(input *PutResourcePolicyInput) (req *requ
 //     The hash provided in the call doesn't match the stored hash. This exception
 //     is thrown when trying to update an obsolete policy version or when multiple
 //     requests to update a policy are sent.
+//
+//   - ResourceNotFoundException
+//     The specified parameter to be shared could not be found.
+//
+//   - MalformedResourcePolicyDocumentException
+//     The specified policy document is malformed or invalid, or excessive PutResourcePolicy
+//     or DeleteResourcePolicy calls have been made.
+//
+//   - ResourcePolicyNotFoundException
+//     No policies with the specified policy ID and hash could be found.
 //
 // See also, https://docs.aws.amazon.com/goto/WebAPI/ssm-2014-11-06/PutResourcePolicy
 func (c *SSM) PutResourcePolicy(input *PutResourcePolicyInput) (*PutResourcePolicyOutput, error) {
@@ -16767,6 +16829,11 @@ type Association struct {
 	// form another account, you must set the document version to default.
 	DocumentVersion *string `type:"string"`
 
+	// The number of hours that an association can run on specified targets. After
+	// the resulting cutoff time passes, associations that are currently running
+	// are cancelled, and no pending executions are started on remaining targets.
+	Duration *int64 `min:"1" type:"integer"`
+
 	// The managed node ID.
 	InstanceId *string `type:"string"`
 
@@ -16835,6 +16902,12 @@ func (s *Association) SetAssociationVersion(v string) *Association {
 // SetDocumentVersion sets the DocumentVersion field's value.
 func (s *Association) SetDocumentVersion(v string) *Association {
 	s.DocumentVersion = &v
+	return s
+}
+
+// SetDuration sets the Duration field's value.
+func (s *Association) SetDuration(v int64) *Association {
+	s.Duration = &v
 	return s
 }
 
@@ -16993,6 +17066,11 @@ type AssociationDescription struct {
 
 	// The document version.
 	DocumentVersion *string `type:"string"`
+
+	// The number of hours that an association can run on specified targets. After
+	// the resulting cutoff time passes, associations that are currently running
+	// are cancelled, and no pending executions are started on remaining targets.
+	Duration *int64 `min:"1" type:"integer"`
 
 	// The managed node ID.
 	InstanceId *string `type:"string"`
@@ -17161,6 +17239,12 @@ func (s *AssociationDescription) SetDate(v time.Time) *AssociationDescription {
 // SetDocumentVersion sets the DocumentVersion field's value.
 func (s *AssociationDescription) SetDocumentVersion(v string) *AssociationDescription {
 	s.DocumentVersion = &v
+	return s
+}
+
+// SetDuration sets the Duration field's value.
+func (s *AssociationDescription) SetDuration(v int64) *AssociationDescription {
+	s.Duration = &v
 	return s
 }
 
@@ -18066,6 +18150,11 @@ type AssociationVersionInfo struct {
 	// used when the association version was created.
 	DocumentVersion *string `type:"string"`
 
+	// The number of hours that an association can run on specified targets. After
+	// the resulting cutoff time passes, associations that are currently running
+	// are cancelled, and no pending executions are started on remaining targets.
+	Duration *int64 `min:"1" type:"integer"`
+
 	// The maximum number of targets allowed to run the association at the same
 	// time. You can specify a number, for example 10, or a percentage of the target
 	// set, for example 10%. The default value is 100%, which means all targets
@@ -18204,6 +18293,12 @@ func (s *AssociationVersionInfo) SetCreatedDate(v time.Time) *AssociationVersion
 // SetDocumentVersion sets the DocumentVersion field's value.
 func (s *AssociationVersionInfo) SetDocumentVersion(v string) *AssociationVersionInfo {
 	s.DocumentVersion = &v
+	return s
+}
+
+// SetDuration sets the Duration field's value.
+func (s *AssociationVersionInfo) SetDuration(v int64) *AssociationVersionInfo {
+	s.Duration = &v
 	return s
 }
 
@@ -21693,6 +21788,22 @@ type CreateAssociationBatchRequestEntry struct {
 	// The document version.
 	DocumentVersion *string `type:"string"`
 
+	// The number of hours the association can run before it is canceled. Duration
+	// applies to associations that are currently running, and any pending and in
+	// progress commands on all targets. If a target was taken offline for the association
+	// to run, it is made available again immediately, without a reboot.
+	//
+	// The Duration parameter applies only when both these conditions are true:
+	//
+	//    * The association for which you specify a duration is cancelable according
+	//    to the parameters of the SSM command document or Automation runbook associated
+	//    with this execution.
+	//
+	//    * The command specifies the ApplyOnlyAtCronInterval (https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_CreateAssociationBatchRequestEntry.html#systemsmanager-Type-CreateAssociationBatchRequestEntry-ApplyOnlyAtCronInterval)
+	//    parameter, which means that the association doesn't run immediately after
+	//    it is created, but only according to the specified schedule.
+	Duration *int64 `min:"1" type:"integer"`
+
 	// The managed node ID.
 	//
 	// InstanceId has been deprecated. To specify a managed node ID for an association,
@@ -21819,6 +21930,9 @@ func (s *CreateAssociationBatchRequestEntry) Validate() error {
 	if s.AutomationTargetParameterName != nil && len(*s.AutomationTargetParameterName) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("AutomationTargetParameterName", 1))
 	}
+	if s.Duration != nil && *s.Duration < 1 {
+		invalidParams.Add(request.NewErrParamMinValue("Duration", 1))
+	}
 	if s.MaxConcurrency != nil && len(*s.MaxConcurrency) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("MaxConcurrency", 1))
 	}
@@ -21913,6 +22027,12 @@ func (s *CreateAssociationBatchRequestEntry) SetComplianceSeverity(v string) *Cr
 // SetDocumentVersion sets the DocumentVersion field's value.
 func (s *CreateAssociationBatchRequestEntry) SetDocumentVersion(v string) *CreateAssociationBatchRequestEntry {
 	s.DocumentVersion = &v
+	return s
+}
+
+// SetDuration sets the Duration field's value.
+func (s *CreateAssociationBatchRequestEntry) SetDuration(v int64) *CreateAssociationBatchRequestEntry {
+	s.Duration = &v
 	return s
 }
 
@@ -22029,6 +22149,22 @@ type CreateAssociationInput struct {
 	// If you want to run an association using a new version of a document shared
 	// form another account, you must set the document version to default.
 	DocumentVersion *string `type:"string"`
+
+	// The number of hours the association can run before it is canceled. Duration
+	// applies to associations that are currently running, and any pending and in
+	// progress commands on all targets. If a target was taken offline for the association
+	// to run, it is made available again immediately, without a reboot.
+	//
+	// The Duration parameter applies only when both these conditions are true:
+	//
+	//    * The association for which you specify a duration is cancelable according
+	//    to the parameters of the SSM command document or Automation runbook associated
+	//    with this execution.
+	//
+	//    * The command specifies the ApplyOnlyAtCronInterval (https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_CreateAssociation.html#systemsmanager-CreateAssociation-request-ApplyOnlyAtCronInterval)
+	//    parameter, which means that the association doesn't run immediately after
+	//    it is created, but only according to the specified schedule.
+	Duration *int64 `min:"1" type:"integer"`
 
 	// The managed node ID.
 	//
@@ -22180,6 +22316,9 @@ func (s *CreateAssociationInput) Validate() error {
 	if s.AutomationTargetParameterName != nil && len(*s.AutomationTargetParameterName) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("AutomationTargetParameterName", 1))
 	}
+	if s.Duration != nil && *s.Duration < 1 {
+		invalidParams.Add(request.NewErrParamMinValue("Duration", 1))
+	}
 	if s.MaxConcurrency != nil && len(*s.MaxConcurrency) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("MaxConcurrency", 1))
 	}
@@ -22284,6 +22423,12 @@ func (s *CreateAssociationInput) SetComplianceSeverity(v string) *CreateAssociat
 // SetDocumentVersion sets the DocumentVersion field's value.
 func (s *CreateAssociationInput) SetDocumentVersion(v string) *CreateAssociationInput {
 	s.DocumentVersion = &v
+	return s
+}
+
+// SetDuration sets the Duration field's value.
+func (s *CreateAssociationInput) SetDuration(v int64) *CreateAssociationInput {
+	s.Duration = &v
 	return s
 }
 
@@ -24431,6 +24576,9 @@ type DeleteParameterInput struct {
 
 	// The name of the parameter to delete.
 	//
+	// You can't enter the Amazon Resource Name (ARN) for a parameter, only the
+	// parameter name itself.
+	//
 	// Name is a required field
 	Name *string `min:"1" type:"string" required:"true"`
 }
@@ -24502,6 +24650,9 @@ type DeleteParametersInput struct {
 
 	// The names of the parameters to delete. After deleting a parameter, wait for
 	// at least 30 seconds to create a parameter with the same name.
+	//
+	// You can't enter the Amazon Resource Name (ARN) for a parameter, only the
+	// parameter name itself.
 	//
 	// Names is a required field
 	Names []*string `min:"1" type:"list" required:"true"`
@@ -26228,8 +26379,8 @@ type DescribeDocumentInput struct {
 	Name *string `type:"string" required:"true"`
 
 	// An optional field specifying the version of the artifact associated with
-	// the document. For example, "Release 12, Update 6". This value is unique across
-	// all versions of a document, and can't be changed.
+	// the document. For example, 12.6. This value is unique across all versions
+	// of a document, and can't be changed.
 	VersionName *string `type:"string"`
 }
 
@@ -28713,6 +28864,21 @@ type DescribeParametersInput struct {
 
 	// Filters to limit the request results.
 	ParameterFilters []*ParameterStringFilter `type:"list"`
+
+	// Lists parameters that are shared with you.
+	//
+	// By default when using this option, the command returns parameters that have
+	// been shared using a standard Resource Access Manager Resource Share. In order
+	// for a parameter that was shared using the PutResourcePolicy command to be
+	// returned, the associated RAM Resource Share Created From Policy must have
+	// been promoted to a standard Resource Share using the RAM PromoteResourceShareCreatedFromPolicy
+	// (https://docs.aws.amazon.com/ram/latest/APIReference/API_PromoteResourceShareCreatedFromPolicy.html)
+	// API operation.
+	//
+	// For more information about sharing parameters, see Working with shared parameters
+	// (systems-manager/latest/userguide/parameter-store-shared-parameters.html)
+	// in the Amazon Web Services Systems Manager User Guide.
+	Shared *bool `type:"boolean"`
 }
 
 // String returns the string representation.
@@ -28787,6 +28953,12 @@ func (s *DescribeParametersInput) SetNextToken(v string) *DescribeParametersInpu
 // SetParameterFilters sets the ParameterFilters field's value.
 func (s *DescribeParametersInput) SetParameterFilters(v []*ParameterStringFilter) *DescribeParametersInput {
 	s.ParameterFilters = v
+	return s
+}
+
+// SetShared sets the Shared field's value.
+func (s *DescribeParametersInput) SetShared(v bool) *DescribeParametersInput {
+	s.Shared = &v
 	return s
 }
 
@@ -30166,8 +30338,8 @@ type DocumentIdentifier struct {
 	TargetType *string `type:"string"`
 
 	// An optional field specifying the version of the artifact associated with
-	// the document. For example, "Release 12, Update 6". This value is unique across
-	// all versions of a document, and can't be changed.
+	// the document. For example, 12.6. This value is unique across all versions
+	// of a document, and can't be changed.
 	VersionName *string `type:"string"`
 }
 
@@ -30647,8 +30819,8 @@ type DocumentRequires struct {
 	Version *string `type:"string"`
 
 	// An optional field specifying the version of the artifact associated with
-	// the document. For example, "Release 12, Update 6". This value is unique across
-	// all versions of a document, and can't be changed.
+	// the document. For example, 12.6. This value is unique across all versions
+	// of a document, and can't be changed.
 	VersionName *string `type:"string"`
 }
 
@@ -30942,9 +31114,8 @@ type DocumentVersionInfo struct {
 	// S3 bucket is correct."
 	StatusInformation *string `type:"string"`
 
-	// The version of the artifact associated with the document. For example, "Release
-	// 12, Update 6". This value is unique across all versions of a document, and
-	// can't be changed.
+	// The version of the artifact associated with the document. For example, 12.6.
+	// This value is unique across all versions of a document, and can't be changed.
 	VersionName *string `type:"string"`
 }
 
@@ -32155,8 +32326,7 @@ func (s *GetConnectionStatusInput) SetTarget(v string) *GetConnectionStatusInput
 type GetConnectionStatusOutput struct {
 	_ struct{} `type:"structure"`
 
-	// The status of the connection to the managed node. For example, 'Connected'
-	// or 'Not Connected'.
+	// The status of the connection to the managed node.
 	Status *string `type:"string" enum:"ConnectionStatus"`
 
 	// The ID of the managed node to check connection status.
@@ -32418,8 +32588,8 @@ type GetDocumentInput struct {
 	Name *string `type:"string" required:"true"`
 
 	// An optional field specifying the version of the artifact associated with
-	// the document. For example, "Release 12, Update 6". This value is unique across
-	// all versions of a document and can't be changed.
+	// the document. For example, 12.6. This value is unique across all versions
+	// of a document and can't be changed.
 	VersionName *string `type:"string"`
 }
 
@@ -32532,9 +32702,8 @@ type GetDocumentOutput struct {
 	// S3 bucket is correct."
 	StatusInformation *string `type:"string"`
 
-	// The version of the artifact associated with the document. For example, "Release
-	// 12, Update 6". This value is unique across all versions of a document, and
-	// can't be changed.
+	// The version of the artifact associated with the document. For example, 12.6.
+	// This value is unique across all versions of a document, and can't be changed.
 	VersionName *string `type:"string"`
 }
 
@@ -34406,7 +34575,9 @@ type GetParameterHistoryInput struct {
 	// results.
 	MaxResults *int64 `min:"1" type:"integer"`
 
-	// The name of the parameter for which you want to review history.
+	// The name or Amazon Resource Name (ARN) of the parameter for which you want
+	// to review history. For parameters shared with you from another account, you
+	// must use the full ARN.
 	//
 	// Name is a required field
 	Name *string `min:"1" type:"string" required:"true"`
@@ -34525,10 +34696,16 @@ func (s *GetParameterHistoryOutput) SetParameters(v []*ParameterHistory) *GetPar
 type GetParameterInput struct {
 	_ struct{} `type:"structure"`
 
-	// The name of the parameter you want to query.
+	// The name or Amazon Resource Name (ARN) of the parameter that you want to
+	// query. For parameters shared with you from another account, you must use
+	// the full ARN.
 	//
 	// To query by parameter label, use "Name": "name:label". To query by parameter
 	// version, use "Name": "name:version".
+	//
+	// For more information about shared parameters, see Working with shared parameters
+	// (https://docs.aws.amazon.com/systems-manager/latest/userguide/sharing.html)
+	// in the Amazon Web Services Systems Manager User Guide.
 	//
 	// Name is a required field
 	Name *string `min:"1" type:"string" required:"true"`
@@ -34784,10 +34961,16 @@ func (s *GetParametersByPathOutput) SetParameters(v []*Parameter) *GetParameters
 type GetParametersInput struct {
 	_ struct{} `type:"structure"`
 
-	// Names of the parameters for which you want to query information.
+	// The names or Amazon Resource Names (ARNs) of the parameters that you want
+	// to query. For parameters shared with you from another account, you must use
+	// the full ARNs.
 	//
 	// To query by parameter label, use "Name": "name:label". To query by parameter
 	// version, use "Name": "name:version".
+	//
+	// For more information about shared parameters, see Working with shared parameters
+	// (https://docs.aws.amazon.com/systems-manager/latest/userguide/sharing.html)
+	// in the Amazon Web Services Systems Manager User Guide.
 	//
 	// Names is a required field
 	Names []*string `min:"1" type:"list" required:"true"`
@@ -41101,6 +41284,9 @@ type LabelParameterVersionInput struct {
 
 	// The parameter name on which you want to attach one or more labels.
 	//
+	// You can't enter the Amazon Resource Name (ARN) for a parameter, only the
+	// parameter name itself.
+	//
 	// Name is a required field
 	Name *string `min:"1" type:"string" required:"true"`
 
@@ -44808,6 +44994,71 @@ func (s *MaintenanceWindowTaskParameterValueExpression) SetValues(v []*string) *
 	return s
 }
 
+// The specified policy document is malformed or invalid, or excessive PutResourcePolicy
+// or DeleteResourcePolicy calls have been made.
+type MalformedResourcePolicyDocumentException struct {
+	_            struct{}                  `type:"structure"`
+	RespMetadata protocol.ResponseMetadata `json:"-" xml:"-"`
+
+	Message_ *string `locationName:"Message" type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s MalformedResourcePolicyDocumentException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s MalformedResourcePolicyDocumentException) GoString() string {
+	return s.String()
+}
+
+func newErrorMalformedResourcePolicyDocumentException(v protocol.ResponseMetadata) error {
+	return &MalformedResourcePolicyDocumentException{
+		RespMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s *MalformedResourcePolicyDocumentException) Code() string {
+	return "MalformedResourcePolicyDocumentException"
+}
+
+// Message returns the exception's message.
+func (s *MalformedResourcePolicyDocumentException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s *MalformedResourcePolicyDocumentException) OrigErr() error {
+	return nil
+}
+
+func (s *MalformedResourcePolicyDocumentException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s *MalformedResourcePolicyDocumentException) StatusCode() int {
+	return s.RespMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s *MalformedResourcePolicyDocumentException) RequestID() string {
+	return s.RespMetadata.RequestID
+}
+
 // The size limit of a document is 64 KB.
 type MaxDocumentSizeExceeded struct {
 	_            struct{}                  `type:"structure"`
@@ -47764,7 +48015,8 @@ type ParameterHistory struct {
 	// Information about the parameter.
 	Description *string `type:"string"`
 
-	// The ID of the query key used for this parameter.
+	// The alias of the Key Management Service (KMS) key used to encrypt the parameter.
+	// Applies to SecureString parameters only
 	KeyId *string `min:"1" type:"string"`
 
 	// Labels assigned to the parameter version.
@@ -48101,10 +48353,14 @@ func (s *ParameterMaxVersionLimitExceeded) RequestID() string {
 	return s.RespMetadata.RequestID
 }
 
-// Metadata includes information like the ARN of the last user and the date/time
-// the parameter was last used.
+// Metadata includes information like the Amazon Resource Name (ARN) of the
+// last user to update the parameter and the date and time the parameter was
+// last used.
 type ParameterMetadata struct {
 	_ struct{} `type:"structure"`
+
+	// The (ARN) of the last user to update the parameter.
+	ARN *string `type:"string"`
 
 	// A parameter name can include only the following letters and symbols.
 	//
@@ -48118,7 +48374,8 @@ type ParameterMetadata struct {
 	// Description of the parameter actions.
 	Description *string `type:"string"`
 
-	// The ID of the query key used for this parameter.
+	// The alias of the Key Management Service (KMS) key used to encrypt the parameter.
+	// Applies to SecureString parameters only.
 	KeyId *string `min:"1" type:"string"`
 
 	// Date the parameter was last changed or updated.
@@ -48161,6 +48418,12 @@ func (s ParameterMetadata) String() string {
 // value will be replaced with "sensitive".
 func (s ParameterMetadata) GoString() string {
 	return s.String()
+}
+
+// SetARN sets the ARN field's value.
+func (s *ParameterMetadata) SetARN(v string) *ParameterMetadata {
+	s.ARN = &v
+	return s
 }
 
 // SetAllowedPattern sets the AllowedPattern field's value.
@@ -49040,6 +49303,9 @@ type PatchComplianceData struct {
 
 	// The IDs of one or more Common Vulnerabilities and Exposure (CVE) issues that
 	// are resolved by the patch.
+	//
+	// Currently, CVE ID values are reported only for patches with a status of Missing
+	// or Failed.
 	CVEIds *string `type:"string"`
 
 	// The classification of the patch, such as SecurityUpdates, Updates, and CriticalUpdates.
@@ -50179,6 +50445,10 @@ type PutParameterInput struct {
 	KeyId *string `min:"1" type:"string"`
 
 	// The fully qualified name of the parameter that you want to add to the system.
+	//
+	// You can't enter the Amazon Resource Name (ARN) for a parameter, only the
+	// parameter name itself.
+	//
 	// The fully qualified name includes the complete hierarchy of the parameter
 	// path and name. For parameters in a hierarchy, you must include a leading
 	// forward slash character (/) when you create or reference a parameter. For
@@ -52942,6 +53212,70 @@ func (s *ResourceLimitExceededException) RequestID() string {
 	return s.RespMetadata.RequestID
 }
 
+// The specified parameter to be shared could not be found.
+type ResourceNotFoundException struct {
+	_            struct{}                  `type:"structure"`
+	RespMetadata protocol.ResponseMetadata `json:"-" xml:"-"`
+
+	Message_ *string `locationName:"Message" type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ResourceNotFoundException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ResourceNotFoundException) GoString() string {
+	return s.String()
+}
+
+func newErrorResourceNotFoundException(v protocol.ResponseMetadata) error {
+	return &ResourceNotFoundException{
+		RespMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s *ResourceNotFoundException) Code() string {
+	return "ResourceNotFoundException"
+}
+
+// Message returns the exception's message.
+func (s *ResourceNotFoundException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s *ResourceNotFoundException) OrigErr() error {
+	return nil
+}
+
+func (s *ResourceNotFoundException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s *ResourceNotFoundException) StatusCode() int {
+	return s.RespMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s *ResourceNotFoundException) RequestID() string {
+	return s.RespMetadata.RequestID
+}
+
 // The hash provided in the call doesn't match the stored hash. This exception
 // is thrown when trying to update an obsolete policy version or when multiple
 // requests to update a policy are sent.
@@ -53142,6 +53476,70 @@ func (s *ResourcePolicyLimitExceededException) StatusCode() int {
 
 // RequestID returns the service's response RequestID for request.
 func (s *ResourcePolicyLimitExceededException) RequestID() string {
+	return s.RespMetadata.RequestID
+}
+
+// No policies with the specified policy ID and hash could be found.
+type ResourcePolicyNotFoundException struct {
+	_            struct{}                  `type:"structure"`
+	RespMetadata protocol.ResponseMetadata `json:"-" xml:"-"`
+
+	Message_ *string `locationName:"Message" type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ResourcePolicyNotFoundException) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ResourcePolicyNotFoundException) GoString() string {
+	return s.String()
+}
+
+func newErrorResourcePolicyNotFoundException(v protocol.ResponseMetadata) error {
+	return &ResourcePolicyNotFoundException{
+		RespMetadata: v,
+	}
+}
+
+// Code returns the exception type name.
+func (s *ResourcePolicyNotFoundException) Code() string {
+	return "ResourcePolicyNotFoundException"
+}
+
+// Message returns the exception's message.
+func (s *ResourcePolicyNotFoundException) Message() string {
+	if s.Message_ != nil {
+		return *s.Message_
+	}
+	return ""
+}
+
+// OrigErr always returns nil, satisfies awserr.Error interface.
+func (s *ResourcePolicyNotFoundException) OrigErr() error {
+	return nil
+}
+
+func (s *ResourcePolicyNotFoundException) Error() string {
+	return fmt.Sprintf("%s: %s", s.Code(), s.Message())
+}
+
+// Status code returns the HTTP status code for the request's response error.
+func (s *ResourcePolicyNotFoundException) StatusCode() int {
+	return s.RespMetadata.StatusCode
+}
+
+// RequestID returns the service's response RequestID for request.
+func (s *ResourcePolicyNotFoundException) RequestID() string {
 	return s.RespMetadata.RequestID
 }
 
@@ -56598,6 +56996,9 @@ type UnlabelParameterVersionInput struct {
 
 	// The name of the parameter from which you want to delete one or more labels.
 	//
+	// You can't enter the Amazon Resource Name (ARN) for a parameter, only the
+	// parameter name itself.
+	//
 	// Name is a required field
 	Name *string `min:"1" type:"string" required:"true"`
 
@@ -57236,6 +57637,22 @@ type UpdateAssociationInput struct {
 	// form another account, you must set the document version to default.
 	DocumentVersion *string `type:"string"`
 
+	// The number of hours the association can run before it is canceled. Duration
+	// applies to associations that are currently running, and any pending and in
+	// progress commands on all targets. If a target was taken offline for the association
+	// to run, it is made available again immediately, without a reboot.
+	//
+	// The Duration parameter applies only when both these conditions are true:
+	//
+	//    * The association for which you specify a duration is cancelable according
+	//    to the parameters of the SSM command document or Automation runbook associated
+	//    with this execution.
+	//
+	//    * The command specifies the ApplyOnlyAtCronInterval (https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_UpdateAssociation.html#systemsmanager-UpdateAssociation-request-ApplyOnlyAtCronInterval)
+	//    parameter, which means that the association doesn't run immediately after
+	//    it is updated, but only according to the specified schedule.
+	Duration *int64 `min:"1" type:"integer"`
+
 	// The maximum number of targets allowed to run the association at the same
 	// time. You can specify a number, for example 10, or a percentage of the target
 	// set, for example 10%. The default value is 100%, which means all targets
@@ -57364,6 +57781,9 @@ func (s *UpdateAssociationInput) Validate() error {
 	if s.AutomationTargetParameterName != nil && len(*s.AutomationTargetParameterName) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("AutomationTargetParameterName", 1))
 	}
+	if s.Duration != nil && *s.Duration < 1 {
+		invalidParams.Add(request.NewErrParamMinValue("Duration", 1))
+	}
 	if s.MaxConcurrency != nil && len(*s.MaxConcurrency) < 1 {
 		invalidParams.Add(request.NewErrParamMinLen("MaxConcurrency", 1))
 	}
@@ -57467,6 +57887,12 @@ func (s *UpdateAssociationInput) SetComplianceSeverity(v string) *UpdateAssociat
 // SetDocumentVersion sets the DocumentVersion field's value.
 func (s *UpdateAssociationInput) SetDocumentVersion(v string) *UpdateAssociationInput {
 	s.DocumentVersion = &v
+	return s
+}
+
+// SetDuration sets the Duration field's value.
+func (s *UpdateAssociationInput) SetDuration(v int64) *UpdateAssociationInput {
+	s.Duration = &v
 	return s
 }
 
@@ -57808,8 +58234,8 @@ type UpdateDocumentInput struct {
 	TargetType *string `type:"string"`
 
 	// An optional field specifying the version of the artifact you are updating
-	// with the document. For example, "Release 12, Update 6". This value is unique
-	// across all versions of a document, and can't be changed.
+	// with the document. For example, 12.6. This value is unique across all versions
+	// of a document, and can't be changed.
 	VersionName *string `type:"string"`
 }
 
