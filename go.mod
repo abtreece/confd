@@ -12,7 +12,7 @@ require (
 	github.com/go-zookeeper/zk v1.0.3
 	github.com/gomodule/redigo v1.9.2
 	github.com/hashicorp/consul/api v1.28.2
-	github.com/hashicorp/vault/api v1.12.2
+	github.com/hashicorp/vault/api v1.13.0
 	github.com/kelseyhightower/memkv v0.1.1
 	github.com/sirupsen/logrus v1.9.3
 	go.etcd.io/etcd/client/v3 v3.5.13
@@ -22,7 +22,7 @@ require (
 require (
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect

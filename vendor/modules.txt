@@ -67,12 +67,12 @@ github.com/fatih/color
 # github.com/fsnotify/fsnotify v1.7.0
 ## explicit; go 1.17
 github.com/fsnotify/fsnotify
-# github.com/go-jose/go-jose/v3 v3.0.3
-## explicit; go 1.12
-github.com/go-jose/go-jose/v3
-github.com/go-jose/go-jose/v3/cipher
-github.com/go-jose/go-jose/v3/json
-github.com/go-jose/go-jose/v3/jwt
+# github.com/go-jose/go-jose/v4 v4.0.1
+## explicit; go 1.21
+github.com/go-jose/go-jose/v4
+github.com/go-jose/go-jose/v4/cipher
+github.com/go-jose/go-jose/v4/json
+github.com/go-jose/go-jose/v4/jwt
 # github.com/go-zookeeper/zk v1.0.3
 ## explicit; go 1.13
 github.com/go-zookeeper/zk
@@ -144,8 +144,8 @@ github.com/hashicorp/hcl/json/token
 # github.com/hashicorp/serf v0.10.1
 ## explicit; go 1.12
 github.com/hashicorp/serf/coordinate
-# github.com/hashicorp/vault/api v1.12.2
-## explicit; go 1.19
+# github.com/hashicorp/vault/api v1.13.0
+## explicit; go 1.21
 github.com/hashicorp/vault/api
 # github.com/jmespath/go-jmespath v0.4.0
 ## explicit; go 1.14
