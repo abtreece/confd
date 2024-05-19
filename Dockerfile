@@ -1,4 +1,4 @@
-FROM golang:1.21.6-alpine
+FROM golang:1.22.2-alpine
 
 RUN apk add --no-cache make git
 RUN mkdir -p /go/src/github.com/abtreece/confd && \
