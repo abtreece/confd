@@ -92,11 +92,9 @@ github.com/golang/protobuf/ptypes/timestamp
 # github.com/gomodule/redigo v1.9.2
 ## explicit; go 1.17
 github.com/gomodule/redigo/redis
-# github.com/hashicorp/consul/api v1.28.3
+# github.com/hashicorp/consul/api v1.29.1
 ## explicit; go 1.19
 github.com/hashicorp/consul/api
-# github.com/hashicorp/consul/proto-public v0.6.1
-## explicit; go 1.19
 # github.com/hashicorp/errwrap v1.1.0
 ## explicit
 github.com/hashicorp/errwrap
@@ -155,6 +153,8 @@ github.com/jmespath/go-jmespath
 # github.com/kelseyhightower/memkv v0.1.1
 ## explicit
 github.com/kelseyhightower/memkv
+# github.com/kr/text v0.2.0
+## explicit
 # github.com/mattn/go-colorable v0.1.13
 ## explicit; go 1.15
 github.com/mattn/go-colorable
@@ -167,6 +167,8 @@ github.com/mitchellh/go-homedir
 # github.com/mitchellh/mapstructure v1.5.0
 ## explicit; go 1.14
 github.com/mitchellh/mapstructure
+# github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e
+## explicit; go 1.12
 # github.com/ryanuber/go-glob v1.0.0
 ## explicit
 github.com/ryanuber/go-glob
