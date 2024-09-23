@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"time"
@@ -55,7 +54,7 @@ func parsejson(prefix string, x interface{}, c *zk.Conn) {
 
 func main() {
 	var pj interface{}
-	dat, err := ioutil.ReadFile("test.json")
+	dat, err := os.ReadFile("test.json")
 	check(err)
 	err = json.Unmarshal(dat, &pj)
 	check(err)

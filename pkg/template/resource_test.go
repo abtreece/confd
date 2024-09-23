@@ -1,7 +1,6 @@
 package template
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +15,7 @@ import (
 // confd confDir.
 // It returns an error if any.
 func createTempDirs() (string, error) {
-	confDir, err := ioutil.TempDir("", "")
+	confDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return "", err
 	}
@@ -51,13 +50,13 @@ func TestProcessTemplateResources(t *testing.T) {
 
 	// Create the src template.
 	srcTemplateFile := filepath.Join(tempConfDir, "templates", "foo.tmpl")
-	err = ioutil.WriteFile(srcTemplateFile, []byte(`foo = {{getv "/foo"}}`), 0644)
+	err = os.WriteFile(srcTemplateFile, []byte(`foo = {{getv "/foo"}}`), 0644)
 	if err != nil {
 		t.Error(err.Error())
 	}
 
 	// Create the dest.
-	destFile, err := ioutil.TempFile("", "")
+	destFile, err := os.CreateTemp("", "")
 	if err != nil {
 		t.Errorf("Failed to create destFile: %s", err.Error())
 	}
@@ -99,7 +98,7 @@ func TestProcessTemplateResources(t *testing.T) {
 	}
 	// Verify the results.
 	expected := "foo = bar"
-	results, err := ioutil.ReadFile(destFile.Name())
+	results, err := os.ReadFile(destFile.Name())
 	if err != nil {
 		t.Error(err.Error())
 	}

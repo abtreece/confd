@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -124,7 +124,7 @@ func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure b
 	}
 
 	if caCert != "" {
-		certBytes, err := ioutil.ReadFile(caCert)
+		certBytes, err := os.ReadFile(caCert)
 		if err != nil {
 			return &Client{}, err
 		}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -174,7 +173,7 @@ func (t *TemplateResource) createStageFile() error {
 	}
 
 	// create TempFile in Dest directory to avoid cross-filesystem issues
-	temp, err := ioutil.TempFile(filepath.Dir(t.Dest), "."+filepath.Base(t.Dest))
+	temp, err := os.CreateTemp(filepath.Dir(t.Dest), "."+filepath.Base(t.Dest))
 	if err != nil {
 		return err
 	}
@@ -231,11 +230,11 @@ func (t *TemplateResource) sync() error {
 				// try to open the file and write to it
 				var contents []byte
 				var rerr error
-				contents, rerr = ioutil.ReadFile(staged)
+				contents, rerr = os.ReadFile(staged)
 				if rerr != nil {
 					return rerr
 				}
-				err := ioutil.WriteFile(t.Dest, contents, t.FileMode)
+				err := os.WriteFile(t.Dest, contents, t.FileMode)
 				// make sure owner and group match the temp file, in case the file was created with WriteFile
 				os.Chown(t.Dest, t.Uid, t.Gid)
 				if err != nil {

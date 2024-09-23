@@ -2,7 +2,6 @@ package template
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -569,7 +568,7 @@ func ExecuteTestTemplate(tt templateTest, t *testing.T) {
 		t.Errorf(tt.desc + ": failed createStageFile: " + err.Error())
 	}
 
-	actual, err := ioutil.ReadFile(tr.StageFile.Name())
+	actual, err := os.ReadFile(tr.StageFile.Name())
 	if err != nil {
 		t.Errorf(tt.desc + ": failed to read StageFile: " + err.Error())
 	}
@@ -595,14 +594,14 @@ func setupDirectoriesAndFiles(tt templateTest, t *testing.T) {
 	if err := os.MkdirAll("./test/confd", os.ModePerm); err != nil {
 		t.Errorf(tt.desc + ": failed to created confd directory: " + err.Error())
 	}
-	if err := ioutil.WriteFile(tomlFilePath, []byte(tt.toml), os.ModePerm); err != nil {
+	if err := os.WriteFile(tomlFilePath, []byte(tt.toml), os.ModePerm); err != nil {
 		t.Errorf(tt.desc + ": failed to write toml file: " + err.Error())
 	}
 	// create templates directory and tmpl file
 	if err := os.MkdirAll("./test/templates", os.ModePerm); err != nil {
 		t.Errorf(tt.desc + ": failed to create template directory: " + err.Error())
 	}
-	if err := ioutil.WriteFile(tmplFilePath, []byte(tt.tmpl), os.ModePerm); err != nil {
+	if err := os.WriteFile(tmplFilePath, []byte(tt.tmpl), os.ModePerm); err != nil {
 		t.Errorf(tt.desc + ": failed to write toml file: " + err.Error())
 	}
 	// create tmp directory for output

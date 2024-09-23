@@ -3,7 +3,7 @@ package file
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -33,7 +33,7 @@ func NewFileClient(filepath []string, filter string) (*Client, error) {
 }
 
 func readFile(path string, vars map[string]string) error {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}

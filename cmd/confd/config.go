@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -85,7 +84,7 @@ func initConfig() error {
 		log.Debug("Skipping confd config file.")
 	} else {
 		log.Debug("Loading " + config.ConfigFile)
-		configBytes, err := ioutil.ReadFile(config.ConfigFile)
+		configBytes, err := os.ReadFile(config.ConfigFile)
 		if err != nil {
 			return err
 		}
