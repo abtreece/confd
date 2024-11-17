@@ -17,7 +17,7 @@ require (
 	github.com/hashicorp/vault/api v1.15.0
 	github.com/kelseyhightower/memkv v0.1.1
 	github.com/sirupsen/logrus v1.9.3
-	go.etcd.io/etcd/client/v3 v3.5.16
+	go.etcd.io/etcd/client/v3 v3.5.17
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -48,8 +48,8 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
-	go.etcd.io/etcd/api/v3 v3.5.16 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.5.16 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.17 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.5.17 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.27.0 // indirect
