@@ -7,7 +7,7 @@ toolchain go1.22.2
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/aws/aws-sdk-go v1.55.5
+	github.com/aws/aws-sdk-go v1.55.6
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0
