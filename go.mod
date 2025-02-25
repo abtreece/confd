@@ -14,7 +14,7 @@ require (
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gomodule/redigo v1.9.2
 	github.com/hashicorp/consul/api v1.30.0
-	github.com/hashicorp/vault/api v1.15.0
+	github.com/hashicorp/vault/api v1.16.0
 	github.com/kelseyhightower/memkv v0.1.1
 	github.com/sirupsen/logrus v1.9.3
 	go.etcd.io/etcd/client/v3 v3.5.18
