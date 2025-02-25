@@ -1,8 +1,7 @@
 module github.com/abtreece/confd
 
 go 1.22.0
-
-toolchain go1.22.2
+toolchain go1.23.6
 
 require (
 	github.com/BurntSushi/toml v1.4.0
@@ -13,7 +12,7 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gomodule/redigo v1.9.2
-	github.com/hashicorp/consul/api v1.30.0
+	github.com/hashicorp/consul/api v1.31.2
 	github.com/hashicorp/vault/api v1.16.0
 	github.com/kelseyhightower/memkv v0.1.1
 	github.com/sirupsen/logrus v1.9.3
@@ -53,7 +52,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
-	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
+	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect

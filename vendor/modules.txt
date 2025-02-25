@@ -88,8 +88,8 @@ github.com/golang/protobuf/proto
 # github.com/gomodule/redigo v1.9.2
 ## explicit; go 1.17
 github.com/gomodule/redigo/redis
-# github.com/hashicorp/consul/api v1.30.0
-## explicit; go 1.19
+# github.com/hashicorp/consul/api v1.31.2
+## explicit; go 1.22.12
 github.com/hashicorp/consul/api
 # github.com/hashicorp/errwrap v1.1.0
 ## explicit
@@ -206,9 +206,8 @@ go.uber.org/zap/zapgrpc
 # golang.org/x/crypto v0.32.0
 ## explicit; go 1.20
 golang.org/x/crypto/pbkdf2
-# golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
+# golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 ## explicit; go 1.22.0
-golang.org/x/exp/constraints
 golang.org/x/exp/slices
 # golang.org/x/net v0.34.0
 ## explicit; go 1.18
