@@ -1,6 +1,7 @@
 module github.com/abtreece/confd
 
-go 1.22.0
+go 1.23.0
+
 toolchain go1.24.1
 
 require (
@@ -13,7 +14,7 @@ require (
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gomodule/redigo v1.9.2
 	github.com/hashicorp/consul/api v1.31.2
-	github.com/hashicorp/vault/api v1.16.0
+	github.com/hashicorp/vault/api v1.20.0
 	github.com/kelseyhightower/memkv v0.1.1
 	github.com/sirupsen/logrus v1.9.3
 	go.etcd.io/etcd/client/v3 v3.5.18
@@ -38,7 +39,7 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect
 	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
-	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -51,11 +52,11 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.5.18 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/crypto v0.35.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
-	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/net v0.37.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
