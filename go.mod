@@ -1,12 +1,13 @@
 module github.com/abtreece/confd
 
-go 1.22.0
+go 1.23.0
+
 toolchain go1.24.1
 
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/aws/aws-sdk-go v1.55.6
+	github.com/aws/aws-sdk-go v1.55.8
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0
