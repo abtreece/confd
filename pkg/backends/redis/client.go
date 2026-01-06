@@ -11,6 +11,13 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
+// redisConn defines the interface for Redis connection operations.
+// This allows for mocking in tests.
+type redisConn interface {
+	Do(commandName string, args ...interface{}) (reply interface{}, err error)
+	Close() error
+}
+
 type watchResponse struct {
 	waitIndex uint64
 	err       error
@@ -18,7 +25,7 @@ type watchResponse struct {
 
 // Client is a wrapper around the redis client
 type Client struct {
-	client    redis.Conn
+	client    redisConn
 	machines  []string
 	password  string
 	separator string
@@ -83,7 +90,7 @@ func tryConnect(machines []string, password string, timeout bool) (redis.Conn, i
 // Retrieves a connected redis client from the client wrapper.
 // Existing connections will be tested with a PING command before being returned. Tries to reconnect once if necessary.
 // Returns the established redis connection or the error encountered.
-func (c *Client) connectedClient() (redis.Conn, error) {
+func (c *Client) connectedClient() (redisConn, error) {
 	if c.client != nil {
 		log.Debug("Testing existing redis connection.")
 

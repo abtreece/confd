@@ -2,9 +2,14 @@ package etcd
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/api/v3/etcdserverpb"
+	"go.etcd.io/etcd/api/v3/mvccpb"
 )
 
 func TestWatch_Update(t *testing.T) {
@@ -155,8 +160,320 @@ func TestWatch_ConcurrentAccess(t *testing.T) {
 	}
 }
 
-// Note: Full GetValues and WatchPrefix tests require a running etcd instance.
+// mockTxn implements clientv3.Txn for testing
+type mockTxn struct {
+	ops        []clientv3.Op
+	commitFunc func(ops []clientv3.Op) (*clientv3.TxnResponse, error)
+}
+
+func (m *mockTxn) If(cs ...clientv3.Cmp) clientv3.Txn {
+	return m
+}
+
+func (m *mockTxn) Then(ops ...clientv3.Op) clientv3.Txn {
+	m.ops = ops
+	return m
+}
+
+func (m *mockTxn) Else(ops ...clientv3.Op) clientv3.Txn {
+	return m
+}
+
+func (m *mockTxn) Commit() (*clientv3.TxnResponse, error) {
+	if m.commitFunc != nil {
+		return m.commitFunc(m.ops)
+	}
+	return nil, nil
+}
+
+// mockKV implements etcdKV for testing
+type mockKV struct {
+	txnFunc func(ctx context.Context) clientv3.Txn
+}
+
+func (m *mockKV) Txn(ctx context.Context) clientv3.Txn {
+	if m.txnFunc != nil {
+		return m.txnFunc(ctx)
+	}
+	return &mockTxn{}
+}
+
+func TestGetValues_SingleKey(t *testing.T) {
+	mock := &mockKV{
+		txnFunc: func(ctx context.Context) clientv3.Txn {
+			return &mockTxn{
+				commitFunc: func(ops []clientv3.Op) (*clientv3.TxnResponse, error) {
+					return &clientv3.TxnResponse{
+						Header: &etcdserverpb.ResponseHeader{Revision: 100},
+						Responses: []*etcdserverpb.ResponseOp{
+							{
+								Response: &etcdserverpb.ResponseOp_ResponseRange{
+									ResponseRange: &etcdserverpb.RangeResponse{
+										Kvs: []*mvccpb.KeyValue{
+											{Key: []byte("/app/key"), Value: []byte("value123")},
+										},
+									},
+								},
+							},
+						},
+					}, nil
+				},
+			}
+		},
+	}
+
+	client := &Client{
+		kvClient: mock,
+		watches:  make(map[string]*Watch),
+	}
+
+	vars, err := client.GetValues([]string{"/app/key"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	if vars["/app/key"] != "value123" {
+		t.Errorf("GetValues() = %v, want /app/key=value123", vars)
+	}
+}
+
+func TestGetValues_MultipleKeys(t *testing.T) {
+	mock := &mockKV{
+		txnFunc: func(ctx context.Context) clientv3.Txn {
+			return &mockTxn{
+				commitFunc: func(ops []clientv3.Op) (*clientv3.TxnResponse, error) {
+					responses := make([]*etcdserverpb.ResponseOp, len(ops))
+					for i := range ops {
+						var kvs []*mvccpb.KeyValue
+						switch i {
+						case 0:
+							kvs = []*mvccpb.KeyValue{{Key: []byte("/app/key1"), Value: []byte("val1")}}
+						case 1:
+							kvs = []*mvccpb.KeyValue{{Key: []byte("/app/key2"), Value: []byte("val2")}}
+						case 2:
+							kvs = []*mvccpb.KeyValue{{Key: []byte("/db/host"), Value: []byte("localhost")}}
+						}
+						responses[i] = &etcdserverpb.ResponseOp{
+							Response: &etcdserverpb.ResponseOp_ResponseRange{
+								ResponseRange: &etcdserverpb.RangeResponse{Kvs: kvs},
+							},
+						}
+					}
+					return &clientv3.TxnResponse{
+						Header:    &etcdserverpb.ResponseHeader{Revision: 100},
+						Responses: responses,
+					}, nil
+				},
+			}
+		},
+	}
+
+	client := &Client{
+		kvClient: mock,
+		watches:  make(map[string]*Watch),
+	}
+
+	vars, err := client.GetValues([]string{"/app/key1", "/app/key2", "/db/host"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	expected := map[string]string{
+		"/app/key1": "val1",
+		"/app/key2": "val2",
+		"/db/host":  "localhost",
+	}
+
+	for k, v := range expected {
+		if vars[k] != v {
+			t.Errorf("GetValues()[%s] = %s, want %s", k, vars[k], v)
+		}
+	}
+}
+
+func TestGetValues_PrefixMatch(t *testing.T) {
+	mock := &mockKV{
+		txnFunc: func(ctx context.Context) clientv3.Txn {
+			return &mockTxn{
+				commitFunc: func(ops []clientv3.Op) (*clientv3.TxnResponse, error) {
+					// Return multiple keys for prefix query
+					return &clientv3.TxnResponse{
+						Header: &etcdserverpb.ResponseHeader{Revision: 100},
+						Responses: []*etcdserverpb.ResponseOp{
+							{
+								Response: &etcdserverpb.ResponseOp_ResponseRange{
+									ResponseRange: &etcdserverpb.RangeResponse{
+										Kvs: []*mvccpb.KeyValue{
+											{Key: []byte("/app/config/db"), Value: []byte("mysql")},
+											{Key: []byte("/app/config/port"), Value: []byte("3306")},
+											{Key: []byte("/app/config/host"), Value: []byte("localhost")},
+										},
+									},
+								},
+							},
+						},
+					}, nil
+				},
+			}
+		},
+	}
+
+	client := &Client{
+		kvClient: mock,
+		watches:  make(map[string]*Watch),
+	}
+
+	vars, err := client.GetValues([]string{"/app/config"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	if len(vars) != 3 {
+		t.Errorf("GetValues() returned %d keys, want 3", len(vars))
+	}
+	if vars["/app/config/db"] != "mysql" {
+		t.Errorf("GetValues()[/app/config/db] = %s, want mysql", vars["/app/config/db"])
+	}
+}
+
+func TestGetValues_TransactionError(t *testing.T) {
+	expectedErr := errors.New("transaction failed")
+	mock := &mockKV{
+		txnFunc: func(ctx context.Context) clientv3.Txn {
+			return &mockTxn{
+				commitFunc: func(ops []clientv3.Op) (*clientv3.TxnResponse, error) {
+					return nil, expectedErr
+				},
+			}
+		},
+	}
+
+	client := &Client{
+		kvClient: mock,
+		watches:  make(map[string]*Watch),
+	}
+
+	_, err := client.GetValues([]string{"/app/key"})
+	if err != expectedErr {
+		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
+	}
+}
+
+func TestGetValues_EmptyResult(t *testing.T) {
+	mock := &mockKV{
+		txnFunc: func(ctx context.Context) clientv3.Txn {
+			return &mockTxn{
+				commitFunc: func(ops []clientv3.Op) (*clientv3.TxnResponse, error) {
+					return &clientv3.TxnResponse{
+						Header: &etcdserverpb.ResponseHeader{Revision: 100},
+						Responses: []*etcdserverpb.ResponseOp{
+							{
+								Response: &etcdserverpb.ResponseOp_ResponseRange{
+									ResponseRange: &etcdserverpb.RangeResponse{Kvs: []*mvccpb.KeyValue{}},
+								},
+							},
+						},
+					}, nil
+				},
+			}
+		},
+	}
+
+	client := &Client{
+		kvClient: mock,
+		watches:  make(map[string]*Watch),
+	}
+
+	vars, err := client.GetValues([]string{"/nonexistent"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	if len(vars) != 0 {
+		t.Errorf("GetValues() returned %d keys, want 0", len(vars))
+	}
+}
+
+func TestGetValues_FiltersByPrefix(t *testing.T) {
+	// Test that GetValues filters results to only return keys
+	// that match the requested prefix
+	mock := &mockKV{
+		txnFunc: func(ctx context.Context) clientv3.Txn {
+			return &mockTxn{
+				commitFunc: func(ops []clientv3.Op) (*clientv3.TxnResponse, error) {
+					// Return keys that don't all match the prefix
+					return &clientv3.TxnResponse{
+						Header: &etcdserverpb.ResponseHeader{Revision: 100},
+						Responses: []*etcdserverpb.ResponseOp{
+							{
+								Response: &etcdserverpb.ResponseOp_ResponseRange{
+									ResponseRange: &etcdserverpb.RangeResponse{
+										Kvs: []*mvccpb.KeyValue{
+											{Key: []byte("/app"), Value: []byte("appval")},
+											{Key: []byte("/app/key"), Value: []byte("keyval")},
+											{Key: []byte("/appother"), Value: []byte("otherval")}, // Should be filtered out
+										},
+									},
+								},
+							},
+						},
+					}, nil
+				},
+			}
+		},
+	}
+
+	client := &Client{
+		kvClient: mock,
+		watches:  make(map[string]*Watch),
+	}
+
+	vars, err := client.GetValues([]string{"/app"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	// /appother should be filtered out because it doesn't start with /app/
+	if _, ok := vars["/appother"]; ok {
+		t.Error("GetValues() should filter out /appother")
+	}
+	if vars["/app"] != "appval" {
+		t.Errorf("GetValues()[/app] = %s, want appval", vars["/app"])
+	}
+	if vars["/app/key"] != "keyval" {
+		t.Errorf("GetValues()[/app/key] = %s, want keyval", vars["/app/key"])
+	}
+}
+
+func TestGetValues_EmptyKeys(t *testing.T) {
+	txnCalled := false
+	mock := &mockKV{
+		txnFunc: func(ctx context.Context) clientv3.Txn {
+			txnCalled = true
+			return &mockTxn{}
+		},
+	}
+
+	client := &Client{
+		kvClient: mock,
+		watches:  make(map[string]*Watch),
+	}
+
+	vars, err := client.GetValues([]string{})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	if txnCalled {
+		t.Error("GetValues() should not call Txn for empty keys")
+	}
+	if len(vars) != 0 {
+		t.Errorf("GetValues() returned %d keys, want 0", len(vars))
+	}
+}
+
+// Note: Full WatchPrefix and createWatch tests require a running etcd instance.
 // These are covered by integration tests in .github/workflows/integration-tests.yml
 //
-// The etcd client uses complex transaction batching and watch management
+// The etcd client uses complex watch channels and reconnection logic
 // that requires an actual etcd connection to test properly.
