@@ -74,6 +74,10 @@ github.com/go-jose/go-jose/v4
 github.com/go-jose/go-jose/v4/cipher
 github.com/go-jose/go-jose/v4/json
 github.com/go-jose/go-jose/v4/jwt
+# github.com/go-viper/mapstructure/v2 v2.4.0
+## explicit; go 1.18
+github.com/go-viper/mapstructure/v2
+github.com/go-viper/mapstructure/v2/internal/errors
 # github.com/go-zookeeper/zk v1.0.4
 ## explicit; go 1.13
 github.com/go-zookeeper/zk
@@ -91,8 +95,8 @@ github.com/gomodule/redigo/redis
 # github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3
 ## explicit; go 1.23.0
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
-# github.com/hashicorp/consul/api v1.31.2
-## explicit; go 1.22.12
+# github.com/hashicorp/consul/api v1.33.0
+## explicit; go 1.25.3
 github.com/hashicorp/consul/api
 # github.com/hashicorp/errwrap v1.1.0
 ## explicit
@@ -212,8 +216,8 @@ go.uber.org/zap/zapgrpc
 # golang.org/x/crypto v0.45.0
 ## explicit; go 1.24.0
 golang.org/x/crypto/pbkdf2
-# golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
-## explicit; go 1.22.0
+# golang.org/x/exp v0.0.0-20250808145144-a408d31f581a
+## explicit; go 1.23.0
 golang.org/x/exp/slices
 # golang.org/x/net v0.47.0
 ## explicit; go 1.24.0
