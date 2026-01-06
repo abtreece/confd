@@ -88,12 +88,17 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tr.syncOnly = config.SyncOnly
 	addFuncs(tr.funcMap, tr.store.FuncMap)
 
-	if config.Prefix != "" {
-		tr.Prefix = config.Prefix
-	}
-
-	if !strings.HasPrefix(tr.Prefix, "/") {
-		tr.Prefix = "/" + tr.Prefix
+	// Concatenate global config prefix with resource prefix.
+	// This allows hierarchical prefixes like /production/myapp where
+	// "production" comes from confd.toml and "myapp" from the resource.
+	if config.Prefix != "" && tr.Prefix != "" {
+		tr.Prefix = "/" + strings.Trim(config.Prefix, "/") + "/" + strings.Trim(tr.Prefix, "/")
+	} else if config.Prefix != "" {
+		tr.Prefix = "/" + strings.Trim(config.Prefix, "/")
+	} else if tr.Prefix != "" {
+		tr.Prefix = "/" + strings.Trim(tr.Prefix, "/")
+	} else {
+		tr.Prefix = "/"
 	}
 
 	if tr.Src == "" {

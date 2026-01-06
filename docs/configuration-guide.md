@@ -16,7 +16,7 @@ Optional:
 * `log-level` (string) - level which confd should log messages ("info")
 * `nodes` (array of strings) - List of backend nodes. (["http://127.0.0.1:4001"])
 * `noop` (bool) - Enable noop mode. Process all template resources; skip target update.
-* `prefix` (string) - The string to prefix to keys. ("/")
+* `prefix` (string) - The string to prefix to keys. This prefix is concatenated with any prefix set in template resource files (e.g., global `production` + resource `myapp` = `/production/myapp`). ("/")
 * `scheme` (string) - The backend URI scheme. ("http" or "https")
 * `srv_domain` (string) - The name of the resource record.
 * `srv_record` (string) - The SRV record to search for backends nodes.
