@@ -243,3 +243,62 @@ func TestWatchPrefix_Error(t *testing.T) {
 		t.Error("WatchPrefix() expected error, got nil")
 	}
 }
+
+func TestNew_BasicConfiguration(t *testing.T) {
+	// Test New with basic configuration
+	client, err := New([]string{"localhost:8500"}, "http", "", "", "", false, "", "")
+	if err != nil {
+		t.Fatalf("New() unexpected error: %v", err)
+	}
+	if client == nil {
+		t.Error("New() returned nil client")
+	}
+}
+
+func TestNew_WithNodes(t *testing.T) {
+	// Test New with multiple nodes (should use first node)
+	client, err := New([]string{"node1:8500", "node2:8500", "node3:8500"}, "http", "", "", "", false, "", "")
+	if err != nil {
+		t.Fatalf("New() unexpected error: %v", err)
+	}
+	if client == nil {
+		t.Error("New() returned nil client")
+	}
+}
+
+func TestNew_EmptyNodes(t *testing.T) {
+	// Test New with empty nodes list (should use default Consul address)
+	client, err := New([]string{}, "http", "", "", "", false, "", "")
+	if err != nil {
+		t.Fatalf("New() unexpected error: %v", err)
+	}
+	if client == nil {
+		t.Error("New() returned nil client")
+	}
+}
+
+func TestNew_WithBasicAuth(t *testing.T) {
+	// Test New with basic authentication
+	client, err := New([]string{"localhost:8500"}, "http", "", "", "", true, "user", "pass")
+	if err != nil {
+		t.Fatalf("New() unexpected error: %v", err)
+	}
+	if client == nil {
+		t.Error("New() returned nil client")
+	}
+}
+
+func TestNew_WithHTTPS(t *testing.T) {
+	// Test New with HTTPS scheme
+	client, err := New([]string{"localhost:8500"}, "https", "", "", "", false, "", "")
+	if err != nil {
+		t.Fatalf("New() unexpected error: %v", err)
+	}
+	if client == nil {
+		t.Error("New() returned nil client")
+	}
+}
+
+// Note: TLS configuration tests with valid certificates require integration tests
+// as the Consul SDK validates certificate content. The basic New() tests above
+// cover the config setup paths that don't require certificate validation.
