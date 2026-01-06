@@ -13,17 +13,14 @@
   [vault](https://vaultproject.io), [zookeeper](https://zookeeper.apache.org), [aws ssm parameter store](https://aws.amazon.com/ec2/systems-manager/) or env vars and processing [template resources](docs/template-resources.md).
 * reloading applications to pick up new config file changes
 
-## Community
-
-
 ## Building
 
-Go 1.12 is required to build confd, which uses Go Modules
+Go 1.24+ is required to build confd.
 
 ```
 $ git clone https://github.com/abtreece/confd.git
 $ cd confd
-$ make
+$ make build
 ```
 
 You should now have `confd` in your `bin/` directory:
