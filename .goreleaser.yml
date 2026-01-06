@@ -25,17 +25,17 @@ builds:
         goarch: arm
 archives:
   - name_template: '{{.ProjectName}}-{{.Tag}}-{{.Os}}-{{.Arch}}{{if .Arm}}{{.Arm}}{{end}}'
-    format: tar.gz
+    formats: [tar.gz]
     format_overrides:
     - goos: windows
-      format: zip
+      formats: [zip]
     files:
     - none*
 checksum:
   name_template: 'checksums.txt'
   algorithm: sha256
 snapshot:
-  name_template: "{{ .Tag }}-dev"
+  version_template: "{{ .Tag }}-dev"
 changelog:
   sort: asc
   filters:
