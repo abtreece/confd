@@ -14,6 +14,17 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
+// etcdKV defines the interface for etcd KV operations.
+// This allows for mocking in tests.
+type etcdKV interface {
+	Txn(ctx context.Context) clientv3.Txn
+}
+
+// etcdWatcher defines the interface for etcd watch operations.
+type etcdWatcher interface {
+	Watch(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan
+}
+
 // A watch only tells the latest revision
 type Watch struct {
 	// Last seen revision
@@ -98,8 +109,9 @@ func createWatch(client *clientv3.Client, prefix string) (*Watch, error) {
 
 // Client is a wrapper around the etcd client
 type Client struct {
-	client  *clientv3.Client
-	watches map[string]*Watch
+	client    *clientv3.Client
+	kvClient  etcdKV
+	watches   map[string]*Watch
 	// Protect watch
 	wm sync.Mutex
 }
@@ -156,7 +168,7 @@ func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure b
 		return &Client{}, err
 	}
 
-	return &Client{client, make(map[string]*Watch), sync.Mutex{}}, nil
+	return &Client{client: client, kvClient: client, watches: make(map[string]*Watch), wm: sync.Mutex{}}, nil
 }
 
 // GetValues queries etcd for keys prefixed by prefix.
@@ -181,7 +193,7 @@ func (c *Client) GetValues(keys []string) (map[string]string, error) {
 				clientv3.WithRev(first_rev)))
 		}
 
-		result, err := c.client.Txn(ctx).Then(txnOps...).Commit()
+		result, err := c.kvClient.Txn(ctx).Then(txnOps...).Commit()
 		if err != nil {
 			return err
 		}
