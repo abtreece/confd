@@ -10,6 +10,105 @@ import (
 	"github.com/abtreece/confd/pkg/log"
 )
 
+func TestNewTemplateResourcePrefixConcatenation(t *testing.T) {
+	log.SetLevel("warn")
+
+	tempConfDir, err := createTempDirs()
+	if err != nil {
+		t.Fatalf("Failed to create temp dirs: %s", err.Error())
+	}
+	defer os.RemoveAll(tempConfDir)
+
+	// Create a minimal template file
+	srcTemplateFile := filepath.Join(tempConfDir, "templates", "test.tmpl")
+	err = os.WriteFile(srcTemplateFile, []byte(`test`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	storeClient, err := env.NewEnvClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name           string
+		configPrefix   string
+		resourcePrefix string
+		expectedPrefix string
+	}{
+		{
+			name:           "both prefixes set",
+			configPrefix:   "production",
+			resourcePrefix: "myapp",
+			expectedPrefix: "/production/myapp",
+		},
+		{
+			name:           "both prefixes with leading slashes",
+			configPrefix:   "/production",
+			resourcePrefix: "/myapp",
+			expectedPrefix: "/production/myapp",
+		},
+		{
+			name:           "only config prefix",
+			configPrefix:   "production",
+			resourcePrefix: "",
+			expectedPrefix: "/production",
+		},
+		{
+			name:           "only resource prefix",
+			configPrefix:   "",
+			resourcePrefix: "myapp",
+			expectedPrefix: "/myapp",
+		},
+		{
+			name:           "neither prefix set",
+			configPrefix:   "",
+			resourcePrefix: "",
+			expectedPrefix: "/",
+		},
+		{
+			name:           "nested resource prefix",
+			configPrefix:   "env/production",
+			resourcePrefix: "apps/myapp",
+			expectedPrefix: "/env/production/apps/myapp",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create resource config with optional prefix
+			resourceContent := "[template]\nsrc = \"test.tmpl\"\ndest = \"/tmp/test.conf\"\nkeys = [\"/foo\"]\n"
+			if tc.resourcePrefix != "" {
+				resourceContent += "prefix = \"" + tc.resourcePrefix + "\"\n"
+			}
+
+			resourcePath := filepath.Join(tempConfDir, "conf.d", "test.toml")
+			err := os.WriteFile(resourcePath, []byte(resourceContent), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			config := Config{
+				ConfDir:     tempConfDir,
+				ConfigDir:   filepath.Join(tempConfDir, "conf.d"),
+				Prefix:      tc.configPrefix,
+				StoreClient: storeClient,
+				TemplateDir: filepath.Join(tempConfDir, "templates"),
+			}
+
+			tr, err := NewTemplateResource(resourcePath, config)
+			if err != nil {
+				t.Fatalf("NewTemplateResource failed: %s", err)
+			}
+
+			if tr.Prefix != tc.expectedPrefix {
+				t.Errorf("Expected prefix %q, got %q", tc.expectedPrefix, tr.Prefix)
+			}
+		})
+	}
+}
+
 // createTempDirs is a helper function which creates temporary directories
 // required by confd. createTempDirs returns the path name representing the
 // confd confDir.
