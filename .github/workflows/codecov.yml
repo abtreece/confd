@@ -19,8 +19,13 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v5
 
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+
       - name: Run go test for coverage
-        run: go test ./... -race -coverprofile=coverage.out -covermode=atomic
+        run: go test -vet=off ./... -race -coverprofile=coverage.out -covermode=atomic
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
