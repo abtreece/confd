@@ -6,7 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 confd is a lightweight configuration management tool that keeps local configuration files up-to-date using data stored in backends (etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM, environment variables, or files). It processes Go text/templates and can reload applications when config changes.
 
-This is a divergent fork of kelseyhightower/confd.
+This is a divergent fork of kelseyhightower/confd. The upstream repository is effectively abandoned.
+
+## Git Workflow
+
+**IMPORTANT**: Never create PRs against the upstream repository (kelseyhightower/confd). Always target `abtreece/confd`:
+
+```bash
+gh pr create --repo abtreece/confd ...
+```
 
 ## Build Commands
 
