@@ -9,10 +9,18 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
+// dynamoDBAPI defines the interface for DynamoDB operations used by this client.
+// This allows for easy mocking in tests.
+type dynamoDBAPI interface {
+	GetItem(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error)
+	Scan(input *dynamodb.ScanInput) (*dynamodb.ScanOutput, error)
+	DescribeTable(input *dynamodb.DescribeTableInput) (*dynamodb.DescribeTableOutput, error)
+}
+
 // Client is a wrapper around the DynamoDB client
 // and also holds the table to lookup key value pairs from
 type Client struct {
-	client *dynamodb.DynamoDB
+	client dynamoDBAPI
 	table  string
 }
 

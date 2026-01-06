@@ -12,8 +12,15 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssm"
 )
 
+// ssmAPI defines the interface for SSM operations used by this client.
+// This allows for easy mocking in tests.
+type ssmAPI interface {
+	GetParameter(input *ssm.GetParameterInput) (*ssm.GetParameterOutput, error)
+	GetParametersByPathPages(input *ssm.GetParametersByPathInput, fn func(*ssm.GetParametersByPathOutput, bool) bool) error
+}
+
 type Client struct {
-	client *ssm.SSM
+	client ssmAPI
 }
 
 func New() (*Client, error) {
