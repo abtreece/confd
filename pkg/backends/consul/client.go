@@ -7,9 +7,15 @@ import (
 	"github.com/hashicorp/consul/api"
 )
 
-// Client provides a wrapper around the consulkv client
+// consulKVAPI defines the interface for Consul KV operations used by this client.
+// This allows for easy mocking in tests.
+type consulKVAPI interface {
+	List(prefix string, q *api.QueryOptions) (api.KVPairs, *api.QueryMeta, error)
+}
+
+// ConsulClient provides a wrapper around the consulkv client
 type ConsulClient struct {
-	client *api.KV
+	client consulKVAPI
 }
 
 // NewConsulClient returns a new client to Consul for the given address
