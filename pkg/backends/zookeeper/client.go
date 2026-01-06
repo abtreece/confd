@@ -9,9 +9,19 @@ import (
 	zk "github.com/go-zookeeper/zk"
 )
 
+// zkConn defines the interface for Zookeeper connection operations.
+// This allows for mocking in tests.
+type zkConn interface {
+	Children(path string) ([]string, *zk.Stat, error)
+	Get(path string) ([]byte, *zk.Stat, error)
+	Exists(path string) (bool, *zk.Stat, error)
+	GetW(path string) ([]byte, *zk.Stat, <-chan zk.Event, error)
+	ChildrenW(path string) ([]string, *zk.Stat, <-chan zk.Event, error)
+}
+
 // Client provides a wrapper around the zookeeper client
 type Client struct {
-	client *zk.Conn
+	client zkConn
 }
 
 func NewZookeeperClient(machines []string) (*Client, error) {
