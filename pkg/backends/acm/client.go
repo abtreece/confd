@@ -17,15 +17,18 @@ import (
 // acmAPI defines the interface for ACM operations used by this client
 type acmAPI interface {
 	GetCertificate(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error)
+	ExportCertificate(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error)
 	ListCertificatesPages(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error
 }
 
 type Client struct {
-	client acmAPI
+	client           acmAPI
+	exportPrivateKey bool
+	passphrase       []byte
 }
 
 // New initializes the AWS ACM backend for confd
-func New() (*Client, error) {
+func New(exportPrivateKey bool) (*Client, error) {
 	// Attempt to get AWS Region from ec2metadata with a timeout
 	metaSession, err := session.NewSession()
 	if err != nil {
@@ -71,8 +74,23 @@ func New() (*Client, error) {
 		}
 	}
 
+	// If export private key is enabled, require passphrase
+	var passphrase []byte
+	if exportPrivateKey {
+		passphraseStr := os.Getenv("ACM_PASSPHRASE")
+		if passphraseStr == "" {
+			return nil, fmt.Errorf("ACM_PASSPHRASE environment variable is required when exporting private keys")
+		}
+		passphrase = []byte(passphraseStr)
+		log.Debug("Private key export enabled")
+	}
+
 	svc := acm.New(sess, c)
-	return &Client{client: svc}, nil
+	return &Client{
+		client:           svc,
+		exportPrivateKey: exportPrivateKey,
+		passphrase:       passphrase,
+	}, nil
 }
 
 func (c *Client) GetValues(keys []string) (map[string]string, error) {
@@ -83,26 +101,56 @@ func (c *Client) GetValues(keys []string) (map[string]string, error) {
 		// ARNs should start with "arn:" not "/arn:"
 		arn := strings.TrimPrefix(key, "/")
 
-		input := &acm.GetCertificateInput{
-			CertificateArn: aws.String(arn),
-		}
+		if c.exportPrivateKey {
+			// Use ExportCertificate API to get certificate with private key
+			input := &acm.ExportCertificateInput{
+				CertificateArn: aws.String(arn),
+				Passphrase:     c.passphrase,
+			}
 
-		result, err := c.client.GetCertificate(input)
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve certificate: %w", err)
-		}
+			result, err := c.client.ExportCertificate(input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to export certificate: %w", err)
+			}
 
-		// Use the original key (with prefix) for the return map
-		// so confd template functions work correctly
-		if result.Certificate != nil {
-			vars[key] = *result.Certificate
-		}
+			// Use the original key (with prefix) for the return map
+			// so confd template functions work correctly
+			if result.Certificate != nil {
+				vars[key] = *result.Certificate
+			}
 
-		if result.CertificateChain != nil {
-			vars[key+"_chain"] = *result.CertificateChain
-		}
+			if result.CertificateChain != nil {
+				vars[key+"_chain"] = *result.CertificateChain
+			}
 
-		log.Debug("Retrieved certificate for ARN: %s", arn)
+			if result.PrivateKey != nil {
+				vars[key+"_private_key"] = *result.PrivateKey
+			}
+
+			log.Debug("Exported certificate with private key for ARN: %s", arn)
+		} else {
+			// Use GetCertificate API (default behavior)
+			input := &acm.GetCertificateInput{
+				CertificateArn: aws.String(arn),
+			}
+
+			result, err := c.client.GetCertificate(input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to retrieve certificate: %w", err)
+			}
+
+			// Use the original key (with prefix) for the return map
+			// so confd template functions work correctly
+			if result.Certificate != nil {
+				vars[key] = *result.Certificate
+			}
+
+			if result.CertificateChain != nil {
+				vars[key+"_chain"] = *result.CertificateChain
+			}
+
+			log.Debug("Retrieved certificate for ARN: %s", arn)
+		}
 	}
 
 	return vars, nil

@@ -12,6 +12,7 @@ import (
 // mockACM implements the acmAPI interface for testing
 type mockACM struct {
 	getCertificateFunc        func(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error)
+	exportCertificateFunc     func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error)
 	listCertificatesPagesFunc func(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error
 }
 
@@ -20,6 +21,13 @@ func (m *mockACM) GetCertificate(input *acm.GetCertificateInput) (*acm.GetCertif
 		return m.getCertificateFunc(input)
 	}
 	return &acm.GetCertificateOutput{}, nil
+}
+
+func (m *mockACM) ExportCertificate(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+	if m.exportCertificateFunc != nil {
+		return m.exportCertificateFunc(input)
+	}
+	return &acm.ExportCertificateOutput{}, nil
 }
 
 func (m *mockACM) ListCertificatesPages(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error {
@@ -32,7 +40,18 @@ func (m *mockACM) ListCertificatesPages(input *acm.ListCertificatesInput, fn fun
 // newTestClient creates a Client with a mock ACM for testing
 func newTestClient(mock *mockACM) *Client {
 	return &Client{
-		client: mock,
+		client:           mock,
+		exportPrivateKey: false,
+		passphrase:       nil,
+	}
+}
+
+// newTestClientWithExport creates a Client with export enabled for testing
+func newTestClientWithExport(mock *mockACM, passphrase []byte) *Client {
+	return &Client{
+		client:           mock,
+		exportPrivateKey: true,
+		passphrase:       passphrase,
 	}
 }
 
@@ -321,5 +340,142 @@ func TestWatchPrefix(t *testing.T) {
 
 	if waitIndex != 0 {
 		t.Errorf("WatchPrefix() waitIndex = %d, want 0", waitIndex)
+	}
+}
+
+func TestGetValues_ExportPrivateKey_Success(t *testing.T) {
+	certARN := "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+	certKey := "/" + certARN
+	certPEM := "-----BEGIN CERTIFICATE-----\nMIIE...\n-----END CERTIFICATE-----"
+	chainPEM := "-----BEGIN CERTIFICATE-----\nMIIF...\n-----END CERTIFICATE-----"
+	privateKeyPEM := "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIE...\n-----END ENCRYPTED PRIVATE KEY-----"
+	passphrase := []byte("test-passphrase")
+
+	mock := &mockACM{
+		exportCertificateFunc: func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+			// Verify the correct ARN is passed (without leading /)
+			if *input.CertificateArn != certARN {
+				return nil, errors.New("unexpected ARN")
+			}
+			// Verify passphrase is passed
+			if string(input.Passphrase) != string(passphrase) {
+				return nil, errors.New("unexpected passphrase")
+			}
+			return &acm.ExportCertificateOutput{
+				Certificate:      aws.String(certPEM),
+				CertificateChain: aws.String(chainPEM),
+				PrivateKey:       aws.String(privateKeyPEM),
+			}, nil
+		},
+	}
+
+	client := newTestClientWithExport(mock, passphrase)
+
+	result, err := client.GetValues([]string{certKey})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	expected := map[string]string{
+		certKey:                  certPEM,
+		certKey + "_chain":       chainPEM,
+		certKey + "_private_key": privateKeyPEM,
+	}
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("GetValues() = %v, want %v", result, expected)
+	}
+}
+
+func TestGetValues_ExportPrivateKey_WithoutChain(t *testing.T) {
+	certARN := "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+	certKey := "/" + certARN
+	certPEM := "-----BEGIN CERTIFICATE-----\nMIIE...\n-----END CERTIFICATE-----"
+	privateKeyPEM := "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIE...\n-----END ENCRYPTED PRIVATE KEY-----"
+	passphrase := []byte("test-passphrase")
+
+	mock := &mockACM{
+		exportCertificateFunc: func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+			return &acm.ExportCertificateOutput{
+				Certificate:      aws.String(certPEM),
+				CertificateChain: nil,
+				PrivateKey:       aws.String(privateKeyPEM),
+			}, nil
+		},
+	}
+
+	client := newTestClientWithExport(mock, passphrase)
+
+	result, err := client.GetValues([]string{certKey})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	expected := map[string]string{
+		certKey:                  certPEM,
+		certKey + "_private_key": privateKeyPEM,
+	}
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("GetValues() = %v, want %v", result, expected)
+	}
+}
+
+func TestGetValues_ExportPrivateKey_Error(t *testing.T) {
+	certKey := "/arn:aws:acm:us-east-1:123456789012:certificate/nonexistent"
+	passphrase := []byte("test-passphrase")
+
+	mock := &mockACM{
+		exportCertificateFunc: func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+			return nil, errors.New("ResourceNotFoundException: certificate not found")
+		},
+	}
+
+	client := newTestClientWithExport(mock, passphrase)
+
+	_, err := client.GetValues([]string{certKey})
+	if err == nil {
+		t.Fatal("GetValues() expected error, got nil")
+	}
+}
+
+func TestGetValues_ExportPrivateKey_MultipleCertificates(t *testing.T) {
+	certARN1 := "arn:aws:acm:us-east-1:123456789012:certificate/cert-1"
+	certARN2 := "arn:aws:acm:us-east-1:123456789012:certificate/cert-2"
+	certKey1 := "/" + certARN1
+	certKey2 := "/" + certARN2
+	passphrase := []byte("test-passphrase")
+
+	mock := &mockACM{
+		exportCertificateFunc: func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+			switch *input.CertificateArn {
+			case certARN1:
+				return &acm.ExportCertificateOutput{
+					Certificate: aws.String("cert1"),
+					PrivateKey:  aws.String("key1"),
+				}, nil
+			case certARN2:
+				return &acm.ExportCertificateOutput{
+					Certificate: aws.String("cert2"),
+					PrivateKey:  aws.String("key2"),
+				}, nil
+			}
+			return nil, errors.New("certificate not found")
+		},
+	}
+
+	client := newTestClientWithExport(mock, passphrase)
+
+	result, err := client.GetValues([]string{certKey1, certKey2})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	expected := map[string]string{
+		certKey1:                  "cert1",
+		certKey1 + "_private_key": "key1",
+		certKey2:                  "cert2",
+		certKey2 + "_private_key": "key2",
+	}
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("GetValues() = %v, want %v", result, expected)
 	}
 }

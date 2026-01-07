@@ -236,6 +236,37 @@ confd -onetime -backend acm
 
 Note: The certificate chain is available with the `_chain` suffix on the ARN key. Watch mode is not supported for ACM.
 
+##### Exporting Private Keys
+
+For certificates that support private key export (AWS Private CA certificates, imported certificates, or public certificates issued after June 17, 2025 with export option enabled), you can retrieve the private key using the `-acm-export-private-key` flag:
+
+```
+export ACM_PASSPHRASE="your-secure-passphrase"
+confd -onetime -backend acm -acm-export-private-key
+```
+
+Or via environment variable:
+```
+export ACM_EXPORT_PRIVATE_KEY=true
+export ACM_PASSPHRASE="your-secure-passphrase"
+confd -onetime -backend acm
+```
+
+Template example with private key:
+```
+{{getv "/arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"}}
+{{if exists "/arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012_private_key"}}
+{{getv "/arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012_private_key"}}
+{{end}}
+```
+
+Available keys:
+- `/<arn>` - Certificate body (PEM)
+- `/<arn>_chain` - Certificate chain (PEM)
+- `/<arn>_private_key` - Encrypted private key (PKCS #8 PEM, only with export enabled)
+
+**Note:** The private key is returned encrypted with the passphrase. Use `openssl rsa -in encrypted_key.pem -out decrypted_key.pem` to decrypt it.
+
 ## Advanced Example
 
 In this example we will use confd to manage two nginx config files using a single template.

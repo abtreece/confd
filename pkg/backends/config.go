@@ -27,5 +27,6 @@ type Config struct {
 	YAMLFile       util.Nodes `toml:"file"`
 	Filter         string     `toml:"filter"`
 	Path           string     `toml:"path"`
-	Role           string
+	Role                string
+	ACMExportPrivateKey bool `toml:"acm_export_private_key"`
 }
