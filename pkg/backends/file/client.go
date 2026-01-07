@@ -1,6 +1,7 @@
 package file
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -63,7 +64,7 @@ func readFile(path string, vars map[string]string) error {
 	return nil
 }
 
-func (c *Client) GetValues(keys []string) (map[string]string, error) {
+func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	vars := make(map[string]string)
 	var filePaths []string
 	for _, path := range c.filepath {
@@ -147,7 +148,7 @@ func (c *Client) watchChanges(watcher *fsnotify.Watcher, stopChan chan bool) Res
 	return <-outputChannel
 }
 
-func (c *Client) WatchPrefix(prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	if waitIndex == 0 {
 		return 1, nil
 	}

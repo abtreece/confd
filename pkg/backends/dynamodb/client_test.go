@@ -1,38 +1,39 @@
 package dynamodb
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 // mockDynamoDB implements the dynamoDBAPI interface for testing
 type mockDynamoDB struct {
-	getItemFunc      func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error)
-	scanFunc         func(input *dynamodb.ScanInput) (*dynamodb.ScanOutput, error)
-	describeTableFunc func(input *dynamodb.DescribeTableInput) (*dynamodb.DescribeTableOutput, error)
+	getItemFunc       func(ctx context.Context, input *dynamodb.GetItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	scanFunc          func(ctx context.Context, input *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
+	describeTableFunc func(ctx context.Context, input *dynamodb.DescribeTableInput, opts ...func(*dynamodb.Options)) (*dynamodb.DescribeTableOutput, error)
 }
 
-func (m *mockDynamoDB) GetItem(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+func (m *mockDynamoDB) GetItem(ctx context.Context, input *dynamodb.GetItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 	if m.getItemFunc != nil {
-		return m.getItemFunc(input)
+		return m.getItemFunc(ctx, input, opts...)
 	}
 	return &dynamodb.GetItemOutput{}, nil
 }
 
-func (m *mockDynamoDB) Scan(input *dynamodb.ScanInput) (*dynamodb.ScanOutput, error) {
+func (m *mockDynamoDB) Scan(ctx context.Context, input *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 	if m.scanFunc != nil {
-		return m.scanFunc(input)
+		return m.scanFunc(ctx, input, opts...)
 	}
 	return &dynamodb.ScanOutput{}, nil
 }
 
-func (m *mockDynamoDB) DescribeTable(input *dynamodb.DescribeTableInput) (*dynamodb.DescribeTableOutput, error) {
+func (m *mockDynamoDB) DescribeTable(ctx context.Context, input *dynamodb.DescribeTableInput, opts ...func(*dynamodb.Options)) (*dynamodb.DescribeTableOutput, error) {
 	if m.describeTableFunc != nil {
-		return m.describeTableFunc(input)
+		return m.describeTableFunc(ctx, input, opts...)
 	}
 	return &dynamodb.DescribeTableOutput{}, nil
 }
@@ -47,26 +48,30 @@ func newTestClient(mock *mockDynamoDB, table string) *Client {
 
 func TestGetValues_SingleItem(t *testing.T) {
 	mock := &mockDynamoDB{
-		getItemFunc: func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
-			key := *input.Key["key"].S
-			if key == "/test/key" {
+		getItemFunc: func(ctx context.Context, input *dynamodb.GetItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			keyAttr := input.Key["key"]
+			keyStr, ok := keyAttr.(*types.AttributeValueMemberS)
+			if !ok {
+				return &dynamodb.GetItemOutput{Item: nil}, nil
+			}
+			if keyStr.Value == "/test/key" {
 				return &dynamodb.GetItemOutput{
-					Item: map[string]*dynamodb.AttributeValue{
-						"key":   {S: aws.String("/test/key")},
-						"value": {S: aws.String("test_value")},
+					Item: map[string]types.AttributeValue{
+						"key":   &types.AttributeValueMemberS{Value: "/test/key"},
+						"value": &types.AttributeValueMemberS{Value: "test_value"},
 					},
 				}, nil
 			}
 			return &dynamodb.GetItemOutput{Item: nil}, nil
 		},
-		scanFunc: func(input *dynamodb.ScanInput) (*dynamodb.ScanOutput, error) {
-			return &dynamodb.ScanOutput{Items: []map[string]*dynamodb.AttributeValue{}}, nil
+		scanFunc: func(ctx context.Context, input *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}}, nil
 		},
 	}
 
 	client := newTestClient(mock, "test-table")
 
-	result, err := client.GetValues([]string{"/test/key"})
+	result, err := client.GetValues(context.Background(), []string{"/test/key"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -79,21 +84,21 @@ func TestGetValues_SingleItem(t *testing.T) {
 
 func TestGetValues_PrefixScan(t *testing.T) {
 	mock := &mockDynamoDB{
-		getItemFunc: func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+		getItemFunc: func(ctx context.Context, input *dynamodb.GetItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 			// No exact match, return empty
 			return &dynamodb.GetItemOutput{Item: nil}, nil
 		},
-		scanFunc: func(input *dynamodb.ScanInput) (*dynamodb.ScanOutput, error) {
+		scanFunc: func(ctx context.Context, input *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			// Return items that match the prefix
 			return &dynamodb.ScanOutput{
-				Items: []map[string]*dynamodb.AttributeValue{
+				Items: []map[string]types.AttributeValue{
 					{
-						"key":   {S: aws.String("/app/db/host")},
-						"value": {S: aws.String("localhost")},
+						"key":   &types.AttributeValueMemberS{Value: "/app/db/host"},
+						"value": &types.AttributeValueMemberS{Value: "localhost"},
 					},
 					{
-						"key":   {S: aws.String("/app/db/port")},
-						"value": {S: aws.String("5432")},
+						"key":   &types.AttributeValueMemberS{Value: "/app/db/port"},
+						"value": &types.AttributeValueMemberS{Value: "5432"},
 					},
 				},
 			}, nil
@@ -102,7 +107,7 @@ func TestGetValues_PrefixScan(t *testing.T) {
 
 	client := newTestClient(mock, "test-table")
 
-	result, err := client.GetValues([]string{"/app/db"})
+	result, err := client.GetValues(context.Background(), []string{"/app/db"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -118,34 +123,38 @@ func TestGetValues_PrefixScan(t *testing.T) {
 
 func TestGetValues_MultipleKeys(t *testing.T) {
 	mock := &mockDynamoDB{
-		getItemFunc: func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
-			key := *input.Key["key"].S
-			switch key {
+		getItemFunc: func(ctx context.Context, input *dynamodb.GetItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+			keyAttr := input.Key["key"]
+			keyStr, ok := keyAttr.(*types.AttributeValueMemberS)
+			if !ok {
+				return &dynamodb.GetItemOutput{Item: nil}, nil
+			}
+			switch keyStr.Value {
 			case "/key1":
 				return &dynamodb.GetItemOutput{
-					Item: map[string]*dynamodb.AttributeValue{
-						"key":   {S: aws.String("/key1")},
-						"value": {S: aws.String("value1")},
+					Item: map[string]types.AttributeValue{
+						"key":   &types.AttributeValueMemberS{Value: "/key1"},
+						"value": &types.AttributeValueMemberS{Value: "value1"},
 					},
 				}, nil
 			case "/key2":
 				return &dynamodb.GetItemOutput{
-					Item: map[string]*dynamodb.AttributeValue{
-						"key":   {S: aws.String("/key2")},
-						"value": {S: aws.String("value2")},
+					Item: map[string]types.AttributeValue{
+						"key":   &types.AttributeValueMemberS{Value: "/key2"},
+						"value": &types.AttributeValueMemberS{Value: "value2"},
 					},
 				}, nil
 			}
 			return &dynamodb.GetItemOutput{Item: nil}, nil
 		},
-		scanFunc: func(input *dynamodb.ScanInput) (*dynamodb.ScanOutput, error) {
-			return &dynamodb.ScanOutput{Items: []map[string]*dynamodb.AttributeValue{}}, nil
+		scanFunc: func(ctx context.Context, input *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}}, nil
 		},
 	}
 
 	client := newTestClient(mock, "test-table")
 
-	result, err := client.GetValues([]string{"/key1", "/key2"})
+	result, err := client.GetValues(context.Background(), []string{"/key1", "/key2"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -161,17 +170,17 @@ func TestGetValues_MultipleKeys(t *testing.T) {
 
 func TestGetValues_MissingKey(t *testing.T) {
 	mock := &mockDynamoDB{
-		getItemFunc: func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+		getItemFunc: func(ctx context.Context, input *dynamodb.GetItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 			return &dynamodb.GetItemOutput{Item: nil}, nil
 		},
-		scanFunc: func(input *dynamodb.ScanInput) (*dynamodb.ScanOutput, error) {
-			return &dynamodb.ScanOutput{Items: []map[string]*dynamodb.AttributeValue{}}, nil
+		scanFunc: func(ctx context.Context, input *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}}, nil
 		},
 	}
 
 	client := newTestClient(mock, "test-table")
 
-	result, err := client.GetValues([]string{"/missing/key"})
+	result, err := client.GetValues(context.Background(), []string{"/missing/key"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -185,14 +194,14 @@ func TestGetValues_MissingKey(t *testing.T) {
 func TestGetValues_GetItemError(t *testing.T) {
 	expectedErr := errors.New("dynamodb error")
 	mock := &mockDynamoDB{
-		getItemFunc: func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+		getItemFunc: func(ctx context.Context, input *dynamodb.GetItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 			return nil, expectedErr
 		},
 	}
 
 	client := newTestClient(mock, "test-table")
 
-	_, err := client.GetValues([]string{"/test/key"})
+	_, err := client.GetValues(context.Background(), []string{"/test/key"})
 	if err == nil {
 		t.Error("GetValues() expected error, got nil")
 	}
@@ -204,18 +213,18 @@ func TestGetValues_GetItemError(t *testing.T) {
 func TestGetValues_ScanError(t *testing.T) {
 	expectedErr := errors.New("scan error")
 	mock := &mockDynamoDB{
-		getItemFunc: func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+		getItemFunc: func(ctx context.Context, input *dynamodb.GetItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 			// No exact match
 			return &dynamodb.GetItemOutput{Item: nil}, nil
 		},
-		scanFunc: func(input *dynamodb.ScanInput) (*dynamodb.ScanOutput, error) {
+		scanFunc: func(ctx context.Context, input *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 			return nil, expectedErr
 		},
 	}
 
 	client := newTestClient(mock, "test-table")
 
-	_, err := client.GetValues([]string{"/test/prefix"})
+	_, err := client.GetValues(context.Background(), []string{"/test/prefix"})
 	if err == nil {
 		t.Error("GetValues() expected error, got nil")
 	}
@@ -226,23 +235,23 @@ func TestGetValues_ScanError(t *testing.T) {
 
 func TestGetValues_NonStringValue(t *testing.T) {
 	mock := &mockDynamoDB{
-		getItemFunc: func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+		getItemFunc: func(ctx context.Context, input *dynamodb.GetItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 			// Return item with non-string value (e.g., a number)
 			return &dynamodb.GetItemOutput{
-				Item: map[string]*dynamodb.AttributeValue{
-					"key":   {S: aws.String("/test/key")},
-					"value": {N: aws.String("123")}, // Number instead of string
+				Item: map[string]types.AttributeValue{
+					"key":   &types.AttributeValueMemberS{Value: "/test/key"},
+					"value": &types.AttributeValueMemberN{Value: "123"}, // Number instead of string
 				},
 			}, nil
 		},
-		scanFunc: func(input *dynamodb.ScanInput) (*dynamodb.ScanOutput, error) {
-			return &dynamodb.ScanOutput{Items: []map[string]*dynamodb.AttributeValue{}}, nil
+		scanFunc: func(ctx context.Context, input *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+			return &dynamodb.ScanOutput{Items: []map[string]types.AttributeValue{}}, nil
 		},
 	}
 
 	client := newTestClient(mock, "test-table")
 
-	result, err := client.GetValues([]string{"/test/key"})
+	result, err := client.GetValues(context.Background(), []string{"/test/key"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -258,7 +267,7 @@ func TestGetValues_EmptyKeys(t *testing.T) {
 	mock := &mockDynamoDB{}
 	client := newTestClient(mock, "test-table")
 
-	result, err := client.GetValues([]string{})
+	result, err := client.GetValues(context.Background(), []string{})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -280,7 +289,7 @@ func TestWatchPrefix(t *testing.T) {
 		stopChan <- true
 	}()
 
-	index, err := client.WatchPrefix("/test", []string{"/test/key"}, 0, stopChan)
+	index, err := client.WatchPrefix(context.Background(), "/test", []string{"/test/key"}, 0, stopChan)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}

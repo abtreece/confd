@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"context"
 	"path"
 	"strings"
 
@@ -51,7 +52,7 @@ func New(nodes []string, scheme, cert, key, caCert string, basicAuth bool, usern
 }
 
 // GetValues queries Consul for keys
-func (c *ConsulClient) GetValues(keys []string) (map[string]string, error) {
+func (c *ConsulClient) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	vars := make(map[string]string)
 	for _, key := range keys {
 		key := strings.TrimPrefix(key, "/")
@@ -71,7 +72,7 @@ type watchResponse struct {
 	err       error
 }
 
-func (c *ConsulClient) WatchPrefix(prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+func (c *ConsulClient) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	respChan := make(chan watchResponse)
 	go func() {
 		opts := api.QueryOptions{

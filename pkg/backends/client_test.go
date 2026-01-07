@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -87,7 +88,7 @@ func TestStoreClient_Interface(t *testing.T) {
 
 	// Test GetValues
 	t.Setenv("TEST_KEY", "test_value")
-	values, err := client.GetValues([]string{"/test/key"})
+	values, err := client.GetValues(context.Background(), []string{"/test/key"})
 	if err != nil {
 		t.Errorf("GetValues() unexpected error: %v", err)
 	}
@@ -119,7 +120,7 @@ database:
 		t.Fatalf("New() unexpected error: %v", err)
 	}
 
-	values, err := client.GetValues([]string{"/database"})
+	values, err := client.GetValues(context.Background(), []string{"/database"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}

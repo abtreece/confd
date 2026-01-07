@@ -1,24 +1,25 @@
 package acm
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/abtreece/confd/pkg/log"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/acm"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/acm"
 )
 
 // acmAPI defines the interface for ACM operations used by this client
 type acmAPI interface {
-	GetCertificate(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error)
-	ExportCertificate(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error)
-	ListCertificatesPages(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error
+	GetCertificate(ctx context.Context, input *acm.GetCertificateInput, opts ...func(*acm.Options)) (*acm.GetCertificateOutput, error)
+	ExportCertificate(ctx context.Context, input *acm.ExportCertificateInput, opts ...func(*acm.Options)) (*acm.ExportCertificateOutput, error)
+	ListCertificates(ctx context.Context, input *acm.ListCertificatesInput, opts ...func(*acm.Options)) (*acm.ListCertificatesOutput, error)
 }
 
 type Client struct {
@@ -29,49 +30,56 @@ type Client struct {
 
 // New initializes the AWS ACM backend for confd
 func New(exportPrivateKey bool) (*Client, error) {
-	// Attempt to get AWS Region from ec2metadata with a timeout
-	metaSession, err := session.NewSession()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AWS session: %w", err)
-	}
+	ctx := context.Background()
 
-	metaClient := ec2metadata.New(metaSession, aws.NewConfig().WithHTTPClient(&http.Client{Timeout: 2 * time.Second}))
+	// Attempt to get AWS Region from environment first, then EC2 metadata
 	var region string
-
 	if os.Getenv("AWS_REGION") != "" {
 		region = os.Getenv("AWS_REGION")
 	} else {
-		region, err = metaClient.Region()
-		if err != nil {
+		// Try to get region from EC2 metadata with a timeout
+		imdsCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+
+		imdsClient := imds.New(imds.Options{})
+		regionOutput, err := imdsClient.GetRegion(imdsCtx, &imds.GetRegionInput{})
+		if err == nil {
+			region = regionOutput.Region
+		} else {
 			return nil, fmt.Errorf("failed to get region from EC2 metadata: %w", err)
 		}
 	}
 
-	conf := aws.NewConfig().WithRegion(region)
-
-	// Create a session to share configuration, and load external configuration.
-	sess := session.Must(session.NewSessionWithOptions(
-		session.Options{
-			SharedConfigState: session.SharedConfigEnable,
-			Config:            *conf,
-		},
-	))
-
-	log.Debug("Region: %s", aws.StringValue(sess.Config.Region))
-
-	// Fail early, if no credentials can be found
-	_, err = sess.Config.Credentials.Get()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get AWS credentials: %w", err)
+	// Build config options
+	var optFns []func(*config.LoadOptions) error
+	if region != "" {
+		optFns = append(optFns, config.WithRegion(region))
 	}
 
-	var c *aws.Config
+	cfg, err := config.LoadDefaultConfig(ctx, optFns...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
+	}
+
+	log.Debug("Region: %s", cfg.Region)
+
+	// Fail early if no credentials can be found
+	creds, err := cfg.Credentials.Retrieve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve AWS credentials: %w", err)
+	}
+	if !creds.HasKeys() {
+		return nil, errors.New("no AWS credentials found")
+	}
+
+	// Create ACM client with optional local endpoint
+	var acmOpts []func(*acm.Options)
 	if os.Getenv("ACM_LOCAL") != "" {
 		log.Debug("ACM_LOCAL is set")
 		endpoint := os.Getenv("ACM_ENDPOINT_URL")
-		c = &aws.Config{
-			Endpoint: &endpoint,
-		}
+		acmOpts = append(acmOpts, func(o *acm.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+		})
 	}
 
 	// If export private key is enabled, require passphrase
@@ -85,15 +93,15 @@ func New(exportPrivateKey bool) (*Client, error) {
 		log.Debug("Private key export enabled")
 	}
 
-	svc := acm.New(sess, c)
+	client := acm.NewFromConfig(cfg, acmOpts...)
 	return &Client{
-		client:           svc,
+		client:           client,
 		exportPrivateKey: exportPrivateKey,
 		passphrase:       passphrase,
 	}, nil
 }
 
-func (c *Client) GetValues(keys []string) (map[string]string, error) {
+func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	vars := make(map[string]string)
 
 	for _, key := range keys {
@@ -108,7 +116,7 @@ func (c *Client) GetValues(keys []string) (map[string]string, error) {
 				Passphrase:     c.passphrase,
 			}
 
-			result, err := c.client.ExportCertificate(input)
+			result, err := c.client.ExportCertificate(ctx, input)
 			if err != nil {
 				return nil, fmt.Errorf("failed to export certificate: %w", err)
 			}
@@ -134,7 +142,7 @@ func (c *Client) GetValues(keys []string) (map[string]string, error) {
 				CertificateArn: aws.String(arn),
 			}
 
-			result, err := c.client.GetCertificate(input)
+			result, err := c.client.GetCertificate(ctx, input)
 			if err != nil {
 				return nil, fmt.Errorf("failed to retrieve certificate: %w", err)
 			}
@@ -156,26 +164,25 @@ func (c *Client) GetValues(keys []string) (map[string]string, error) {
 	return vars, nil
 }
 
-func (c *Client) ListCertificates() ([]string, error) {
+func (c *Client) ListCertificates(ctx context.Context) ([]string, error) {
 	var certs []string
 
-	input := &acm.ListCertificatesInput{}
-	err := c.client.ListCertificatesPages(input, func(page *acm.ListCertificatesOutput, lastPage bool) bool {
-		for _, cert := range page.CertificateSummaryList {
-			certs = append(certs, aws.StringValue(cert.CertificateArn))
+	paginator := acm.NewListCertificatesPaginator(c.client, &acm.ListCertificatesInput{})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list certificates: %w", err)
 		}
-		return !lastPage
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to list certificates: %w", err)
+		for _, cert := range page.CertificateSummaryList {
+			certs = append(certs, aws.ToString(cert.CertificateArn))
+		}
 	}
 
 	return certs, nil
 }
 
 // WatchPrefix is not implemented for ACM
-func (c *Client) WatchPrefix(prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	<-stopChan
 	return 0, nil
 }
