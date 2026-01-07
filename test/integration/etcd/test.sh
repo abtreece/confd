@@ -16,4 +16,4 @@ etcdctl put /nested/staging/app1 172.16.1.10:8080 --endpoints $ETCD_ENDPOINT
 etcdctl put /nested/staging/app2 172.16.1.11:8080 --endpoints $ETCD_ENDPOINT
 
 # Run confd
-confd --onetime --log-level debug --confdir ./test/integration/confdir --backend etcd --node $ETCD_ENDPOINT --watch
+confd etcd --onetime --log-level debug --confdir ./test/integration/confdir --node $ETCD_ENDPOINT --watch

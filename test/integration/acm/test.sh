@@ -52,7 +52,7 @@ cat > ./test/integration/acm/confdir/templates/certificate.tmpl << EOF
 EOF
 
 # Run confd, expect it to work
-confd --onetime --log-level debug --confdir ./test/integration/acm/confdir --backend acm
+confd acm --onetime --log-level debug --confdir ./test/integration/acm/confdir
 if [ $? -ne 0 ]; then
     echo "confd failed"
     exit 1
@@ -107,7 +107,7 @@ EOF
 
 # Run confd with private key export enabled
 # This may fail with localstack due to ExportCertificate limitations
-confd --onetime --log-level debug --confdir ./test/integration/acm/confdir-export --backend acm --acm-export-private-key
+confd acm --onetime --log-level debug --confdir ./test/integration/acm/confdir-export --acm-export-private-key
 EXPORT_EXIT_CODE=$?
 
 if [ $EXPORT_EXIT_CODE -eq 0 ]; then
@@ -131,7 +131,7 @@ unset ACM_PASSPHRASE
 rm -rf ./test/integration/acm/confdir-export
 
 # Run confd with --watch, expecting it to fail (watch not supported for ACM)
-confd --onetime --log-level debug --confdir ./test/integration/acm/confdir --backend acm --watch
+confd acm --onetime --log-level debug --confdir ./test/integration/acm/confdir --watch
 if [ $? -eq 0 ]; then
     echo "confd with --watch should have failed for ACM backend"
     exit 1

@@ -11,9 +11,8 @@ vault kv put kv-v2/nested/production app1=10.0.1.10:8080 app2=10.0.1.11:8080
 vault kv put kv-v2/nested/staging app1=172.16.1.10:8080 app2=172.16.1.11:8080
 
 # Run confd
-confd --onetime --log-level debug \
+confd vault --onetime --log-level debug \
       --confdir ./test/integration/confdir \
-      --backend vault \
       --auth-type token \
       --auth-token $VAULT_TOKEN \
       --prefix "/kv-v2" \

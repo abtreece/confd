@@ -13,4 +13,4 @@ export NESTED_PRODUCTION_APP2="10.0.1.11:8080"
 export NESTED_STAGING_APP1="app1=172.16.1.10:8080"
 export NESTED_STAGING_APP2="app2=172.16.1.11:8080"
 
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend env
+confd env --onetime --log-level debug --confdir ./test/integration/confdir --interval 5

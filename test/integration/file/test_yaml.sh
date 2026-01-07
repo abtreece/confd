@@ -28,7 +28,7 @@ nested:
 EOT
 
 # Run confd
-confd --onetime --log-level debug --confdir ./test/integration/confdir --backend file --file backends/yaml/ --watch
+confd file --onetime --log-level debug --confdir ./test/integration/confdir --file backends/yaml/ --watch
 
 # Clean up after
 rm -rf backends/yaml

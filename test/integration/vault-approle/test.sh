@@ -24,9 +24,8 @@ export ROLE_ID=$(vault read -field=role_id auth/test/role/my-role/role-id)
 export SECRET_ID=$(vault write -f -field=secret_id auth/test/role/my-role/secret-id)
 
 # Run confd
-confd --onetime --log-level debug \
+confd vault --onetime --log-level debug \
       --confdir ./test/integration/confdir \
-      --backend vault \
       --auth-type app-role \
       --role-id $ROLE_ID \
       --secret-id $SECRET_ID \

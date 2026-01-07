@@ -1,185 +1,183 @@
 package main
 
 import (
-	"errors"
-	"flag"
-	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
-	"github.com/abtreece/confd/pkg/template"
 )
 
-type TemplateConfig = template.Config
-type BackendsConfig = backends.Config
+// TOMLConfig represents the structure of the confd TOML config file
+type TOMLConfig struct {
+	ConfDir       string   `toml:"confdir"`
+	Interval      int      `toml:"interval"`
+	Noop          bool     `toml:"noop"`
+	Prefix        string   `toml:"prefix"`
+	SyncOnly      bool     `toml:"sync_only"`
+	LogLevel      string   `toml:"log-level"`
+	LogFormat     string   `toml:"log-format"`
+	Watch         bool     `toml:"watch"`
+	KeepStageFile bool     `toml:"keep_stage_file"`
+	SRVDomain     string   `toml:"srv_domain"`
+	SRVRecord     string   `toml:"srv_record"`
+	Nodes         []string `toml:"nodes"`
 
-// A Config structure is used to configure confd.
-type Config struct {
-	TemplateConfig
-	BackendsConfig
-	Interval       int    `toml:"interval"`
-	SRVDomain      string `toml:"srv_domain"`
-	SRVRecord      string `toml:"srv_record"`
-	LogLevel       string `toml:"log-level"`
-	LogFormat      string `toml:"log-format"`
-	Watch          bool   `toml:"watch"`
-	PrintVersion   bool
-	ConfigFile     string
-	OneTime        bool
-	ClientInsecure bool
+	// Backend-specific settings
+	AuthToken      string   `toml:"auth_token"`
+	AuthType       string   `toml:"auth_type"`
+	BasicAuth      bool     `toml:"basic_auth"`
+	ClientCaKeys   string   `toml:"client_cakeys"`
+	ClientCert     string   `toml:"client_cert"`
+	ClientKey      string   `toml:"client_key"`
+	ClientInsecure bool     `toml:"client_insecure"`
+	Password       string   `toml:"password"`
+	Scheme         string   `toml:"scheme"`
+	Table          string   `toml:"table"`
+	Separator      string   `toml:"separator"`
+	Username       string   `toml:"username"`
+	AppID          string   `toml:"app_id"`
+	UserID         string   `toml:"user_id"`
+	RoleID         string   `toml:"role_id"`
+	SecretID       string   `toml:"secret_id"`
+	File           []string `toml:"file"`
+	Filter         string   `toml:"filter"`
+	Path           string   `toml:"path"`
+
+	ACMExportPrivateKey          bool   `toml:"acm_export_private_key"`
+	SecretsManagerVersionStage   string `toml:"secretsmanager_version_stage"`
+	SecretsManagerNoFlatten      bool   `toml:"secretsmanager_no_flatten"`
 }
 
-var config Config
-
-func init() {
-	flag.StringVar(&config.AuthToken, "auth-token", "", "Auth bearer token to use")
-	flag.StringVar(&config.Backend, "backend", "", "backend to use")
-	flag.BoolVar(&config.BasicAuth, "basic-auth", false, "Use Basic Auth to authenticate (only used with -backend=consul and -backend=etcd)")
-	flag.StringVar(&config.ClientCaKeys, "client-ca-keys", "", "client ca keys")
-	flag.StringVar(&config.ClientCert, "client-cert", "", "the client cert")
-	flag.StringVar(&config.ClientKey, "client-key", "", "the client key")
-	flag.BoolVar(&config.ClientInsecure, "client-insecure", false, "Allow connections to SSL sites without certs (only used with -backend=etcd)")
-	flag.StringVar(&config.ConfDir, "confdir", "/etc/confd", "confd conf directory")
-	flag.StringVar(&config.ConfigFile, "config-file", "/etc/confd/confd.toml", "the confd config file")
-	flag.Var(&config.YAMLFile, "file", "the YAML file to watch for changes (only used with -backend=file)")
-	flag.StringVar(&config.Filter, "filter", "*", "files filter (only used with -backend=file)")
-	flag.IntVar(&config.Interval, "interval", 600, "backend polling interval")
-	flag.BoolVar(&config.KeepStageFile, "keep-stage-file", false, "keep staged files")
-	flag.StringVar(&config.LogLevel, "log-level", "", "level which confd should log messages")
-	flag.StringVar(&config.LogFormat, "log-format", "", "format of log messages (text or json)")
-	flag.Var(&config.BackendNodes, "node", "list of backend nodes")
-	flag.BoolVar(&config.Noop, "noop", false, "only show pending changes")
-	flag.BoolVar(&config.OneTime, "onetime", false, "run once and exit")
-	flag.StringVar(&config.Prefix, "prefix", "", "key path prefix")
-	flag.BoolVar(&config.PrintVersion, "version", false, "print version and exit")
-	flag.StringVar(&config.Scheme, "scheme", "http", "the backend URI scheme for nodes retrieved from DNS SRV records (http or https)")
-	flag.StringVar(&config.SRVDomain, "srv-domain", "", "the name of the resource record")
-	flag.StringVar(&config.SRVRecord, "srv-record", "", "the SRV record to search for backends nodes. Example: _etcd-client._tcp.example.com")
-	flag.BoolVar(&config.SyncOnly, "sync-only", false, "sync without check_cmd and reload_cmd")
-	flag.StringVar(&config.AuthType, "auth-type", "", "Vault auth backend type to use (only used with -backend=vault)")
-	flag.StringVar(&config.AppID, "app-id", "", "Vault app-id to use with the app-id backend (only used with -backend=vault and auth-type=app-id)")
-	flag.StringVar(&config.UserID, "user-id", "", "Vault user-id to use with the app-id backend (only used with -backend=value and auth-type=app-id)")
-	flag.StringVar(&config.RoleID, "role-id", "", "Vault role-id to use with the AppRole, Kubernetes backends (only used with -backend=vault and either auth-type=app-role or auth-type=kubernetes)")
-	flag.StringVar(&config.SecretID, "secret-id", "", "Vault secret-id to use with the AppRole backend (only used with -backend=vault and auth-type=app-role)")
-	flag.StringVar(&config.Path, "path", "", "Vault mount path of the auth method (only used with -backend=vault)")
-	flag.StringVar(&config.Table, "table", "", "the name of the DynamoDB table (only used with -backend=dynamodb)")
-	flag.StringVar(&config.Separator, "separator", "", "the separator to replace '/' with when looking up keys in the backend, prefixed '/' will also be removed (only used with -backend=redis)")
-	flag.StringVar(&config.Username, "username", "", "the username to authenticate as (only used with vault and etcd backends)")
-	flag.StringVar(&config.Password, "password", "", "the password to authenticate with (only used with vault and etcd backends)")
-	flag.BoolVar(&config.Watch, "watch", false, "enable watch support")
-	flag.BoolVar(&config.ACMExportPrivateKey, "acm-export-private-key", false, "Export private key from ACM certificates (only used with -backend=acm)")
-	flag.StringVar(&config.SecretsManagerVersionStage, "secretsmanager-version-stage", "AWSCURRENT", "version stage for Secrets Manager (AWSCURRENT, AWSPREVIOUS, or custom label)")
-	flag.BoolVar(&config.SecretsManagerNoFlatten, "secretsmanager-no-flatten", false, "disable JSON flattening, return raw secret string (only used with -backend=secretsmanager)")
-}
-
-// initConfig initializes the confd configuration by first setting defaults,
-// then overriding settings from the confd config file, then overriding
-// settings from environment variables, and finally overriding
-// settings from flags set on the command line.
-// It returns an error if any.
-func initConfig() error {
-	_, err := os.Stat(config.ConfigFile)
+// loadConfigFile loads the TOML config file and applies defaults to CLI and backend config
+func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
+	_, err := os.Stat(cli.ConfigFile)
 	if os.IsNotExist(err) {
 		log.Debug("Skipping confd config file.")
-	} else {
-		log.Debug("Loading " + config.ConfigFile)
-		configBytes, err := os.ReadFile(config.ConfigFile)
-		if err != nil {
-			return err
-		}
-
-		_, err = toml.Decode(string(configBytes), &config)
-		if err != nil {
-			return err
-		}
+		return nil
 	}
 
-	// Update config from environment variables.
-	processEnv()
-
-	if config.LogLevel != "" {
-		log.SetLevel(config.LogLevel)
+	log.Debug("Loading " + cli.ConfigFile)
+	configBytes, err := os.ReadFile(cli.ConfigFile)
+	if err != nil {
+		return err
 	}
 
-	if config.LogFormat != "" {
-		log.SetFormat(config.LogFormat)
+	var tomlCfg TOMLConfig
+	if _, err = toml.Decode(string(configBytes), &tomlCfg); err != nil {
+		return err
 	}
 
-	if config.SRVDomain != "" && config.SRVRecord == "" {
-		config.SRVRecord = fmt.Sprintf("_%s._tcp.%s.", config.Backend, config.SRVDomain)
+	// Apply TOML settings as defaults (CLI flags take precedence)
+	// Global settings
+	if cli.ConfDir == "/etc/confd" && tomlCfg.ConfDir != "" {
+		cli.ConfDir = tomlCfg.ConfDir
+	}
+	if cli.Interval == 600 && tomlCfg.Interval != 0 {
+		cli.Interval = tomlCfg.Interval
+	}
+	if !cli.Noop && tomlCfg.Noop {
+		cli.Noop = true
+	}
+	if cli.Prefix == "" && tomlCfg.Prefix != "" {
+		cli.Prefix = tomlCfg.Prefix
+	}
+	if !cli.SyncOnly && tomlCfg.SyncOnly {
+		cli.SyncOnly = true
+	}
+	if cli.LogLevel == "" && tomlCfg.LogLevel != "" {
+		cli.LogLevel = tomlCfg.LogLevel
+	}
+	if cli.LogFormat == "" && tomlCfg.LogFormat != "" {
+		cli.LogFormat = tomlCfg.LogFormat
+	}
+	if !cli.Watch && tomlCfg.Watch {
+		cli.Watch = true
+	}
+	if !cli.KeepStageFile && tomlCfg.KeepStageFile {
+		cli.KeepStageFile = true
+	}
+	if cli.SRVDomain == "" && tomlCfg.SRVDomain != "" {
+		cli.SRVDomain = tomlCfg.SRVDomain
+	}
+	if cli.SRVRecord == "" && tomlCfg.SRVRecord != "" {
+		cli.SRVRecord = tomlCfg.SRVRecord
 	}
 
-	// Update BackendNodes from SRV records.
-	if config.Backend != "env" && config.SRVRecord != "" {
-		log.Info("SRV record set to " + config.SRVRecord)
-		srvNodes, err := getBackendNodesFromSRV(config.SRVRecord)
-		if err != nil {
-			return errors.New("Cannot get nodes from SRV records " + err.Error())
-		}
-
-		switch config.Backend {
-		case "etcd":
-			vsm := make([]string, len(srvNodes))
-			for i, v := range srvNodes {
-				vsm[i] = config.Scheme + "://" + v
-			}
-			srvNodes = vsm
-		}
-
-		config.BackendNodes = srvNodes
+	// Backend settings (only apply if not already set via CLI)
+	if len(backendCfg.BackendNodes) == 0 && len(tomlCfg.Nodes) > 0 {
+		backendCfg.BackendNodes = tomlCfg.Nodes
 	}
-	if len(config.BackendNodes) == 0 {
-		switch config.Backend {
-		case "consul":
-			config.BackendNodes = []string{"127.0.0.1:8500"}
-		case "etcd":
-			peerstr := os.Getenv("ETCDCTL_PEERS")
-			if len(peerstr) > 0 {
-				config.BackendNodes = strings.Split(peerstr, ",")
-			} else {
-				config.BackendNodes = []string{"http://127.0.0.1:2379"}
-			}
-		case "redis":
-			config.BackendNodes = []string{"127.0.0.1:6379"}
-		case "vault":
-			config.BackendNodes = []string{"http://127.0.0.1:8200"}
-		case "zookeeper":
-			config.BackendNodes = []string{"127.0.0.1:2181"}
-		}
+	if backendCfg.AuthToken == "" && tomlCfg.AuthToken != "" {
+		backendCfg.AuthToken = tomlCfg.AuthToken
+	}
+	if backendCfg.AuthType == "" && tomlCfg.AuthType != "" {
+		backendCfg.AuthType = tomlCfg.AuthType
+	}
+	if !backendCfg.BasicAuth && tomlCfg.BasicAuth {
+		backendCfg.BasicAuth = true
+	}
+	if backendCfg.ClientCaKeys == "" && tomlCfg.ClientCaKeys != "" {
+		backendCfg.ClientCaKeys = tomlCfg.ClientCaKeys
+	}
+	if backendCfg.ClientCert == "" && tomlCfg.ClientCert != "" {
+		backendCfg.ClientCert = tomlCfg.ClientCert
+	}
+	if backendCfg.ClientKey == "" && tomlCfg.ClientKey != "" {
+		backendCfg.ClientKey = tomlCfg.ClientKey
+	}
+	if !backendCfg.ClientInsecure && tomlCfg.ClientInsecure {
+		backendCfg.ClientInsecure = true
+	}
+	if backendCfg.Password == "" && tomlCfg.Password != "" {
+		backendCfg.Password = tomlCfg.Password
+	}
+	if backendCfg.Scheme == "" && tomlCfg.Scheme != "" {
+		backendCfg.Scheme = tomlCfg.Scheme
+	}
+	if backendCfg.Table == "" && tomlCfg.Table != "" {
+		backendCfg.Table = tomlCfg.Table
+	}
+	if backendCfg.Separator == "" && tomlCfg.Separator != "" {
+		backendCfg.Separator = tomlCfg.Separator
+	}
+	if backendCfg.Username == "" && tomlCfg.Username != "" {
+		backendCfg.Username = tomlCfg.Username
+	}
+	if backendCfg.AppID == "" && tomlCfg.AppID != "" {
+		backendCfg.AppID = tomlCfg.AppID
+	}
+	if backendCfg.UserID == "" && tomlCfg.UserID != "" {
+		backendCfg.UserID = tomlCfg.UserID
+	}
+	if backendCfg.RoleID == "" && tomlCfg.RoleID != "" {
+		backendCfg.RoleID = tomlCfg.RoleID
+	}
+	if backendCfg.SecretID == "" && tomlCfg.SecretID != "" {
+		backendCfg.SecretID = tomlCfg.SecretID
+	}
+	if len(backendCfg.YAMLFile) == 0 && len(tomlCfg.File) > 0 {
+		backendCfg.YAMLFile = tomlCfg.File
+	}
+	if backendCfg.Filter == "" && tomlCfg.Filter != "" {
+		backendCfg.Filter = tomlCfg.Filter
+	}
+	if backendCfg.Path == "" && tomlCfg.Path != "" {
+		backendCfg.Path = tomlCfg.Path
+	}
+	if !backendCfg.ACMExportPrivateKey && tomlCfg.ACMExportPrivateKey {
+		backendCfg.ACMExportPrivateKey = true
+	}
+	if backendCfg.SecretsManagerVersionStage == "" && tomlCfg.SecretsManagerVersionStage != "" {
+		backendCfg.SecretsManagerVersionStage = tomlCfg.SecretsManagerVersionStage
+	}
+	if !backendCfg.SecretsManagerNoFlatten && tomlCfg.SecretsManagerNoFlatten {
+		backendCfg.SecretsManagerNoFlatten = true
 	}
 
-	if config.Watch {
-		unsupportedBackends := map[string]bool{
-			"acm":            true,
-			"dynamodb":       true,
-			"secretsmanager": true,
-			"ssm":            true,
-		}
-
-		if unsupportedBackends[config.Backend] {
-			log.Info(fmt.Sprintf("Watch is not supported for backend %s. Exiting...", config.Backend))
-			os.Exit(1)
-		}
-	}
-
-	if config.Backend == "dynamodb" && config.Table == "" {
-		return errors.New("No DynamoDB table configured")
-	}
-
-	if config.Backend == "" {
-		log.Fatal("Backend is not set. Exiting...")
-		os.Exit(1)
-	}
-	// Initialize the storage client
-	log.Info("Backend set to " + config.Backend)
-	config.ConfigDir = filepath.Join(config.ConfDir, "conf.d")
-	config.TemplateDir = filepath.Join(config.ConfDir, "templates")
 	return nil
 }
 
@@ -199,23 +197,23 @@ func getBackendNodesFromSRV(record string) ([]string, error) {
 	return nodes, nil
 }
 
-func processEnv() {
+func processEnv(cfg *backends.Config) {
 	cakeys := os.Getenv("CONFD_CLIENT_CAKEYS")
-	if len(cakeys) > 0 && config.ClientCaKeys == "" {
-		config.ClientCaKeys = cakeys
+	if len(cakeys) > 0 && cfg.ClientCaKeys == "" {
+		cfg.ClientCaKeys = cakeys
 	}
 
 	cert := os.Getenv("CONFD_CLIENT_CERT")
-	if len(cert) > 0 && config.ClientCert == "" {
-		config.ClientCert = cert
+	if len(cert) > 0 && cfg.ClientCert == "" {
+		cfg.ClientCert = cert
 	}
 
 	key := os.Getenv("CONFD_CLIENT_KEY")
-	if len(key) > 0 && config.ClientKey == "" {
-		config.ClientKey = key
+	if len(key) > 0 && cfg.ClientKey == "" {
+		cfg.ClientKey = key
 	}
 
-	if os.Getenv("ACM_EXPORT_PRIVATE_KEY") != "" && !config.ACMExportPrivateKey {
-		config.ACMExportPrivateKey = true
+	if os.Getenv("ACM_EXPORT_PRIVATE_KEY") != "" && !cfg.ACMExportPrivateKey {
+		cfg.ACMExportPrivateKey = true
 	}
 }

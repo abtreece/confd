@@ -52,14 +52,14 @@ aws dynamodb put-item --table-name confd --region $AWS_REGION \
     --endpoint-url $DYNAMODB_ENDPOINT_URL
 
 # Run confd, expect it to work
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend dynamodb --table confd
+confd dynamodb --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --table confd
 if [ $? -ne 0 ]
 then
         exit 1
 fi
 
 # Run confd with --watch, expecting it to fail
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend dynamodb --table confd --watch
+confd dynamodb --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --table confd --watch
 if [ $? -eq 0 ]
 then
         exit 1
@@ -69,7 +69,7 @@ fi
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend dynamodb --table confd
+confd dynamodb --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --table confd
 if [ $? -eq 0 ]
 then
         exit 1
