@@ -281,10 +281,25 @@ func (t *TemplateResource) check() error {
 	return runCommand(cmdBuffer.String())
 }
 
-// reload executes the reload command.
+// reload executes the reload command. The command is modified so that any
+// references to src template are substituted with a string representing the
+// full path of the staged file, and any references to dest are substituted
+// with the full path of the destination file. This allows the reload command
+// to reference the relevant file paths.
 // It returns nil if the reload command returns 0.
 func (t *TemplateResource) reload() error {
-	return runCommand(t.ReloadCmd)
+	var cmdBuffer bytes.Buffer
+	data := make(map[string]string)
+	data["src"] = t.StageFile.Name()
+	data["dest"] = t.Dest
+	tmpl, err := template.New("reloadcmd").Parse(t.ReloadCmd)
+	if err != nil {
+		return err
+	}
+	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
+		return err
+	}
+	return runCommand(cmdBuffer.String())
 }
 
 // runCommand is a shared function used by check and reload
