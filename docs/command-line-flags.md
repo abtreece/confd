@@ -58,6 +58,10 @@ Usage of confd:
       the backend URI scheme for nodes retrieved from DNS SRV records (http or https) (default "http")
   -secret-id string
       Vault secret-id to use with the AppRole backend (only used with -backend=vault and auth-type=app-role)
+  -secretsmanager-no-flatten
+      disable JSON flattening, return raw secret string (only used with -backend=secretsmanager)
+  -secretsmanager-version-stage string
+      version stage for Secrets Manager (AWSCURRENT, AWSPREVIOUS, or custom label) (default "AWSCURRENT") (only used with -backend=secretsmanager)
   -separator string
       the separator to replace '/' with when looking up keys in the backend, prefixed '/' will also be removed (only used with -backend=redis)
   -srv-domain string
