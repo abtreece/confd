@@ -74,6 +74,8 @@ func init() {
 	flag.StringVar(&config.Password, "password", "", "the password to authenticate with (only used with vault and etcd backends)")
 	flag.BoolVar(&config.Watch, "watch", false, "enable watch support")
 	flag.BoolVar(&config.ACMExportPrivateKey, "acm-export-private-key", false, "Export private key from ACM certificates (only used with -backend=acm)")
+	flag.StringVar(&config.SecretsManagerVersionStage, "secretsmanager-version-stage", "AWSCURRENT", "version stage for Secrets Manager (AWSCURRENT, AWSPREVIOUS, or custom label)")
+	flag.BoolVar(&config.SecretsManagerNoFlatten, "secretsmanager-no-flatten", false, "disable JSON flattening, return raw secret string (only used with -backend=secretsmanager)")
 }
 
 // initConfig initializes the confd configuration by first setting defaults,
@@ -154,9 +156,10 @@ func initConfig() error {
 
 	if config.Watch {
 		unsupportedBackends := map[string]bool{
-			"acm":      true,
-			"dynamodb": true,
-			"ssm":      true,
+			"acm":            true,
+			"dynamodb":       true,
+			"secretsmanager": true,
+			"ssm":            true,
 		}
 
 		if unsupportedBackends[config.Backend] {
