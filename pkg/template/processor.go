@@ -9,10 +9,12 @@ import (
 	util "github.com/abtreece/confd/pkg/util"
 )
 
+// Processor defines the interface for template processing strategies.
 type Processor interface {
 	Process()
 }
 
+// Process loads and processes all template resources once.
 func Process(config Config) error {
 	ts, err := getTemplateResources(config)
 	if err != nil {
@@ -40,6 +42,7 @@ type intervalProcessor struct {
 	interval int
 }
 
+// IntervalProcessor creates a processor that polls for changes at a fixed interval.
 func IntervalProcessor(config Config, stopChan, doneChan chan bool, errChan chan error, interval int) Processor {
 	return &intervalProcessor{config, stopChan, doneChan, errChan, interval}
 }
@@ -55,7 +58,7 @@ func (p *intervalProcessor) Process() {
 		process(ts)
 		select {
 		case <-p.stopChan:
-			break
+			return
 		case <-time.After(time.Duration(p.interval) * time.Second):
 			continue
 		}
@@ -70,6 +73,7 @@ type watchProcessor struct {
 	wg       sync.WaitGroup
 }
 
+// WatchProcessor creates a processor that watches for backend changes continuously.
 func WatchProcessor(config Config, stopChan, doneChan chan bool, errChan chan error) Processor {
 	var wg sync.WaitGroup
 	return &watchProcessor{config, stopChan, doneChan, errChan, wg}

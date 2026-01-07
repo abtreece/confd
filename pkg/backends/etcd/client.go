@@ -20,11 +20,6 @@ type etcdKV interface {
 	Txn(ctx context.Context) clientv3.Txn
 }
 
-// etcdWatcher defines the interface for etcd watch operations.
-type etcdWatcher interface {
-	Watch(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan
-}
-
 // A watch only tells the latest revision
 type Watch struct {
 	// Last seen revision

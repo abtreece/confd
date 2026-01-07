@@ -31,6 +31,7 @@ type FileInfo struct {
 	Md5  string
 }
 
+// AppendPrefix prepends the given prefix to each key in the slice.
 func AppendPrefix(prefix string, keys []string) []string {
 	s := make([]string, len(keys))
 	for i, k := range keys {
@@ -39,6 +40,7 @@ func AppendPrefix(prefix string, keys []string) []string {
 	return s
 }
 
+// ArrayShift inserts a value at the specified position in the array.
 func ArrayShift(array *[]string, position int, value string) {
 	*array = append(*array, "")
 	copy((*array)[position+1:], (*array)[position:])

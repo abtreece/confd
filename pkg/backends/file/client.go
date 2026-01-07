@@ -15,19 +15,19 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-var replacer = strings.NewReplacer("/", "_")
-
 // Client provides a shell for the yaml client
 type Client struct {
 	filepath []string
 	filter   string
 }
 
+// ResultError holds a response code and error from file watch operations.
 type ResultError struct {
 	response uint64
 	err      error
 }
 
+// NewFileClient creates a new file backend client for reading YAML/JSON files.
 func NewFileClient(filepath []string, filter string) (*Client, error) {
 	return &Client{filepath: filepath, filter: filter}, nil
 }
@@ -54,7 +54,7 @@ func readFile(path string, vars map[string]string) error {
 		}
 		err = nodeWalk(fileMap, "/", vars)
 	default:
-		err = fmt.Errorf("Invalid file extentsion. YAML or JSON only.")
+		err = fmt.Errorf("invalid file extension, YAML or JSON only")
 	}
 
 	if err != nil {
