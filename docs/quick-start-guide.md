@@ -14,7 +14,8 @@ confd supports the following backends:
 * redis
 * zookeeper
 * dynamodb
-* [ssm](../backends/ssm/README.md) (AWS Simple Systems Manager Parameter Store)
+* ssm (AWS Simple Systems Manager Parameter Store)
+* acm (AWS Certificate Manager)
 
 ### Add keys
 
@@ -100,6 +101,20 @@ aws dynamodb put-item --table-name <YOUR_TABLE> --region <YOUR_REGION> \
 aws ssm put-parameter --name "/myapp/database/url" --type "String" --value "db.example.com"
 aws ssm put-parameter --name "/myapp/database/user" --type "SecureString" --value "rob"
 ```
+
+#### acm
+
+For ACM, certificates are identified by their ARN. Import a certificate or use an existing one:
+
+```
+# Import a certificate (returns the certificate ARN)
+aws acm import-certificate \
+    --certificate fileb://certificate.pem \
+    --private-key fileb://private-key.pem \
+    --certificate-chain fileb://certificate-chain.pem
+```
+
+Note the ARN returned (e.g., `arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012`).
 
 ### Create the confdir
 
@@ -193,6 +208,33 @@ confd -onetime -backend redis -node 192.168.255.210:6379/4
 ```
 confd -onetime -backend ssm
 ```
+
+#### acm
+
+For ACM, create a template resource config that uses the certificate ARN:
+
+/etc/confd/conf.d/certificate.toml
+```
+[template]
+src = "certificate.tmpl"
+dest = "/etc/ssl/certs/app-cert.pem"
+mode = "0644"
+keys = [
+  "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+]
+```
+
+/etc/confd/templates/certificate.tmpl
+```
+{{getv "/arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"}}
+```
+
+Run confd:
+```
+confd -onetime -backend acm
+```
+
+Note: The certificate chain is available with the `_chain` suffix on the ARN key. Watch mode is not supported for ACM.
 
 ## Advanced Example
 
