@@ -16,6 +16,10 @@ This is a divergent fork of kelseyhightower/confd. The upstream repository is ef
 gh pr create --repo abtreece/confd ...
 ```
 
+## Git Commits
+
+All commits should be authored by the repository owner. Do not include Co-Authored-By lines or AI attribution in commit messages.
+
 ## Build Commands
 
 ```bash
