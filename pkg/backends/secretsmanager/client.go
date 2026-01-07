@@ -103,8 +103,15 @@ func New(versionStage string, noFlatten bool) (*Client, error) {
 }
 
 // GetValues retrieves the values for the given keys from AWS Secrets Manager.
+// For JSON secrets, keys like /database/host will look up the "database" secret
+// and extract the "host" field from the JSON.
 func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	vars := make(map[string]string)
+
+	// Cache for fetched secrets to avoid duplicate API calls
+	secretCache := make(map[string]*secretsmanager.GetSecretValueOutput)
+	// Track errors separately from not-found
+	errorCache := make(map[string]error)
 
 	for _, key := range keys {
 		log.Debug("Processing key=%s", key)
@@ -112,43 +119,115 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		// Remove leading slash for secret name
 		secretName := strings.TrimPrefix(key, "/")
 
-		input := &secretsmanager.GetSecretValueInput{
-			SecretId:     aws.String(secretName),
-			VersionStage: aws.String(c.versionStage),
-		}
-
-		resp, err := c.client.GetSecretValue(ctx, input)
+		// First, try direct secret lookup
+		val, found, err := c.fetchAndProcessSecret(ctx, secretName, key, secretCache, errorCache, vars)
 		if err != nil {
-			// Handle ResourceNotFoundException gracefully
-			var notFoundErr *types.ResourceNotFoundException
-			if errors.As(err, &notFoundErr) {
-				log.Debug("Secret not found: %s", secretName)
-				continue
-			}
 			return vars, err
 		}
+		if found {
+			vars[key] = val
+			continue
+		}
 
-		if resp.SecretString != nil {
-			// Try to parse as JSON first (unless noFlatten is set)
-			if !c.noFlatten {
-				var jsonSecret map[string]interface{}
-				if err := json.Unmarshal([]byte(*resp.SecretString), &jsonSecret); err == nil {
-					// Flatten JSON: /secret/key -> value
-					for k, v := range jsonSecret {
-						vars[key+"/"+k] = fmt.Sprintf("%v", v)
-					}
+		// If not found and JSON flattening is enabled, try parent lookups
+		// For a key like /database/host, try fetching "database" and look for "host" in JSON
+		if !c.noFlatten {
+			parts := strings.Split(secretName, "/")
+			for i := len(parts) - 1; i > 0; i-- {
+				parentName := strings.Join(parts[:i], "/")
+				childPath := strings.Join(parts[i:], "/")
+
+				resp, err := c.getSecretCached(ctx, parentName, secretCache, errorCache)
+				if err != nil {
+					return vars, err
+				}
+				if resp == nil {
 					continue
 				}
+
+				if resp.SecretString != nil {
+					var jsonSecret map[string]interface{}
+					if err := json.Unmarshal([]byte(*resp.SecretString), &jsonSecret); err == nil {
+						// Look for the child key in the JSON
+						if val, ok := jsonSecret[childPath]; ok {
+							vars[key] = fmt.Sprintf("%v", val)
+							log.Debug("Found key %s in JSON secret %s", childPath, parentName)
+							break
+						}
+					}
+				}
 			}
-			// Plain string secret (or noFlatten enabled, or not valid JSON)
-			vars[key] = *resp.SecretString
-		} else if resp.SecretBinary != nil {
-			// Binary secret - base64 encode
-			vars[key] = base64.StdEncoding.EncodeToString(resp.SecretBinary)
 		}
 	}
 
 	return vars, nil
+}
+
+// getSecretCached retrieves a secret, using the cache if available.
+func (c *Client) getSecretCached(ctx context.Context, secretName string, cache map[string]*secretsmanager.GetSecretValueOutput, errorCache map[string]error) (*secretsmanager.GetSecretValueOutput, error) {
+	// Check error cache first
+	if err, ok := errorCache[secretName]; ok {
+		return nil, err
+	}
+	// Check success cache
+	if resp, ok := cache[secretName]; ok {
+		return resp, nil
+	}
+
+	input := &secretsmanager.GetSecretValueInput{
+		SecretId:     aws.String(secretName),
+		VersionStage: aws.String(c.versionStage),
+	}
+
+	resp, err := c.client.GetSecretValue(ctx, input)
+	if err != nil {
+		var notFoundErr *types.ResourceNotFoundException
+		if errors.As(err, &notFoundErr) {
+			log.Debug("Secret not found: %s", secretName)
+			cache[secretName] = nil
+			return nil, nil
+		}
+		// Cache other errors to propagate them
+		errorCache[secretName] = err
+		return nil, err
+	}
+
+	cache[secretName] = resp
+	return resp, nil
+}
+
+// fetchAndProcessSecret attempts to fetch a secret directly and process it.
+// Returns the value, whether it was found, and any error.
+func (c *Client) fetchAndProcessSecret(ctx context.Context, secretName, key string, cache map[string]*secretsmanager.GetSecretValueOutput, errorCache map[string]error, vars map[string]string) (string, bool, error) {
+	resp, err := c.getSecretCached(ctx, secretName, cache, errorCache)
+	if err != nil {
+		return "", false, err
+	}
+	if resp == nil {
+		return "", false, nil
+	}
+
+	if resp.SecretString != nil {
+		// Try to parse as JSON first (unless noFlatten is set)
+		if !c.noFlatten {
+			var jsonSecret map[string]interface{}
+			if err := json.Unmarshal([]byte(*resp.SecretString), &jsonSecret); err == nil {
+				// Flatten JSON: /secret/key -> value
+				for k, v := range jsonSecret {
+					vars[key+"/"+k] = fmt.Sprintf("%v", v)
+				}
+				// Return empty since we populated vars directly for flattened keys
+				return "", false, nil
+			}
+		}
+		// Plain string secret (or noFlatten enabled, or not valid JSON)
+		return *resp.SecretString, true, nil
+	} else if resp.SecretBinary != nil {
+		// Binary secret - base64 encode
+		return base64.StdEncoding.EncodeToString(resp.SecretBinary), true, nil
+	}
+
+	return "", false, nil
 }
 
 // WatchPrefix is not implemented for Secrets Manager.

@@ -257,6 +257,82 @@ func TestGetValues_VersionStage(t *testing.T) {
 	}
 }
 
+func TestGetValues_JSONParentLookup(t *testing.T) {
+	// Test that /database/host looks up "database" secret and extracts "host" from JSON
+	mock := &mockSecretsManager{
+		getSecretValueFunc: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+			if *input.SecretId == "database" {
+				return &secretsmanager.GetSecretValueOutput{
+					SecretString: aws.String(`{"host":"127.0.0.1","port":"3306","username":"confd","password":"p@sSw0rd"}`),
+				}, nil
+			}
+			return nil, &types.ResourceNotFoundException{}
+		},
+	}
+
+	client := newTestClient(mock, "", false)
+
+	// Request keys that don't exist directly, but their parent "database" exists with JSON
+	result, err := client.GetValues(context.Background(), []string{
+		"/database/host",
+		"/database/port",
+		"/database/username",
+		"/database/password",
+	})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	expected := map[string]string{
+		"/database/host":     "127.0.0.1",
+		"/database/port":     "3306",
+		"/database/username": "confd",
+		"/database/password": "p@sSw0rd",
+	}
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("GetValues() = %v, want %v", result, expected)
+	}
+}
+
+func TestGetValues_MixedSecrets(t *testing.T) {
+	// Test mix of direct secrets and JSON parent lookups
+	mock := &mockSecretsManager{
+		getSecretValueFunc: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+			switch *input.SecretId {
+			case "database":
+				return &secretsmanager.GetSecretValueOutput{
+					SecretString: aws.String(`{"host":"db.example.com","user":"admin"}`),
+				}, nil
+			case "api-key":
+				return &secretsmanager.GetSecretValueOutput{
+					SecretString: aws.String("sk-1234567890"),
+				}, nil
+			}
+			return nil, &types.ResourceNotFoundException{}
+		},
+	}
+
+	client := newTestClient(mock, "", false)
+
+	result, err := client.GetValues(context.Background(), []string{
+		"/database/host",
+		"/database/user",
+		"/api-key",
+	})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	expected := map[string]string{
+		"/database/host": "db.example.com",
+		"/database/user": "admin",
+		"/api-key":       "sk-1234567890",
+	}
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("GetValues() = %v, want %v", result, expected)
+	}
+}
+
 func TestWatchPrefix(t *testing.T) {
 	mock := &mockSecretsManager{}
 	client := newTestClient(mock, "", false)
