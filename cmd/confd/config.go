@@ -153,6 +153,7 @@ func initConfig() error {
 
 	if config.Watch {
 		unsupportedBackends := map[string]bool{
+			"acm":      true,
 			"dynamodb": true,
 			"ssm":      true,
 		}

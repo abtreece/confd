@@ -13,6 +13,7 @@ type Config struct {
 	ClientCert     string     `toml:"client_cert"`
 	ClientKey      string     `toml:"client_key"`
 	ClientInsecure bool       `toml:"client_insecure"`
+	CertificateARN string     `toml:"certificate_arn"`
 	BackendNodes   util.Nodes `toml:"nodes"`
 	Password       string     `toml:"password"`
 	Scheme         string     `toml:"scheme"`

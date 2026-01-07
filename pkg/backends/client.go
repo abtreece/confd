@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/abtreece/confd/pkg/backends/acm"
 	"github.com/abtreece/confd/pkg/backends/consul"
 	"github.com/abtreece/confd/pkg/backends/dynamodb"
 	"github.com/abtreece/confd/pkg/backends/env"
@@ -32,6 +33,9 @@ func New(config Config) (StoreClient, error) {
 	backendNodes := config.BackendNodes
 
 	switch config.Backend {
+	case "acm":
+		log.Info("Backend source(s) set to AWS ACM")
+		return acm.New()
 	case "consul":
 		log.Info("Backend source(s) set to " + strings.Join(backendNodes, ", "))
 		return consul.New(config.BackendNodes, config.Scheme,

@@ -13,11 +13,13 @@ services:
       ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
 
   localstack:
-    image: localstack/localstack
+    image: localstack/localstack-pro
     ports:
-      - 4566:4566
+      - "127.0.0.1:4566:4566"            # LocalStack Gateway
+      - "127.0.0.1:4510-4559:4510-4559"  # external services port range
     environment:
-      SERVICES: dynamodb,ssm
+      - DEBUG=${DEBUG:-0}
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
 
   redis:
     image: redis

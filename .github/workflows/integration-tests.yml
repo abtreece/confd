@@ -28,11 +28,12 @@ jobs:
           ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
           ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
       localstack:
-        image: localstack/localstack
+        image: localstack/localstack-pro
         ports:
           - 4566:4566
         env:
-          SERVICES: dynamodb,ssm
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          SERVICES: dynamodb,ssm,acm
       redis:
           image: redis
           # Set health checks to wait until redis has started
@@ -156,3 +157,14 @@ jobs:
           test/integration/expect/check.sh
         env:
           ZOOKEEPER_NODE: zookeeper
+
+      - name: Test ACM
+        run: |
+          test/integration/acm/test.sh
+        env:
+          AWS_ACCESS_KEY_ID: "test"
+          AWS_SECRET_ACCESS_KEY: "test"
+          AWS_REGION: "us-east-1"
+          AWS_DEFAULT_REGION: "us-east-1"
+          ACM_LOCAL: "1"
+          ACM_ENDPOINT_URL: "http://localstack:4566"
