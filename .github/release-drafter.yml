@@ -44,32 +44,6 @@ categories:
     labels:
       - 'performance'
 
-autolabeler:
-  - label: 'feature'
-    branch:
-      - '/^feat(ure)?[/-].+/'
-  - label: 'fix'
-    branch:
-      - '/^fix[/-].+/'
-      - '/^bugfix[/-].+/'
-  - label: 'docs'
-    branch:
-      - '/^docs?[/-].+/'
-    files:
-      - '*.md'
-      - 'docs/**/*'
-  - label: 'dependencies'
-    files:
-      - 'go.mod'
-      - 'go.sum'
-      - 'vendor/**/*'
-  - label: 'test'
-    branch:
-      - '/^test[/-].+/'
-    files:
-      - '*_test.go'
-      - 'test/**/*'
-
 exclude-labels:
   - 'skip-changelog'
 

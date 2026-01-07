@@ -4,12 +4,9 @@ on:
   push:
     branches:
       - main
-  pull_request_target:
-    types: [opened, reopened, synchronize]
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   update_release_draft:
@@ -17,6 +14,6 @@ jobs:
     steps:
       - uses: release-drafter/release-drafter@v6
         with:
-          disable-autolabeler: ${{ github.event_name == 'push' }}
+          disable-autolabeler: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
