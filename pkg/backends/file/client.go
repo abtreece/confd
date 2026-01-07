@@ -91,7 +91,7 @@ VarsLoop:
 		}
 		delete(vars, k)
 	}
-	log.Debug(fmt.Sprintf("Key Map: %#v", vars))
+	log.Debug("Key Map: %#v", vars)
 	return vars, nil
 }
 
@@ -132,7 +132,7 @@ func (c *Client) watchChanges(watcher *fsnotify.Watcher, stopChan chan bool) Res
 		for {
 			select {
 			case event := <-watcher.Events:
-				log.Debug(fmt.Sprintf("Event: %s", event))
+				log.Debug("Event: %s", event)
 				if event.Op&fsnotify.Write == fsnotify.Write ||
 					event.Op&fsnotify.Remove == fsnotify.Remove ||
 					event.Op&fsnotify.Create == fsnotify.Create {

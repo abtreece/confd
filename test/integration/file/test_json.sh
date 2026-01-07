@@ -39,7 +39,7 @@ cat <<EOT >> backends/json/3.json
 EOT
 
 # Run confd
-confd --onetime --log-level debug --confdir ./test/integration/confdir --backend file --file backends/json/ --watch
+confd file --onetime --log-level debug --confdir ./test/integration/confdir --file backends/json/ --watch
 
 # Clean up after
 rm -rf backends/json

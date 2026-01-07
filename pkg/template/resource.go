@@ -74,7 +74,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	// unset from configuration.
 	tc := &TemplateResourceConfig{TemplateResource{Uid: -1, Gid: -1}}
 
-	log.Debug("Loading template resource from " + path)
+	log.Debug("Loading template resource from %s", path)
 	_, err := toml.DecodeFile(path, &tc)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot process template resource %s - %s", path, err.Error())
@@ -144,7 +144,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 func (t *TemplateResource) setVars() error {
 	var err error
 	log.Debug("Retrieving keys from store")
-	log.Debug("Key prefix set to " + t.Prefix)
+	log.Debug("Key prefix set to %s", t.Prefix)
 
 	result, err := t.storeClient.GetValues(context.Background(), util.AppendPrefix(t.Prefix, t.Keys))
 	if err != nil {
@@ -165,13 +165,13 @@ func (t *TemplateResource) setVars() error {
 // StageFile for the template resource.
 // It returns an error if any.
 func (t *TemplateResource) createStageFile() error {
-	log.Debug("Using source template " + t.Src)
+	log.Debug("Using source template %s", t.Src)
 
 	if !util.IsFileExist(t.Src) {
 		return errors.New("Missing template: " + t.Src)
 	}
 
-	log.Debug("Compiling source template " + t.Src)
+	log.Debug("Compiling source template %s", t.Src)
 
 	tmpl, err := template.New(filepath.Base(t.Src)).Funcs(t.funcMap).ParseFiles(t.Src)
 	if err != nil {
@@ -207,28 +207,28 @@ func (t *TemplateResource) createStageFile() error {
 func (t *TemplateResource) sync() error {
 	staged := t.StageFile.Name()
 	if t.keepStageFile {
-		log.Info("Keeping staged file: " + staged)
+		log.Info("Keeping staged file: %s", staged)
 	} else {
 		defer os.Remove(staged)
 	}
 
-	log.Debug("Comparing candidate config to " + t.Dest)
+	log.Debug("Comparing candidate config to %s", t.Dest)
 	ok, err := util.IsConfigChanged(staged, t.Dest)
 	if err != nil {
-		log.Error(err.Error())
+		log.Error("%s", err.Error())
 	}
 	if t.noop {
-		log.Warning("Noop mode enabled. " + t.Dest + " will not be modified")
+		log.Warning("Noop mode enabled. %s will not be modified", t.Dest)
 		return nil
 	}
 	if ok {
-		log.Info("Target config " + t.Dest + " out of sync")
+		log.Info("Target config %s out of sync", t.Dest)
 		if !t.syncOnly && t.CheckCmd != "" {
 			if err := t.check(); err != nil {
 				return errors.New("Config check failed: " + err.Error())
 			}
 		}
-		log.Debug("Overwriting target config " + t.Dest)
+		log.Debug("Overwriting target config %s", t.Dest)
 		err := os.Rename(staged, t.Dest)
 		if err != nil {
 			if strings.Contains(err.Error(), "device or resource busy") {
@@ -255,9 +255,9 @@ func (t *TemplateResource) sync() error {
 				return err
 			}
 		}
-		log.Info("Target config " + t.Dest + " has been updated")
+		log.Info("Target config %s has been updated", t.Dest)
 	} else {
-		log.Debug("Target config " + t.Dest + " in sync")
+		log.Debug("Target config %s in sync", t.Dest)
 	}
 	return nil
 }
@@ -308,7 +308,7 @@ func (t *TemplateResource) reload() error {
 // It returns nil if the given cmd returns 0.
 // The command can be run on unix and windows.
 func runCommand(cmd string) error {
-	log.Debug("Running " + cmd)
+	log.Debug("Running %s", cmd)
 	var c *exec.Cmd
 	if runtime.GOOS == "windows" {
 		c = exec.Command("cmd", "/C", cmd)
@@ -318,10 +318,10 @@ func runCommand(cmd string) error {
 
 	output, err := c.CombinedOutput()
 	if err != nil {
-		log.Error(fmt.Sprintf("%q", string(output)))
+		log.Error("%q", string(output))
 		return err
 	}
-	log.Debug(fmt.Sprintf("%q", string(output)))
+	log.Debug("%q", string(output))
 	return nil
 }
 

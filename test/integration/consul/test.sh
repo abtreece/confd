@@ -16,4 +16,4 @@ curl -sX PUT http://$CONSUL_HOST:8500/v1/kv/nested/staging/app1 -d '172.16.1.10:
 curl -sX PUT http://$CONSUL_HOST:8500/v1/kv/nested/staging/app2 -d '172.16.1.11:8080'
 
 # Run confd
-confd --onetime --log-level debug --confdir ./test/integration/confdir --backend consul --node $CONSUL_HOST:8500
+confd consul --onetime --log-level debug --confdir ./test/integration/confdir --node $CONSUL_HOST:8500

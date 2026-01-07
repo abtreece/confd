@@ -15,13 +15,13 @@ redis-cli -h $REDIS_HOST set /nested/staging/app1 172.16.1.10:8080
 redis-cli -h $REDIS_HOST set /nested/staging/app2 172.16.1.11:8080
 
 
-confd --onetime --log-level debug --confdir ./integration/confdir --interval 5 --backend redis --node $REDIS_HOST:6379
+confd redis --onetime --log-level debug --confdir ./integration/confdir --interval 5 --node $REDIS_HOST:6379
 if [ $? -ne 0 ]
 then
         exit 1
 fi
 
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend redis --node $REDIS_HOST:6379/0
+confd redis --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --node $REDIS_HOST:6379/0
 if [ $? -ne 0 ]
 then
         exit 1

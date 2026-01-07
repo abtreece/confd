@@ -2,7 +2,6 @@ package template
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -28,7 +27,7 @@ func process(ts []*TemplateResource) error {
 	var lastErr error
 	for _, t := range ts {
 		if err := t.process(); err != nil {
-			log.Error(err.Error())
+			log.Error("%s", err.Error())
 			lastErr = err
 		}
 	}
@@ -53,7 +52,7 @@ func (p *intervalProcessor) Process() {
 	for {
 		ts, err := getTemplateResources(p.config)
 		if err != nil {
-			log.Fatal(err.Error())
+			log.Fatal("%s", err.Error())
 			break
 		}
 		process(ts)
@@ -84,7 +83,7 @@ func (p *watchProcessor) Process() {
 	defer close(p.doneChan)
 	ts, err := getTemplateResources(p.config)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal("%s", err.Error())
 		return
 	}
 	for _, t := range ts {
@@ -116,9 +115,9 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 func getTemplateResources(config Config) ([]*TemplateResource, error) {
 	var lastError error
 	templates := make([]*TemplateResource, 0)
-	log.Debug("Loading template resources from confdir " + config.ConfDir)
+	log.Debug("Loading template resources from confdir %s", config.ConfDir)
 	if !util.IsFileExist(config.ConfDir) {
-		log.Warning(fmt.Sprintf("Cannot load template resources: confdir '%s' does not exist", config.ConfDir))
+		log.Warning("Cannot load template resources: confdir '%s' does not exist", config.ConfDir)
 		return nil, nil
 	}
 	paths, err := util.RecursiveFilesLookup(config.ConfigDir, "*toml")
@@ -131,7 +130,7 @@ func getTemplateResources(config Config) ([]*TemplateResource, error) {
 	}
 
 	for _, p := range paths {
-		log.Debug(fmt.Sprintf("Found template: %s", p))
+		log.Debug("Found template: %s", p)
 		t, err := NewTemplateResource(p, config)
 		if err != nil {
 			lastError = err

@@ -19,14 +19,14 @@ aws ssm put-parameter --name "/nested/staging/app1" --type "String" --value "172
 aws ssm put-parameter --name "/nested/staging/app2" --type "String" --value "172.16.1.11:8080" --endpoint-url $SSM_ENDPOINT_URL
 
 # Run confd, expect it to work
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend ssm
+confd ssm --onetime --log-level debug --confdir ./test/integration/confdir --interval 5
 if [ $? -ne 0 ]
 then
     exit 1
 fi
 
 # Run confd with --watch, expecting it to fail
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend ssm --watch
+confd ssm --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --watch
 if [ $? -eq 0 ]
 then
     exit 1
@@ -36,7 +36,7 @@ fi
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend ssm
+confd ssm --onetime --log-level debug --confdir ./test/integration/confdir --interval 5
 if [ $? -eq 0 ]
 then
     exit 1

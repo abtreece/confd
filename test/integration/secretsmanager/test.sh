@@ -46,14 +46,14 @@ aws secretsmanager create-secret --name "nested/staging/app2" \
     --endpoint-url $SECRETSMANAGER_ENDPOINT_URL
 
 # Run confd, expect it to work
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend secretsmanager
+confd secretsmanager --onetime --log-level debug --confdir ./test/integration/confdir --interval 5
 if [ $? -ne 0 ]
 then
     exit 1
 fi
 
 # Run confd with --watch, expecting it to fail (watch not supported)
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend secretsmanager --watch
+confd secretsmanager --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --watch
 if [ $? -eq 0 ]
 then
     exit 1
@@ -63,7 +63,7 @@ fi
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 
-confd --onetime --log-level debug --confdir ./test/integration/confdir --interval 5 --backend secretsmanager
+confd secretsmanager --onetime --log-level debug --confdir ./test/integration/confdir --interval 5
 if [ $? -eq 0 ]
 then
     exit 1

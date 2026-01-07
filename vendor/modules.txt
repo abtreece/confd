@@ -2,6 +2,9 @@
 ## explicit; go 1.18
 github.com/BurntSushi/toml
 github.com/BurntSushi/toml/internal
+# github.com/alecthomas/kong v1.13.0
+## explicit; go 1.20
+github.com/alecthomas/kong
 # github.com/armon/go-metrics v0.4.1
 ## explicit; go 1.12
 github.com/armon/go-metrics

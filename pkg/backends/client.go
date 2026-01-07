@@ -39,7 +39,7 @@ func New(config Config) (StoreClient, error) {
 		log.Info("Backend source(s) set to AWS ACM")
 		return acm.New(config.ACMExportPrivateKey)
 	case "consul":
-		log.Info("Backend source(s) set to " + strings.Join(backendNodes, ", "))
+		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		return consul.New(config.BackendNodes, config.Scheme,
 			config.ClientCert, config.ClientKey,
 			config.ClientCaKeys,
@@ -48,21 +48,21 @@ func New(config Config) (StoreClient, error) {
 			config.Password,
 		)
 	case "etcd":
-		log.Info("Backend source(s) set to " + strings.Join(backendNodes, ", "))
+		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		return etcd.NewEtcdClient(backendNodes, config.ClientCert, config.ClientKey, config.ClientCaKeys, config.ClientInsecure, config.BasicAuth, config.Username, config.Password)
 	case "zookeeper":
-		log.Info("Backend source(s) set to " + strings.Join(backendNodes, ", "))
+		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		return zookeeper.NewZookeeperClient(backendNodes)
 	case "redis":
-		log.Info("Backend source(s) set to " + strings.Join(backendNodes, ", "))
+		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		return redis.NewRedisClient(backendNodes, config.ClientKey, config.Separator)
 	case "env":
 		return env.NewEnvClient()
 	case "file":
-		log.Info("Backend source(s) set to " + strings.Join(config.YAMLFile, ", "))
+		log.Info("Backend source(s) set to %s", strings.Join(config.YAMLFile, ", "))
 		return file.NewFileClient(config.YAMLFile, config.Filter)
 	case "vault":
-		log.Info("Backend source(s) set to " + strings.Join(backendNodes, ", "))
+		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		vaultConfig := map[string]string{
 			"app-id":    config.AppID,
 			"user-id":   config.UserID,
@@ -79,7 +79,7 @@ func New(config Config) (StoreClient, error) {
 		return vault.New(backendNodes[0], config.AuthType, vaultConfig)
 	case "dynamodb":
 		table := config.Table
-		log.Info("DynamoDB table set to " + table)
+		log.Info("DynamoDB table set to %s", table)
 		return dynamodb.NewDynamoDBClient(table)
 	case "ssm":
 		return ssm.New()
