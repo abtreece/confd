@@ -326,6 +326,22 @@ func TestVaultAuthFlags(t *testing.T) {
 	}
 }
 
+func TestVaultAuthTokenFlag(t *testing.T) {
+	cli, _ := parseCLI(t, []string{
+		"vault",
+		"--auth-type=token",
+		"--auth-token=my-vault-token",
+	})
+	cmd := &cli.Vault
+
+	if cmd.AuthType != "token" {
+		t.Errorf("Expected auth-type 'token', got %q", cmd.AuthType)
+	}
+	if cmd.AuthToken != "my-vault-token" {
+		t.Errorf("Expected auth-token 'my-vault-token', got %q", cmd.AuthToken)
+	}
+}
+
 func TestDynamoDBRequiredTable(t *testing.T) {
 	var cli CLI
 	parser, _ := kong.New(&cli, kong.Exit(func(int) {}))

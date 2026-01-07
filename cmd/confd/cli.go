@@ -132,14 +132,15 @@ func (e *EtcdCmd) Run(cli *CLI) error {
 type VaultCmd struct {
 	NodeFlags
 	TLSFlags
-	AuthType string `name:"auth-type" help:"auth backend type (token, app-id, app-role, kubernetes)" default:""`
-	AppID    string `name:"app-id" help:"app-id for app-id auth"`
-	UserID   string `name:"user-id" help:"user-id for app-id auth"`
-	RoleID   string `name:"role-id" help:"role-id for app-role/kubernetes auth"`
-	SecretID string `name:"secret-id" help:"secret-id for app-role auth"`
-	Path     string `help:"auth mount path"`
-	Username string `help:"username for userpass auth"`
-	Password string `help:"password for userpass auth"`
+	AuthType  string `name:"auth-type" help:"auth backend type (token, app-id, app-role, kubernetes)" default:""`
+	AuthToken string `name:"auth-token" help:"Vault auth token" env:"VAULT_TOKEN"`
+	AppID     string `name:"app-id" help:"app-id for app-id auth"`
+	UserID    string `name:"user-id" help:"user-id for app-id auth"`
+	RoleID    string `name:"role-id" help:"role-id for app-role/kubernetes auth"`
+	SecretID  string `name:"secret-id" help:"secret-id for app-role auth"`
+	Path      string `help:"auth mount path"`
+	Username  string `help:"username for userpass auth"`
+	Password  string `help:"password for userpass auth"`
 }
 
 func (v *VaultCmd) Run(cli *CLI) error {
@@ -153,6 +154,7 @@ func (v *VaultCmd) Run(cli *CLI) error {
 		ClientKey:    v.ClientKey,
 		ClientCaKeys: v.ClientCaKeys,
 		AuthType:     v.AuthType,
+		AuthToken:    v.AuthToken,
 		AppID:        v.AppID,
 		UserID:       v.UserID,
 		RoleID:       v.RoleID,
