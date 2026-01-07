@@ -32,7 +32,7 @@ mod:
 
 
 snapshot:
-	@goreleaser --snapshot --skip-publish --clean
+	@goreleaser release --snapshot --skip=publish --clean
 
 release:
-	@goreleaser --skip-publish --clean --skip-validate
+	@goreleaser release --skip=publish --clean --skip=validate
