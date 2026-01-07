@@ -73,6 +73,7 @@ func init() {
 	flag.StringVar(&config.Username, "username", "", "the username to authenticate as (only used with vault and etcd backends)")
 	flag.StringVar(&config.Password, "password", "", "the password to authenticate with (only used with vault and etcd backends)")
 	flag.BoolVar(&config.Watch, "watch", false, "enable watch support")
+	flag.BoolVar(&config.ACMExportPrivateKey, "acm-export-private-key", false, "Export private key from ACM certificates (only used with -backend=acm)")
 }
 
 // initConfig initializes the confd configuration by first setting defaults,
@@ -209,5 +210,9 @@ func processEnv() {
 	key := os.Getenv("CONFD_CLIENT_KEY")
 	if len(key) > 0 && config.ClientKey == "" {
 		config.ClientKey = key
+	}
+
+	if os.Getenv("ACM_EXPORT_PRIVATE_KEY") != "" && !config.ACMExportPrivateKey {
+		config.ACMExportPrivateKey = true
 	}
 }

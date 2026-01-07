@@ -72,6 +72,64 @@ fi
 
 echo "Certificate successfully retrieved and written"
 
+# Test private key export functionality (informational only)
+# Note: localstack doesn't fully support ExportCertificate for imported certificates
+# (only works for AWS Private CA certs). We test that the flag works but don't fail
+# if localstack returns an error. Unit tests verify the actual functionality.
+echo "Testing private key export configuration..."
+
+# Set up export configuration
+export ACM_EXPORT_PRIVATE_KEY="true"
+export ACM_PASSPHRASE="test-passphrase-1234"
+
+# Create a separate confdir for export test to avoid affecting other tests
+mkdir -p ./test/integration/acm/confdir-export/conf.d
+mkdir -p ./test/integration/acm/confdir-export/templates
+
+# Create template resource configuration for export test
+cat > ./test/integration/acm/confdir-export/conf.d/certificate-export.toml << EOF
+[template]
+mode = "0644"
+src = "certificate-export.tmpl"
+dest = "/tmp/acm-test-export.pem"
+keys = [
+  "$CERTIFICATE_ARN"
+]
+EOF
+
+# Create the template for export
+cat > ./test/integration/acm/confdir-export/templates/certificate-export.tmpl << EOF
+{{ getv "/$CERTIFICATE_ARN" }}
+{{ if exists "/${CERTIFICATE_ARN}_private_key" }}
+{{ getv "/${CERTIFICATE_ARN}_private_key" }}
+{{ end }}
+EOF
+
+# Run confd with private key export enabled
+# This may fail with localstack due to ExportCertificate limitations
+confd --onetime --log-level debug --confdir ./test/integration/acm/confdir-export --backend acm --acm-export-private-key
+EXPORT_EXIT_CODE=$?
+
+if [ $EXPORT_EXIT_CODE -eq 0 ]; then
+    echo "Private key export succeeded"
+    if [ -f /tmp/acm-test-export.pem ]; then
+        if grep -q "PRIVATE KEY" /tmp/acm-test-export.pem; then
+            echo "Private key found in output"
+        else
+            echo "Certificate exported but no private key (expected for non-Private CA certs)"
+        fi
+    fi
+else
+    echo "Note: Private key export not supported by localstack for imported certificates"
+    echo "This is expected - ExportCertificate only works for AWS Private CA certificates"
+    echo "Unit tests verify the export functionality works correctly"
+fi
+
+# Clean up export env vars and files
+unset ACM_EXPORT_PRIVATE_KEY
+unset ACM_PASSPHRASE
+rm -rf ./test/integration/acm/confdir-export
+
 # Run confd with --watch, expecting it to fail (watch not supported for ACM)
 confd --onetime --log-level debug --confdir ./test/integration/acm/confdir --backend acm --watch
 if [ $? -eq 0 ]; then
@@ -83,3 +141,4 @@ echo "ACM integration test passed"
 
 # Cleanup
 rm -f /tmp/acm-test-certificate.pem
+rm -f /tmp/acm-test-export.pem

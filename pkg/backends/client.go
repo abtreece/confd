@@ -35,7 +35,7 @@ func New(config Config) (StoreClient, error) {
 	switch config.Backend {
 	case "acm":
 		log.Info("Backend source(s) set to AWS ACM")
-		return acm.New()
+		return acm.New(config.ACMExportPrivateKey)
 	case "consul":
 		log.Info("Backend source(s) set to " + strings.Join(backendNodes, ", "))
 		return consul.New(config.BackendNodes, config.Scheme,
