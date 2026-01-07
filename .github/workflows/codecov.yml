@@ -22,7 +22,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.24.7"
 
       - name: Run go test for coverage
         run: go test -vet=off ./... -race -coverprofile=coverage.out -covermode=atomic
