@@ -33,7 +33,7 @@ jobs:
           - 4566:4566
         env:
           LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
-          SERVICES: dynamodb,ssm,acm
+          SERVICES: dynamodb,ssm,acm,secretsmanager
       redis:
           image: redis
           # Set health checks to wait until redis has started
@@ -72,7 +72,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.24.7"
 
       - name: Build and Install
         run: |
@@ -168,3 +168,14 @@ jobs:
           AWS_DEFAULT_REGION: "us-east-1"
           ACM_LOCAL: "1"
           ACM_ENDPOINT_URL: "http://localstack:4566"
+
+      - name: Test Secrets Manager
+        run: |
+          test/integration/secretsmanager/test.sh
+        env:
+          AWS_ACCESS_KEY_ID: "test"
+          AWS_SECRET_ACCESS_KEY: "test"
+          AWS_REGION: "us-east-1"
+          AWS_DEFAULT_REGION: "us-east-1"
+          SECRETSMANAGER_LOCAL: "1"
+          SECRETSMANAGER_ENDPOINT_URL: "http://localstack:4566"

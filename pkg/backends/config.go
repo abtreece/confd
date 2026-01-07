@@ -28,6 +28,8 @@ type Config struct {
 	YAMLFile       util.Nodes `toml:"file"`
 	Filter         string     `toml:"filter"`
 	Path           string     `toml:"path"`
-	Role                string
-	ACMExportPrivateKey bool `toml:"acm_export_private_key"`
+	Role                         string
+	ACMExportPrivateKey          bool   `toml:"acm_export_private_key"`
+	SecretsManagerVersionStage   string `toml:"secretsmanager_version_stage"`
+	SecretsManagerNoFlatten      bool   `toml:"secretsmanager_no_flatten"`
 }

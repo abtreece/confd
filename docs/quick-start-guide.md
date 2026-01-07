@@ -15,6 +15,7 @@ confd supports the following backends:
 * zookeeper
 * dynamodb
 * ssm (AWS Simple Systems Manager Parameter Store)
+* secretsmanager (AWS Secrets Manager)
 * acm (AWS Certificate Manager)
 
 ### Add keys
@@ -100,6 +101,20 @@ aws dynamodb put-item --table-name <YOUR_TABLE> --region <YOUR_REGION> \
 ```
 aws ssm put-parameter --name "/myapp/database/url" --type "String" --value "db.example.com"
 aws ssm put-parameter --name "/myapp/database/user" --type "SecureString" --value "rob"
+```
+
+#### secretsmanager
+
+Secrets Manager supports both plain string secrets and JSON secrets. JSON secrets are automatically flattened to key/value pairs:
+
+```
+# Plain string secret
+aws secretsmanager create-secret --name "/myapp/api-key" \
+    --secret-string "sk-1234567890"
+
+# JSON secret (will be flattened to /myapp/database/url, /myapp/database/user)
+aws secretsmanager create-secret --name "/myapp/database" \
+    --secret-string '{"url":"db.example.com","user":"rob"}'
 ```
 
 #### acm
@@ -208,6 +223,34 @@ confd -onetime -backend redis -node 192.168.255.210:6379/4
 ```
 confd -onetime -backend ssm
 ```
+
+#### secretsmanager
+
+```
+confd -onetime -backend secretsmanager
+```
+
+For JSON secrets, use the flattened key paths in your templates:
+
+/etc/confd/templates/myconfig.conf.tmpl
+```
+[myconfig]
+database_url = {{getv "/myapp/database/url"}}
+database_user = {{getv "/myapp/database/user"}}
+api_key = {{getv "/myapp/api-key"}}
+```
+
+To disable JSON flattening and get the raw JSON string:
+```
+confd -onetime -backend secretsmanager -secretsmanager-no-flatten
+```
+
+To retrieve a specific version stage (default is AWSCURRENT):
+```
+confd -onetime -backend secretsmanager -secretsmanager-version-stage AWSPREVIOUS
+```
+
+Note: Watch mode is not supported for Secrets Manager.
 
 #### acm
 

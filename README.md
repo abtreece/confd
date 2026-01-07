@@ -10,7 +10,7 @@
 
 * keeping local configuration files up-to-date using data stored in [etcd](https://github.com/etcd-io/etcd),
   [consul](http://consul.io), [dynamodb](http://aws.amazon.com/dynamodb/), [redis](http://redis.io),
-  [vault](https://vaultproject.io), [zookeeper](https://zookeeper.apache.org), [aws ssm parameter store](https://aws.amazon.com/ec2/systems-manager/), [aws acm](https://aws.amazon.com/certificate-manager/), or env vars and processing [template resources](docs/template-resources.md).
+  [vault](https://vaultproject.io), [zookeeper](https://zookeeper.apache.org), [aws ssm parameter store](https://aws.amazon.com/ec2/systems-manager/), [aws secrets manager](https://aws.amazon.com/secrets-manager/), [aws acm](https://aws.amazon.com/certificate-manager/), or env vars and processing [template resources](docs/template-resources.md).
 * reloading applications to pick up new config file changes
 
 ## Building
