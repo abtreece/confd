@@ -7,7 +7,7 @@ When in noop mode target configuration files will not be modified.
 ### commandline flag
 
 ```
-confd -noop
+confd env --noop
 ```
 
 ### configuration file
@@ -19,7 +19,7 @@ noop = true
 ### Example
 
 ```
-confd -onetime -noop
+confd env --onetime --noop
 ```
 
 -

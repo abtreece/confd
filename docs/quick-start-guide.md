@@ -6,343 +6,183 @@ Before we begin be sure to [download and install confd](installation.md).
 
 confd supports the following backends:
 
-* etcd
-* consul
-* vault
-* environment variables
-* file
-* redis
-* zookeeper
-* dynamodb
-* ssm (AWS Simple Systems Manager Parameter Store)
-* secretsmanager (AWS Secrets Manager)
-* acm (AWS Certificate Manager)
+| Backend | Description | Watch Support | Documentation |
+|---------|-------------|---------------|---------------|
+| [env](../pkg/backends/env/README.md) | Environment variables | No | [Details](../pkg/backends/env/README.md) |
+| [file](../pkg/backends/file/README.md) | Local YAML/JSON files | Yes | [Details](../pkg/backends/file/README.md) |
+| [etcd](../pkg/backends/etcd/README.md) | etcd v3 key-value store | Yes | [Details](../pkg/backends/etcd/README.md) |
+| [consul](../pkg/backends/consul/README.md) | HashiCorp Consul KV | Yes | [Details](../pkg/backends/consul/README.md) |
+| [vault](../pkg/backends/vault/README.md) | HashiCorp Vault secrets | No | [Details](../pkg/backends/vault/README.md) |
+| [redis](../pkg/backends/redis/README.md) | Redis key-value store | Yes | [Details](../pkg/backends/redis/README.md) |
+| [zookeeper](../pkg/backends/zookeeper/README.md) | Apache ZooKeeper | Yes | [Details](../pkg/backends/zookeeper/README.md) |
+| [dynamodb](../pkg/backends/dynamodb/README.md) | AWS DynamoDB | No | [Details](../pkg/backends/dynamodb/README.md) |
+| [ssm](../pkg/backends/ssm/README.md) | AWS Systems Manager Parameter Store | No | [Details](../pkg/backends/ssm/README.md) |
+| [secretsmanager](../pkg/backends/secretsmanager/README.md) | AWS Secrets Manager | No | [Details](../pkg/backends/secretsmanager/README.md) |
+| [acm](../pkg/backends/acm/README.md) | AWS Certificate Manager | No | [Details](../pkg/backends/acm/README.md) |
 
-### Add keys
+This quick start uses the **env** and **file** backends which require no external services. For production use cases, see the backend-specific documentation linked above.
 
-This guide assumes you have a working [etcd](https://github.com/coreos/etcd#getting-started), or [consul](http://www.consul.io/intro/getting-started/install.html) server up and running and the ability to add new keys.
+## Quick Start with Environment Variables
 
-#### etcd
+The env backend is the simplest way to get started.
 
-```
-etcdctl set /myapp/database/url db.example.com
-etcdctl set /myapp/database/user rob
-```
+### 1. Set environment variables
 
-#### consul
-
-```
-curl -X PUT -d 'db.example.com' http://localhost:8500/v1/kv/myapp/database/url
-curl -X PUT -d 'rob' http://localhost:8500/v1/kv/myapp/database/user
-```
-
-#### vault
-```
-vault mount -path myapp generic
-vault write myapp/database url=db.example.com user=rob
-```
-
-#### environment variables
-
-```
+```bash
 export MYAPP_DATABASE_URL=db.example.com
-export MYAPP_DATABASE_USER=rob
+export MYAPP_DATABASE_USER=admin
 ```
 
-#### file
+### 2. Create the confdir
 
-myapp.yaml
-```
-myapp:
-  database:
-    url: db.example.com
-    user: rob
-```
-
-#### redis
-
-```
-redis-cli set /myapp/database/url db.example.com
-redis-cli set /myapp/database/user rob
-```
-
-#### zookeeper
-
-```
-[zk: localhost:2181(CONNECTED) 1] create /myapp ""
-[zk: localhost:2181(CONNECTED) 2] create /myapp/database ""
-[zk: localhost:2181(CONNECTED) 3] create /myapp/database/url "db.example.com"
-[zk: localhost:2181(CONNECTED) 4] create /myapp/database/user "rob"
-```
-
-#### dynamodb
-
-First create a table with the following schema:
-
-```
-aws dynamodb create-table \
-    --region <YOUR_REGION> --table-name <YOUR_TABLE> \
-    --attribute-definitions AttributeName=key,AttributeType=S \
-    --key-schema AttributeName=key,KeyType=HASH \
-    --provisioned-throughput ReadCapacityUnits=1,WriteCapacityUnits=1
-```
-
-Now create the items. The attribute value `value` must be of type [string](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_AttributeValue.html):
-
-```
-aws dynamodb put-item --table-name <YOUR_TABLE> --region <YOUR_REGION> \
-    --item '{ "key": { "S": "/myapp/database/url" }, "value": {"S": "db.example.com"}}'
-aws dynamodb put-item --table-name <YOUR_TABLE> --region <YOUR_REGION> \
-    --item '{ "key": { "S": "/myapp/database/user" }, "value": {"S": "rob"}}'
-```
-
-#### ssm
-
-```
-aws ssm put-parameter --name "/myapp/database/url" --type "String" --value "db.example.com"
-aws ssm put-parameter --name "/myapp/database/user" --type "SecureString" --value "rob"
-```
-
-#### secretsmanager
-
-Secrets Manager supports both plain string secrets and JSON secrets. JSON secrets are automatically flattened to key/value pairs:
-
-```
-# Plain string secret
-aws secretsmanager create-secret --name "/myapp/api-key" \
-    --secret-string "sk-1234567890"
-
-# JSON secret (will be flattened to /myapp/database/url, /myapp/database/user)
-aws secretsmanager create-secret --name "/myapp/database" \
-    --secret-string '{"url":"db.example.com","user":"rob"}'
-```
-
-#### acm
-
-For ACM, certificates are identified by their ARN. Import a certificate or use an existing one:
-
-```
-# Import a certificate (returns the certificate ARN)
-aws acm import-certificate \
-    --certificate fileb://certificate.pem \
-    --private-key fileb://private-key.pem \
-    --certificate-chain fileb://certificate-chain.pem
-```
-
-Note the ARN returned (e.g., `arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012`).
-
-### Create the confdir
-
-The confdir is where template resource configs and source templates are stored.
-
-```
+```bash
 sudo mkdir -p /etc/confd/{conf.d,templates}
 ```
 
-### Create a template resource config
+### 3. Create a template resource config
 
-Template resources are defined in [TOML](https://github.com/mojombo/toml) config files under the `confdir`.
+`/etc/confd/conf.d/myconfig.toml`:
 
-/etc/confd/conf.d/myconfig.toml
-```
+```toml
 [template]
 src = "myconfig.conf.tmpl"
 dest = "/tmp/myconfig.conf"
 keys = [
-    "/myapp/database/url",
-    "/myapp/database/user",
+  "/myapp/database",
 ]
 ```
 
-### Create the source template
+### 4. Create the source template
 
-Source templates are [Golang text templates](http://golang.org/pkg/text/template/#pkg-overview).
+`/etc/confd/templates/myconfig.conf.tmpl`:
 
-/etc/confd/templates/myconfig.conf.tmpl
 ```
 [myconfig]
 database_url = {{getv "/myapp/database/url"}}
 database_user = {{getv "/myapp/database/user"}}
 ```
 
-### Process the template
+### 5. Run confd
 
-confd supports two modes of operation daemon and onetime. In daemon mode confd polls a backend for changes and updates destination configuration files if necessary.
-
-#### etcd
-
-```
-confd -onetime -backend etcd -node http://127.0.0.1:2379
+```bash
+confd env --onetime
 ```
 
-#### consul
+Check the output:
 
-```
-confd -onetime -backend consul -node 127.0.0.1:8500
-```
-
-#### vault
-```
-ROOT_TOKEN=$(vault read -field id auth/token/lookup-self)
-
-confd -onetime -backend vault -node http://127.0.0.1:8200 \
-      -auth-type token -auth-token $ROOT_TOKEN
+```bash
+cat /tmp/myconfig.conf
 ```
 
-#### dynamodb
+## Quick Start with File Backend
 
-```
-confd -onetime -backend dynamodb -table <YOUR_TABLE>
-```
+The file backend reads configuration from local YAML or JSON files.
 
-#### env
+### 1. Create a YAML configuration file
 
-```
-confd -onetime -backend env
-```
+`myapp.yaml`:
 
-#### file
-
-```
-confd -onetime -backend file -file myapp.yaml
+```yaml
+myapp:
+  database:
+    url: db.example.com
+    user: admin
 ```
 
-#### redis
+### 2. Create the confdir
 
-```
-confd -onetime -backend redis -node 192.168.255.210:6379
-```
-or if you want to connect to a specific redis database (4 in this example):
-
-```
-confd -onetime -backend redis -node 192.168.255.210:6379/4
+```bash
+sudo mkdir -p /etc/confd/{conf.d,templates}
 ```
 
-#### ssm
+### 3. Create a template resource config
 
-```
-confd -onetime -backend ssm
-```
+`/etc/confd/conf.d/myconfig.toml`:
 
-#### secretsmanager
-
-```
-confd -onetime -backend secretsmanager
-```
-
-For JSON secrets, use the flattened key paths in your templates:
-
-/etc/confd/templates/myconfig.conf.tmpl
-```
-[myconfig]
-database_url = {{getv "/myapp/database/url"}}
-database_user = {{getv "/myapp/database/user"}}
-api_key = {{getv "/myapp/api-key"}}
-```
-
-To disable JSON flattening and get the raw JSON string:
-```
-confd -onetime -backend secretsmanager -secretsmanager-no-flatten
-```
-
-To retrieve a specific version stage (default is AWSCURRENT):
-```
-confd -onetime -backend secretsmanager -secretsmanager-version-stage AWSPREVIOUS
-```
-
-Note: Watch mode is not supported for Secrets Manager.
-
-#### acm
-
-For ACM, create a template resource config that uses the certificate ARN:
-
-/etc/confd/conf.d/certificate.toml
-```
+```toml
 [template]
-src = "certificate.tmpl"
-dest = "/etc/ssl/certs/app-cert.pem"
-mode = "0644"
+src = "myconfig.conf.tmpl"
+dest = "/tmp/myconfig.conf"
 keys = [
-  "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+  "/myapp/database",
 ]
 ```
 
-/etc/confd/templates/certificate.tmpl
-```
-{{getv "/arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"}}
-```
+### 4. Create the source template
 
-Run confd:
-```
-confd -onetime -backend acm
-```
-
-Note: The certificate chain is available with the `_chain` suffix on the ARN key. Watch mode is not supported for ACM.
-
-##### Exporting Private Keys
-
-For certificates that support private key export (AWS Private CA certificates, imported certificates, or public certificates issued after June 17, 2025 with export option enabled), you can retrieve the private key using the `-acm-export-private-key` flag:
+`/etc/confd/templates/myconfig.conf.tmpl`:
 
 ```
-export ACM_PASSPHRASE="your-secure-passphrase"
-confd -onetime -backend acm -acm-export-private-key
+[myconfig]
+database_url = {{getv "/myapp/database/url"}}
+database_user = {{getv "/myapp/database/user"}}
 ```
 
-Or via environment variable:
-```
-export ACM_EXPORT_PRIVATE_KEY=true
-export ACM_PASSPHRASE="your-secure-passphrase"
-confd -onetime -backend acm
+### 5. Run confd
+
+```bash
+confd file --file myapp.yaml --onetime
 ```
 
-Template example with private key:
-```
-{{getv "/arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"}}
-{{if exists "/arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012_private_key"}}
-{{getv "/arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012_private_key"}}
-{{end}}
+## Running Modes
+
+confd supports two modes of operation:
+
+### One-time mode
+
+Process templates once and exit:
+
+```bash
+confd env --onetime
 ```
 
-Available keys:
-- `/<arn>` - Certificate body (PEM)
-- `/<arn>_chain` - Certificate chain (PEM)
-- `/<arn>_private_key` - Encrypted private key (PKCS #8 PEM, only with export enabled)
+### Daemon mode with interval polling
 
-**Note:** The private key is returned encrypted with the passphrase. Use `openssl rsa -in encrypted_key.pem -out decrypted_key.pem` to decrypt it.
+Poll the backend at regular intervals:
+
+```bash
+confd env --interval 60
+```
+
+### Watch mode (supported backends only)
+
+Watch for changes in real-time (etcd, consul, redis, zookeeper, file):
+
+```bash
+confd file --file myapp.yaml --watch
+```
+
+## Next Steps
+
+- **Template Functions**: See [templates.md](templates.md) for available template functions
+- **Configuration**: See [configuration-guide.md](configuration-guide.md) for all configuration options
+- **Backend Details**: Click the backend links above for authentication, advanced options, and examples
 
 ## Advanced Example
 
-In this example we will use confd to manage two nginx config files using a single template.
+This example manages nginx config files using etcd or consul.
 
-### Add keys
+### Add keys (etcd)
 
-#### etcd
-
-```
-etcdctl set /myapp/subdomain myapp
-etcdctl set /myapp/upstream/app2 "10.0.1.100:80"
-etcdctl set /myapp/upstream/app1 "10.0.1.101:80"
-etcdctl set /yourapp/subdomain yourapp
-etcdctl set /yourapp/upstream/app2 "10.0.1.102:80"
-etcdctl set /yourapp/upstream/app1 "10.0.1.103:80"
+```bash
+etcdctl put /myapp/subdomain myapp
+etcdctl put /myapp/upstream/app1 "10.0.1.100:80"
+etcdctl put /myapp/upstream/app2 "10.0.1.101:80"
 ```
 
-#### consul
+### Add keys (consul)
 
-```
-curl -X PUT -d 'myapp' http://localhost:8500/v1/kv/myapp/subdomain
-curl -X PUT -d '10.0.1.100:80' http://localhost:8500/v1/kv/myapp/upstream/app1
-curl -X PUT -d '10.0.1.101:80' http://localhost:8500/v1/kv/myapp/upstream/app2
-curl -X PUT -d 'yourapp' http://localhost:8500/v1/kv/yourapp/subdomain
-curl -X PUT -d '10.0.1.102:80' http://localhost:8500/v1/kv/yourapp/upstream/app1
-curl -X PUT -d '10.0.1.103:80' http://localhost:8500/v1/kv/yourapp/upstream/app2
+```bash
+consul kv put myapp/subdomain myapp
+consul kv put myapp/upstream/app1 "10.0.1.100:80"
+consul kv put myapp/upstream/app2 "10.0.1.101:80"
 ```
 
-### Create template resources
+### Create template resource
 
-/etc/confd/conf.d/myapp-nginx.toml
+`/etc/confd/conf.d/myapp-nginx.toml`:
 
-```
+```toml
 [template]
 prefix = "/myapp"
 src = "nginx.tmpl"
@@ -357,26 +197,10 @@ check_cmd = "/usr/sbin/nginx -t -c {{.src}}"
 reload_cmd = "/usr/sbin/service nginx reload"
 ```
 
-/etc/confd/conf.d/yourapp-nginx.toml
-
-```
-[template]
-prefix = "/yourapp"
-src = "nginx.tmpl"
-dest = "/tmp/yourapp.conf"
-owner = "nginx"
-mode = "0644"
-keys = [
-  "/subdomain",
-  "/upstream",
-]
-check_cmd = "/usr/sbin/nginx -t -c {{.src}}"
-reload_cmd = "/usr/sbin/service nginx reload"
-```
-
 ### Create the source template
 
-/etc/confd/templates/nginx.tmpl
+`/etc/confd/templates/nginx.tmpl`:
+
 ```
 upstream {{getv "/subdomain"}} {
 {{range getvs "/upstream/*"}}
@@ -394,4 +218,14 @@ server {
         proxy_set_header  X-Forwarded-For  $proxy_add_x_forwarded_for;
    }
 }
+```
+
+### Run confd
+
+```bash
+# etcd
+confd etcd --node http://127.0.0.1:2379 --watch
+
+# consul
+confd consul --node 127.0.0.1:8500 --watch
 ```

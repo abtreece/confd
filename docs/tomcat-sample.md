@@ -80,5 +80,5 @@ reload_cmd = "/usr/local/tomcat/bin/catalina.sh stop -force && /usr/local/tomcat
 Finally we need to replace in all above templates ```catalina.sh start``` by ```catalina_start.sh start```
 
 ## test it
-Follow conf documentation and test it calling ```confd -onetime``` or you try the complete sample in a Docker and/or Vagrant environment [here](https://github.com/muenchhausen/tomcat-confd)
+Follow confd documentation and test it calling ```confd <backend> --onetime``` (e.g., `confd etcd --node http://127.0.0.1:2379 --onetime`) or you try the complete sample in a Docker and/or Vagrant environment [here](https://github.com/muenchhausen/tomcat-confd)
 
