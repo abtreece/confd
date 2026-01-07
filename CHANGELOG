@@ -1,6 +1,11 @@
 ### v0.32.0
 
-**BREAKING CHANGE**: The global `prefix` setting in `confd.toml` is now concatenated with resource-level `prefix` values in template resource files (`conf.d/*.toml`) instead of overriding them. For example, if `confd.toml` has `prefix = "production"` and a resource has `prefix = "myapp"`, the effective prefix is now `/production/myapp` instead of `/production`. To restore the previous behavior, remove the `prefix` setting from your template resource files. (#109)
+**BREAKING CHANGE**: The global `prefix` setting in `confd.toml` is now concatenated with resource-level `prefix` values in template resource files (`conf.d/*.toml`) instead of overriding them. For example, if `confd.toml` has `prefix = "production"` and a resource has `prefix = "myapp"`, the effective prefix is now `/production/myapp` instead of `/production`. To restore the previous behavior, remove the `prefix` setting from your template resource files. (#324)
+
+* feat: Add JSON log format support via `--log-format` flag (#327)
+* feat: Add template variable support (`{{.src}}`, `{{.dest}}`) in `reload_cmd` (#326)
+* docs: Update CHANGELOG with releases v0.19.2 through v0.31.1 (#325)
+* chore: Fix goreleaser v2 deprecation warnings
 
 ### v0.31.1
 
