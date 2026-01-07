@@ -13,6 +13,7 @@ Optional:
 * `client_key` (string) - The client key file.
 * `confdir` (string) - The path to confd configs. ("/etc/confd")
 * `interval` (int) - The backend polling interval in seconds. (600)
+* `log-format` (string) - format of log messages ("text" or "json")
 * `log-level` (string) - level which confd should log messages ("info")
 * `nodes` (array of strings) - List of backend nodes. (["http://127.0.0.1:4001"])
 * `noop` (bool) - Enable noop mode. Process all template resources; skip target update.

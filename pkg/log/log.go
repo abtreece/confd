@@ -48,6 +48,18 @@ func SetLevel(level string) {
 	log.SetLevel(lvl)
 }
 
+// SetFormat sets the log format. Valid formats are "text" and "json".
+func SetFormat(format string) {
+	switch format {
+	case "json":
+		log.SetFormatter(&log.JSONFormatter{})
+	case "text":
+		log.SetFormatter(&ConfdFormatter{})
+	default:
+		Fatal(fmt.Sprintf(`not a valid log format: "%s"`, format))
+	}
+}
+
 // Debug logs a message with severity DEBUG.
 func Debug(format string, v ...interface{}) {
 	log.Debug(fmt.Sprintf(format, v...))
