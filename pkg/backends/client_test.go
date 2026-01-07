@@ -15,8 +15,8 @@ func TestNew_InvalidBackend(t *testing.T) {
 	if err == nil {
 		t.Error("New() expected error for invalid backend, got nil")
 	}
-	if err.Error() != "Invalid backend" {
-		t.Errorf("New() error = %v, want 'Invalid backend'", err)
+	if err.Error() != "invalid backend" {
+		t.Errorf("New() error = %v, want 'invalid backend'", err)
 	}
 }
 
@@ -68,9 +68,9 @@ func TestNew_DefaultBackendIsEtcd(t *testing.T) {
 	// This will fail to connect, but we can verify it tries etcd
 	_, err := New(config)
 	// Error is expected since there's no etcd server
-	// The important thing is it doesn't return "Invalid backend"
-	if err != nil && err.Error() == "Invalid backend" {
-		t.Error("New() with empty backend should default to etcd, not return 'Invalid backend'")
+	// The important thing is it doesn't return "invalid backend"
+	if err != nil && err.Error() == "invalid backend" {
+		t.Error("New() with empty backend should default to etcd, not return 'invalid backend'")
 	}
 }
 

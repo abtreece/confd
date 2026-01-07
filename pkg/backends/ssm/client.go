@@ -19,10 +19,12 @@ type ssmAPI interface {
 	GetParametersByPathPages(input *ssm.GetParametersByPathInput, fn func(*ssm.GetParametersByPathOutput, bool) bool) error
 }
 
+// Client is a wrapper around the AWS SSM client.
 type Client struct {
 	client ssmAPI
 }
 
+// New creates a new SSM client with automatic region detection.
 func New() (*Client, error) {
 
 	// Attempt to get AWS Region from ec2metadata. Should determine how to

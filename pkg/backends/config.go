@@ -4,6 +4,7 @@ import (
 	util "github.com/abtreece/confd/pkg/util"
 )
 
+// Config holds the configuration for backend connections.
 type Config struct {
 	AuthToken      string     `toml:"auth_token"`
 	AuthType       string     `toml:"auth_type"`

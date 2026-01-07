@@ -95,9 +95,9 @@ func authenticate(c *vaultapi.Client, authType string, params map[string]string)
 			"password": password,
 		})
 	case "kubernetes":
-		jwt, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
-		if err != nil {
-			return err
+		jwt, jwtErr := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+		if jwtErr != nil {
+			return jwtErr
 		}
 		secret, err = c.Logical().Write(url, map[string]interface{}{
 			"jwt":  string(jwt[:]),
@@ -138,7 +138,6 @@ func getConfig(address, cert, key, caCert string) (*vaultapi.Config, error) {
 			return nil, err
 		}
 		tlsConfig.Certificates = []tls.Certificate{clientCert}
-		tlsConfig.BuildNameToCertificate()
 	}
 
 	if caCert != "" {

@@ -82,5 +82,5 @@ func New(config Config) (StoreClient, error) {
 	case "ssm":
 		return ssm.New()
 	}
-	return nil, errors.New("Invalid backend")
+	return nil, errors.New("invalid backend")
 }
