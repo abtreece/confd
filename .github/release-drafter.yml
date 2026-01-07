@@ -1,27 +1,81 @@
-# Format and labels used aim to match those used by Ansible project
-categories:
-  - title: 'Major Changes'
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+version-resolver:
+  major:
     labels:
-      - 'major'  # c6476b
-  - title: 'Minor Changes'
+      - 'major'
+  minor:
     labels:
-      - 'feature'  # 006b75
-      - 'enhancement'  # ededed
-      - 'performance'  # 555555
-      - 'dependencies' # 3B7EE5
-  - title: 'Bugfixes'
+      - 'feature'
+      - 'enhancement'
+  patch:
     labels:
       - 'fix'
       - 'bugfix'
-      - 'bug'  # fbca04
-      - 'docs'  # 4071a5
-      - 'packaging'  # 4071a5
-      - 'test'  # #0e8a16
-  - title: 'Deprecations'
+      - 'bug'
+      - 'docs'
+      - 'dependencies'
+  default: patch
+
+categories:
+  - title: 'Breaking Changes'
     labels:
-      - 'deprecated'  # fef2c0
+      - 'major'
+  - title: 'Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+  - title: 'Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+  - title: 'Documentation'
+    labels:
+      - 'docs'
+  - title: 'Dependencies'
+    labels:
+      - 'dependencies'
+  - title: 'Testing'
+    labels:
+      - 'test'
+  - title: 'Performance'
+    labels:
+      - 'performance'
+
+autolabeler:
+  - label: 'feature'
+    branch:
+      - '/^feat(ure)?[/-].+/'
+  - label: 'fix'
+    branch:
+      - '/^fix[/-].+/'
+      - '/^bugfix[/-].+/'
+  - label: 'docs'
+    branch:
+      - '/^docs?[/-].+/'
+    files:
+      - '*.md'
+      - 'docs/**/*'
+  - label: 'dependencies'
+    files:
+      - 'go.mod'
+      - 'go.sum'
+      - 'vendor/**/*'
+  - label: 'test'
+    branch:
+      - '/^test[/-].+/'
+    files:
+      - '*_test.go'
+      - 'test/**/*'
+
 exclude-labels:
   - 'skip-changelog'
+
 template: |
-  ## Changes
+  ## What's Changed
+
   $CHANGES
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
