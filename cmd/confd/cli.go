@@ -309,7 +309,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		cli.SRVRecord = fmt.Sprintf("_%s._tcp.%s.", backendCfg.Backend, cli.SRVDomain)
 	}
 	if backendCfg.Backend != "env" && cli.SRVRecord != "" {
-		log.Info("SRV record set to " + cli.SRVRecord)
+		log.Info("SRV record set to %s", cli.SRVRecord)
 		srvNodes, err := getBackendNodesFromSRV(cli.SRVRecord)
 		if err != nil {
 			return fmt.Errorf("cannot get nodes from SRV records: %w", err)
@@ -323,7 +323,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	}
 
 	log.Info("Starting confd")
-	log.Info("Backend set to " + backendCfg.Backend)
+	log.Info("Backend set to %s", backendCfg.Backend)
 
 	// Create store client
 	storeClient, err := backends.New(backendCfg)
@@ -370,9 +370,9 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	for {
 		select {
 		case err := <-errChan:
-			log.Error(err.Error())
+			log.Error("%s", err.Error())
 		case s := <-signalChan:
-			log.Info(fmt.Sprintf("Captured %v. Exiting...", s))
+			log.Info("Captured %v. Exiting...", s)
 			close(doneChan)
 		case <-doneChan:
 			return nil

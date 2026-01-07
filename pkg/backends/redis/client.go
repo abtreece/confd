@@ -56,7 +56,7 @@ func tryConnect(machines []string, password string, timeout bool) (redis.Conn, i
 		if _, err = os.Stat(address); err == nil {
 			network = "unix"
 		}
-		log.Debug(fmt.Sprintf("Trying to connect to redis node %s", address))
+		log.Debug("Trying to connect to redis node %s", address)
 
 		var dialops []redis.DialOption
 		if timeout {
@@ -97,8 +97,7 @@ func (c *Client) connectedClient() (redisConn, error) {
 
 		resp, err := c.client.Do("PING")
 		if (err != nil && err == redis.ErrNil) || resp != "PONG" {
-			log.Error(fmt.Sprintf("Existing redis connection no longer usable. "+
-				"Will try to re-establish. Error: %s", err.Error()))
+			log.Error("Existing redis connection no longer usable. Will try to re-establish. Error: %s", err.Error())
 			c.client = nil
 		}
 	}
@@ -121,7 +120,7 @@ func NewRedisClient(machines []string, password string, separator string) (*Clie
 	if separator == "" {
 		separator = "/"
 	}
-	log.Debug(fmt.Sprintf("Redis Separator: %#v", separator))
+	log.Debug("Redis Separator: %#v", separator)
 	var err error
 	clientWrapper := &Client{machines: machines, password: password, separator: separator, client: nil, pscChan: make(chan watchResponse), psc: redis.PubSubConn{Conn: nil}}
 	clientWrapper.client, _, err = tryConnect(machines, password, true)
@@ -227,7 +226,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		}
 	}
 
-	log.Debug(fmt.Sprintf("Key Map: %#v", vars))
+	log.Debug("Key Map: %#v", vars)
 
 	return vars, nil
 }
@@ -266,7 +265,7 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 				for {
 					switch n := c.psc.Receive().(type) {
 					case redis.Message:
-						log.Debug(fmt.Sprintf("Redis Message: %s %s\n", n.Channel, n.Data))
+						log.Debug("Redis Message: %s %s", n.Channel, n.Data)
 						data := string(n.Data)
 						commands := [12]string{"del", "append", "rename_from", "rename_to", "expire", "set", "incrby", "incrbyfloat", "hset", "hincrby", "hincrbyfloat", "hdel"}
 						for _, command := range commands {
@@ -276,13 +275,13 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 							}
 						}
 					case redis.Subscription:
-						log.Debug(fmt.Sprintf("Redis Subscription: %s %s %d\n", n.Kind, n.Channel, n.Count))
+						log.Debug("Redis Subscription: %s %s %d", n.Kind, n.Channel, n.Count)
 						if n.Count == 0 {
 							c.pscChan <- watchResponse{0, nil}
 							return
 						}
 					case error:
-						log.Debug(fmt.Sprintf("Redis error: %v\n", n))
+						log.Debug("Redis error: %v", n)
 						c.pscChan <- watchResponse{0, n}
 						return
 					}

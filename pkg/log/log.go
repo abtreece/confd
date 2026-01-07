@@ -43,7 +43,7 @@ func SetTag(t string) {
 func SetLevel(level string) {
 	lvl, err := log.ParseLevel(level)
 	if err != nil {
-		Fatal(fmt.Sprintf(`not a valid level: "%s"`, level))
+		Fatal("not a valid level: %q", level)
 	}
 	log.SetLevel(lvl)
 }
@@ -56,7 +56,7 @@ func SetFormat(format string) {
 	case "text":
 		log.SetFormatter(&ConfdFormatter{})
 	default:
-		Fatal(fmt.Sprintf(`not a valid log format: "%s"`, format))
+		Fatal("not a valid log format: %q", format)
 	}
 }
 

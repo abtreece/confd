@@ -60,7 +60,7 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 		return nil
 	}
 
-	log.Debug("Loading " + cli.ConfigFile)
+	log.Debug("Loading %s", cli.ConfigFile)
 	configBytes, err := os.ReadFile(cli.ConfigFile)
 	if err != nil {
 		return err

@@ -150,7 +150,7 @@ func TestRecursiveFilesLookup(t *testing.T) {
 	defer os.RemoveAll(rootDir)
 	files, err := RecursiveFilesLookup(rootDir+"/root", "*toml")
 	if err != nil {
-		t.Errorf("Failed to run recursiveFindFiles, got error: " + err.Error())
+		t.Errorf("Failed to run recursiveFindFiles, got error: %s", err.Error())
 	}
 	sort.Strings(files)
 	expectedFiles := []string{
@@ -181,24 +181,24 @@ func TestIsConfigChangedTrue(t *testing.T) {
 	src, err := os.CreateTemp("", "src")
 	defer os.Remove(src.Name())
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	_, err = src.WriteString("foo")
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	dest, err := os.CreateTemp("", "dest")
 	defer os.Remove(dest.Name())
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	_, err = dest.WriteString("foo")
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	status, err := IsConfigChanged(src.Name(), dest.Name())
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	if status == true {
 		t.Errorf("Expected IsConfigChanged(src, dest) to be %v, got %v", true, status)
@@ -210,24 +210,24 @@ func TestIsConfigChangedFalse(t *testing.T) {
 	src, err := os.CreateTemp("", "src")
 	defer os.Remove(src.Name())
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	_, err = src.WriteString("src")
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	dest, err := os.CreateTemp("", "dest")
 	defer os.Remove(dest.Name())
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	_, err = dest.WriteString("dest")
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	status, err := IsConfigChanged(src.Name(), dest.Name())
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err)
 	}
 	if status == false {
 		t.Errorf("Expected sameConfig(src, dest) to be %v, got %v", false, status)
