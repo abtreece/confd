@@ -1,6 +1,7 @@
 package template
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -137,6 +138,70 @@ keys = [
   "foo",
 ]
 `
+
+func TestReloadCmdTemplateSubstitution(t *testing.T) {
+	log.SetLevel("warn")
+
+	tests := []struct {
+		name        string
+		reloadCmd   string
+		src         string
+		dest        string
+		expectedCmd string
+	}{
+		{
+			name:        "dest substitution",
+			reloadCmd:   "systemctl reload nginx # config: {{.dest}}",
+			src:         "/tmp/.nginx.conf.12345",
+			dest:        "/etc/nginx/nginx.conf",
+			expectedCmd: "systemctl reload nginx # config: /etc/nginx/nginx.conf",
+		},
+		{
+			name:        "src substitution",
+			reloadCmd:   "validate-config {{.src}}",
+			src:         "/tmp/.app.conf.67890",
+			dest:        "/etc/app/config.conf",
+			expectedCmd: "validate-config /tmp/.app.conf.67890",
+		},
+		{
+			name:        "both src and dest substitution",
+			reloadCmd:   "reload-handler --staged={{.src}} --dest={{.dest}}",
+			src:         "/tmp/.config.staged",
+			dest:        "/etc/myapp/config.yaml",
+			expectedCmd: "reload-handler --staged=/tmp/.config.staged --dest=/etc/myapp/config.yaml",
+		},
+		{
+			name:        "no substitution needed",
+			reloadCmd:   "systemctl restart myservice",
+			src:         "/tmp/.config.12345",
+			dest:        "/etc/myservice/config",
+			expectedCmd: "systemctl restart myservice",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			data := make(map[string]string)
+			data["src"] = tc.src
+			data["dest"] = tc.dest
+
+			tmpl, err := template.New("reloadcmd").Parse(tc.reloadCmd)
+			if err != nil {
+				t.Fatalf("Failed to parse reload command template: %s", err)
+			}
+
+			var cmdBuffer bytes.Buffer
+			if err := tmpl.Execute(&cmdBuffer, data); err != nil {
+				t.Fatalf("Failed to execute reload command template: %s", err)
+			}
+
+			result := cmdBuffer.String()
+			if result != tc.expectedCmd {
+				t.Errorf("Expected command %q, got %q", tc.expectedCmd, result)
+			}
+		})
+	}
+}
 
 func TestProcessTemplateResources(t *testing.T) {
 	log.SetLevel("warn")

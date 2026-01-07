@@ -14,7 +14,7 @@ Template resources are stored under the `/etc/confd/conf.d` directory by default
 * `gid` (int) - The gid that should own the file. Defaults to the effective gid.
 * `mode` (string) - The permission mode of the file.
 * `uid` (int) - The uid that should own the file. Defaults to the effective uid.
-* `reload_cmd` (string) - The command to reload config.
+* `reload_cmd` (string) - The command to reload config. Use `{{.src}}` to reference the rendered source template, or `{{.dest}}` to reference the destination file.
 * `check_cmd` (string) - The command to check config. Use `{{.src}}` to reference the rendered source template.
 * `prefix` (string) - The string to prefix to keys. When a global prefix is also set in `confd.toml`, the prefixes are concatenated (e.g., global `production` + resource `myapp` = `/production/myapp`).
 
