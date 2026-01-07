@@ -1,6 +1,7 @@
 package zookeeper
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"time"
@@ -71,7 +72,7 @@ func nodeWalk(prefix string, c *Client, vars map[string]string) error {
 	return nil
 }
 
-func (c *Client) GetValues(keys []string) (map[string]string, error) {
+func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	vars := make(map[string]string)
 	for _, v := range keys {
 		v = strings.Replace(v, "/*", "", -1)
@@ -120,14 +121,14 @@ func (c *Client) watch(key string, respChan chan watchResponse, cancelRoutine ch
 	}
 }
 
-func (c *Client) WatchPrefix(prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	// return something > 0 to trigger a key retrieval from the store
 	if waitIndex == 0 {
 		return 1, nil
 	}
 
 	// List the childrens first
-	entries, err := c.GetValues([]string{prefix})
+	entries, err := c.GetValues(ctx, []string{prefix})
 	if err != nil {
 		return 0, err
 	}

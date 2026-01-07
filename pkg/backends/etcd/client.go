@@ -167,7 +167,7 @@ func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure b
 }
 
 // GetValues queries etcd for keys prefixed by prefix.
-func (c *Client) GetValues(keys []string) (map[string]string, error) {
+func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	// Use all operations on the same revision
 	var first_rev int64 = 0
 	vars := make(map[string]string)
@@ -229,7 +229,7 @@ func (c *Client) GetValues(keys []string) (map[string]string, error) {
 	return vars, nil
 }
 
-func (c *Client) WatchPrefix(prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	var err error
 
 	// Create watch for each key

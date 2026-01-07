@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"context"
 	"errors"
 	"os"
 	"reflect"
@@ -331,7 +332,7 @@ func TestWatchPrefix(t *testing.T) {
 		stopChan <- true
 	}()
 
-	index, err := client.WatchPrefix("/secret", []string{"/secret/key"}, 0, stopChan)
+	index, err := client.WatchPrefix(context.Background(), "/secret", []string{"/secret/key"}, 0, stopChan)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}

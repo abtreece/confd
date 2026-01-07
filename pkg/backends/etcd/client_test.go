@@ -227,7 +227,7 @@ func TestGetValues_SingleKey(t *testing.T) {
 		watches:  make(map[string]*Watch),
 	}
 
-	vars, err := client.GetValues([]string{"/app/key"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/key"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestGetValues_MultipleKeys(t *testing.T) {
 		watches:  make(map[string]*Watch),
 	}
 
-	vars, err := client.GetValues([]string{"/app/key1", "/app/key2", "/db/host"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/key1", "/app/key2", "/db/host"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestGetValues_PrefixMatch(t *testing.T) {
 		watches:  make(map[string]*Watch),
 	}
 
-	vars, err := client.GetValues([]string{"/app/config"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/config"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestGetValues_TransactionError(t *testing.T) {
 		watches:  make(map[string]*Watch),
 	}
 
-	_, err := client.GetValues([]string{"/app/key"})
+	_, err := client.GetValues(context.Background(), []string{"/app/key"})
 	if err != expectedErr {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
@@ -384,7 +384,7 @@ func TestGetValues_EmptyResult(t *testing.T) {
 		watches:  make(map[string]*Watch),
 	}
 
-	vars, err := client.GetValues([]string{"/nonexistent"})
+	vars, err := client.GetValues(context.Background(), []string{"/nonexistent"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -428,7 +428,7 @@ func TestGetValues_FiltersByPrefix(t *testing.T) {
 		watches:  make(map[string]*Watch),
 	}
 
-	vars, err := client.GetValues([]string{"/app"})
+	vars, err := client.GetValues(context.Background(), []string{"/app"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -459,7 +459,7 @@ func TestGetValues_EmptyKeys(t *testing.T) {
 		watches:  make(map[string]*Watch),
 	}
 
-	vars, err := client.GetValues([]string{})
+	vars, err := client.GetValues(context.Background(), []string{})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -510,7 +510,7 @@ func TestGetValues_BatchOperation(t *testing.T) {
 		keys[i] = "/app/key" + string(rune('a'+i%26)) + string(rune('0'+i/26))
 	}
 
-	_, err := client.GetValues(keys)
+	_, err := client.GetValues(context.Background(), keys)
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -551,7 +551,7 @@ func TestGetValues_KeyWithTrailingSlash(t *testing.T) {
 		watches:  make(map[string]*Watch),
 	}
 
-	vars, err := client.GetValues([]string{"/app/config/"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/config/"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -604,7 +604,7 @@ func TestGetValues_RevisionConsistency(t *testing.T) {
 		keys[i] = "/key" + string(rune('0'+i/100)) + string(rune('0'+(i/10)%10)) + string(rune('0'+i%10))
 	}
 
-	_, err := client.GetValues(keys)
+	_, err := client.GetValues(context.Background(), keys)
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -644,7 +644,7 @@ func TestGetValues_ExactKeyMatch(t *testing.T) {
 		watches:  make(map[string]*Watch),
 	}
 
-	vars, err := client.GetValues([]string{"/mykey"})
+	vars, err := client.GetValues(context.Background(), []string{"/mykey"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -672,7 +672,7 @@ func TestWatchPrefix_StopChan(t *testing.T) {
 	stopChan := make(chan bool, 1)
 	stopChan <- true
 
-	index, err := client.WatchPrefix("/app", []string{"/app/key"}, 50, stopChan)
+	index, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 50, stopChan)
 	if err == nil || err.Error() != "context canceled" {
 		// WatchPrefix returns context.Canceled when stopChan triggers
 		// This is expected behavior

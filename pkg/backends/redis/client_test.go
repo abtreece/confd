@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -128,7 +129,7 @@ func TestWatchPrefix_InitialCall(t *testing.T) {
 	}
 
 	// waitIndex 0 should return immediately with 1
-	index, err := client.WatchPrefix("/app", []string{"/app/key"}, 0, nil)
+	index, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 0, nil)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}
@@ -162,7 +163,7 @@ func TestGetValues_StringType(t *testing.T) {
 		pscChan:   make(chan watchResponse),
 	}
 
-	vars, err := client.GetValues([]string{"/app/key"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/key"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -202,7 +203,7 @@ func TestGetValues_HashType(t *testing.T) {
 		pscChan:   make(chan watchResponse),
 	}
 
-	vars, err := client.GetValues([]string{"/app/config"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/config"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -256,7 +257,7 @@ func TestGetValues_ScanPattern(t *testing.T) {
 		pscChan:   make(chan watchResponse),
 	}
 
-	vars, err := client.GetValues([]string{"/app/*"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/*"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -291,7 +292,7 @@ func TestGetValues_GetError(t *testing.T) {
 		pscChan:   make(chan watchResponse),
 	}
 
-	_, err := client.GetValues([]string{"/app/key"})
+	_, err := client.GetValues(context.Background(), []string{"/app/key"})
 	if err != expectedErr {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
@@ -317,7 +318,7 @@ func TestGetValues_TypeQueryError(t *testing.T) {
 		pscChan:   make(chan watchResponse),
 	}
 
-	_, err := client.GetValues([]string{"/app/key"})
+	_, err := client.GetValues(context.Background(), []string{"/app/key"})
 	if err == nil {
 		t.Error("GetValues() expected error for TYPE query failure")
 	}
@@ -354,7 +355,7 @@ func TestGetValues_MultipleKeys(t *testing.T) {
 		pscChan:   make(chan watchResponse),
 	}
 
-	vars, err := client.GetValues([]string{"/app/key1", "/app/key2", "/db/host"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/key1", "/app/key2", "/db/host"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -396,7 +397,7 @@ func TestGetValues_CustomSeparator(t *testing.T) {
 		pscChan:   make(chan watchResponse),
 	}
 
-	vars, err := client.GetValues([]string{"/app/config/key"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/config/key"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -462,7 +463,7 @@ func TestWatchPrefix_FromChannel(t *testing.T) {
 	client.pscChan <- watchResponse{waitIndex: 42, err: nil}
 
 	// waitIndex > 0 will check the channel
-	index, err := client.WatchPrefix("/app", []string{"/app/key"}, 1, nil)
+	index, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 1, nil)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}
@@ -481,7 +482,7 @@ func TestWatchPrefix_ChannelError(t *testing.T) {
 	// Pre-populate the channel with an error
 	client.pscChan <- watchResponse{waitIndex: 0, err: expectedErr}
 
-	index, err := client.WatchPrefix("/app", []string{"/app/key"}, 1, nil)
+	index, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 1, nil)
 	if err != expectedErr {
 		t.Errorf("WatchPrefix() error = %v, want %v", err, expectedErr)
 	}

@@ -1,6 +1,7 @@
 package zookeeper
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -59,7 +60,7 @@ func TestWatchPrefix_InitialCall(t *testing.T) {
 	client := &Client{client: nil}
 
 	// waitIndex 0 should return immediately with 1
-	index, err := client.WatchPrefix("/app", []string{"/app/key"}, 0, nil)
+	index, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 0, nil)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}
@@ -87,7 +88,7 @@ func TestGetValues_SingleLeafNode(t *testing.T) {
 
 	client := &Client{client: mock}
 
-	vars, err := client.GetValues([]string{"/app/key"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/key"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -124,7 +125,7 @@ func TestGetValues_WithChildren(t *testing.T) {
 
 	client := &Client{client: mock}
 
-	vars, err := client.GetValues([]string{"/app"})
+	vars, err := client.GetValues(context.Background(), []string{"/app"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -172,7 +173,7 @@ func TestGetValues_NestedChildren(t *testing.T) {
 
 	client := &Client{client: mock}
 
-	vars, err := client.GetValues([]string{"/app"})
+	vars, err := client.GetValues(context.Background(), []string{"/app"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -208,7 +209,7 @@ func TestGetValues_MultipleKeys(t *testing.T) {
 
 	client := &Client{client: mock}
 
-	vars, err := client.GetValues([]string{"/app/key1", "/app/key2", "/db/host"})
+	vars, err := client.GetValues(context.Background(), []string{"/app/key1", "/app/key2", "/db/host"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -236,7 +237,7 @@ func TestGetValues_ExistsError(t *testing.T) {
 
 	client := &Client{client: mock}
 
-	_, err := client.GetValues([]string{"/app/key"})
+	_, err := client.GetValues(context.Background(), []string{"/app/key"})
 	if err != expectedErr {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
@@ -255,7 +256,7 @@ func TestGetValues_ChildrenError(t *testing.T) {
 
 	client := &Client{client: mock}
 
-	_, err := client.GetValues([]string{"/app"})
+	_, err := client.GetValues(context.Background(), []string{"/app"})
 	if err != expectedErr {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
@@ -277,7 +278,7 @@ func TestGetValues_GetError(t *testing.T) {
 
 	client := &Client{client: mock}
 
-	_, err := client.GetValues([]string{"/app/key"})
+	_, err := client.GetValues(context.Background(), []string{"/app/key"})
 	if err != expectedErr {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
@@ -300,7 +301,7 @@ func TestGetValues_WildcardRemoval(t *testing.T) {
 
 	client := &Client{client: mock}
 
-	_, err := client.GetValues([]string{"/app/*"})
+	_, err := client.GetValues(context.Background(), []string{"/app/*"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -332,7 +333,7 @@ func TestGetValues_RootPath(t *testing.T) {
 
 	client := &Client{client: mock}
 
-	vars, err := client.GetValues([]string{"/"})
+	vars, err := client.GetValues(context.Background(), []string{"/"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -371,7 +372,7 @@ func TestWatchPrefix_StopChan(t *testing.T) {
 		stopChan <- true
 	}()
 
-	index, err := client.WatchPrefix("/app", []string{"/app/key"}, 1, stopChan)
+	index, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 1, stopChan)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}
@@ -391,7 +392,7 @@ func TestWatchPrefix_GetValuesError(t *testing.T) {
 	client := &Client{client: mock}
 	stopChan := make(chan bool)
 
-	_, err := client.WatchPrefix("/app", []string{"/app/key"}, 1, stopChan)
+	_, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 1, stopChan)
 	if err != expectedErr {
 		t.Errorf("WatchPrefix() error = %v, want %v", err, expectedErr)
 	}

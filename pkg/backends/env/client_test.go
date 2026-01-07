@@ -1,6 +1,7 @@
 package env
 
 import (
+	"context"
 	"reflect"
 	"testing"
 )
@@ -91,7 +92,7 @@ func TestGetValues(t *testing.T) {
 				t.Fatalf("NewEnvClient() error: %v", err)
 			}
 
-			result, err := client.GetValues(tt.keys)
+			result, err := client.GetValues(context.Background(), tt.keys)
 			if err != nil {
 				t.Errorf("GetValues(%v) unexpected error: %v", tt.keys, err)
 				return
@@ -188,7 +189,7 @@ func TestWatchPrefix(t *testing.T) {
 		stopChan <- true
 	}()
 
-	index, err := client.WatchPrefix("/test", []string{"/test/key"}, 0, stopChan)
+	index, err := client.WatchPrefix(context.Background(), "/test", []string{"/test/key"}, 0, stopChan)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"testing"
@@ -41,7 +42,7 @@ func TestGetValues_SingleKey(t *testing.T) {
 
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{"/app/config"})
+	result, err := client.GetValues(context.Background(), []string{"/app/config"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -71,7 +72,7 @@ func TestGetValues_MultipleKeys(t *testing.T) {
 
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{"/db", "/cache"})
+	result, err := client.GetValues(context.Background(), []string{"/db", "/cache"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestGetValues_MultiplePairs(t *testing.T) {
 
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{"/app/db"})
+	result, err := client.GetValues(context.Background(), []string{"/app/db"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestGetValues_EmptyResult(t *testing.T) {
 
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{"/missing"})
+	result, err := client.GetValues(context.Background(), []string{"/missing"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -143,7 +144,7 @@ func TestGetValues_Error(t *testing.T) {
 
 	client := newTestClient(mock)
 
-	_, err := client.GetValues([]string{"/app"})
+	_, err := client.GetValues(context.Background(), []string{"/app"})
 	if err == nil {
 		t.Error("GetValues() expected error, got nil")
 	}
@@ -156,7 +157,7 @@ func TestGetValues_EmptyKeys(t *testing.T) {
 	mock := &mockConsulKV{}
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{})
+	result, err := client.GetValues(context.Background(), []string{})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -177,7 +178,7 @@ func TestGetValues_LeadingSlashHandling(t *testing.T) {
 	}
 
 	client := newTestClient(mock)
-	client.GetValues([]string{"/app/config"})
+	client.GetValues(context.Background(), []string{"/app/config"})
 
 	// Leading slash should be trimmed
 	if capturedPrefix != "app/config" {
@@ -199,7 +200,7 @@ func TestWatchPrefix_StopChannel(t *testing.T) {
 	// Send stop signal before watch can complete
 	stopChan <- true
 
-	index, err := client.WatchPrefix("/app", []string{"/app/key"}, 10, stopChan)
+	index, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 10, stopChan)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}
@@ -218,7 +219,7 @@ func TestWatchPrefix_NewIndex(t *testing.T) {
 	client := newTestClient(mock)
 	stopChan := make(chan bool)
 
-	index, err := client.WatchPrefix("app", []string{"/app/key"}, 100, stopChan)
+	index, err := client.WatchPrefix(context.Background(), "app", []string{"/app/key"}, 100, stopChan)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}
@@ -238,7 +239,7 @@ func TestWatchPrefix_Error(t *testing.T) {
 	client := newTestClient(mock)
 	stopChan := make(chan bool)
 
-	_, err := client.WatchPrefix("app", []string{"/app/key"}, 100, stopChan)
+	_, err := client.WatchPrefix(context.Background(), "app", []string{"/app/key"}, 100, stopChan)
 	if err == nil {
 		t.Error("WatchPrefix() expected error, got nil")
 	}

@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -144,7 +145,7 @@ func (c *Client) clean(key string) string {
 }
 
 // GetValues queries redis for keys prefixed by prefix.
-func (c *Client) GetValues(keys []string) (map[string]string, error) {
+func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	// Ensure we have a connected redis client
 	rClient, err := c.connectedClient()
 	if err != nil && err != redis.ErrNil {
@@ -231,7 +232,7 @@ func (c *Client) GetValues(keys []string) (map[string]string, error) {
 	return vars, nil
 }
 
-func (c *Client) WatchPrefix(prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 
 	if waitIndex == 0 {
 		return 1, nil

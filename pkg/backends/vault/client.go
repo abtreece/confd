@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -182,7 +183,7 @@ func New(address, authType string, params map[string]string) (*Client, error) {
 }
 
 // GetValues queries Vault for keys prefixed by prefix.
-func (c *Client) GetValues(paths []string) (map[string]string, error) {
+func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]string, error) {
 	vars := make(map[string]string)
 	var mounts []string
 	for _, path := range paths {
@@ -392,7 +393,7 @@ func uniqMounts(strSlice []string) []string {
 }
 
 // WatchPrefix - not implemented at the moment
-func (c *Client) WatchPrefix(prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	<-stopChan
 	return 0, nil
 }

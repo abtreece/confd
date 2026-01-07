@@ -1,6 +1,7 @@
 package file
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,7 +22,7 @@ database:
 	keys := []string{"/database"}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client.GetValues(keys)
+		client.GetValues(context.Background(), keys)
 	}
 }
 
@@ -57,7 +58,7 @@ server:
 	keys := []string{"/"}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client.GetValues(keys)
+		client.GetValues(context.Background(), keys)
 	}
 }
 
@@ -80,7 +81,7 @@ func BenchmarkGetValues_LargeYAML(b *testing.B) {
 	keys := []string{"/services"}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client.GetValues(keys)
+		client.GetValues(context.Background(), keys)
 	}
 }
 
@@ -104,7 +105,7 @@ func BenchmarkGetValues_JSON(b *testing.B) {
 	keys := []string{"/"}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client.GetValues(keys)
+		client.GetValues(context.Background(), keys)
 	}
 }
 
@@ -121,7 +122,7 @@ func BenchmarkGetValues_MultipleFiles(b *testing.B) {
 	keys := []string{"/"}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client.GetValues(keys)
+		client.GetValues(context.Background(), keys)
 	}
 }
 

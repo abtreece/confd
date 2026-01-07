@@ -1,6 +1,7 @@
 package env
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -19,7 +20,7 @@ func NewEnvClient() (*Client, error) {
 }
 
 // GetValues queries the environment for keys
-func (c *Client) GetValues(keys []string) (map[string]string, error) {
+func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	allEnvVars := os.Environ()
 	envMap := make(map[string]string)
 	for _, e := range allEnvVars {
@@ -53,7 +54,7 @@ func clean(key string) string {
 	return cleanReplacer.Replace(strings.ToLower(newKey))
 }
 
-func (c *Client) WatchPrefix(prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	<-stopChan
 	return 0, nil
 }

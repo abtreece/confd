@@ -1,6 +1,7 @@
 package file
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -45,7 +46,7 @@ app:
 
 	client, _ := NewFileClient([]string{yamlFile}, "")
 
-	result, err := client.GetValues([]string{"/database"})
+	result, err := client.GetValues(context.Background(), []string{"/database"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -79,7 +80,7 @@ func TestGetValues_JSONFile(t *testing.T) {
 
 	client, _ := NewFileClient([]string{jsonFile}, "")
 
-	result, err := client.GetValues([]string{"/server"})
+	result, err := client.GetValues(context.Background(), []string{"/server"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -111,7 +112,7 @@ other:
 
 	client, _ := NewFileClient([]string{yamlFile}, "")
 
-	result, err := client.GetValues([]string{"/database", "/cache"})
+	result, err := client.GetValues(context.Background(), []string{"/database", "/cache"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -143,7 +144,7 @@ app:
 
 	client, _ := NewFileClient([]string{yamlFile}, "")
 
-	result, err := client.GetValues([]string{"/app/db"})
+	result, err := client.GetValues(context.Background(), []string{"/app/db"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -172,7 +173,7 @@ servers:
 
 	client, _ := NewFileClient([]string{yamlFile}, "")
 
-	result, err := client.GetValues([]string{"/servers"})
+	result, err := client.GetValues(context.Background(), []string{"/servers"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -203,7 +204,7 @@ values:
 
 	client, _ := NewFileClient([]string{yamlFile}, "")
 
-	result, err := client.GetValues([]string{"/values"})
+	result, err := client.GetValues(context.Background(), []string{"/values"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -241,7 +242,7 @@ cache:
 
 	client, _ := NewFileClient([]string{file1, file2}, "")
 
-	result, err := client.GetValues([]string{"/db", "/cache"})
+	result, err := client.GetValues(context.Background(), []string{"/db", "/cache"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -275,7 +276,7 @@ yaml_key: yaml_value
 	// Only get yaml files
 	client, _ := NewFileClient([]string{tmpDir}, "*.yaml")
 
-	result, err := client.GetValues([]string{"/"})
+	result, err := client.GetValues(context.Background(), []string{"/"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -292,7 +293,7 @@ yaml_key: yaml_value
 func TestGetValues_MissingFile(t *testing.T) {
 	client, _ := NewFileClient([]string{"/nonexistent/file.yaml"}, "")
 
-	_, err := client.GetValues([]string{"/key"})
+	_, err := client.GetValues(context.Background(), []string{"/key"})
 	if err == nil {
 		t.Error("GetValues() expected error for missing file, got nil")
 	}
@@ -313,7 +314,7 @@ key: value
 
 	client, _ := NewFileClient([]string{yamlFile}, "")
 
-	_, err := client.GetValues([]string{"/key"})
+	_, err := client.GetValues(context.Background(), []string{"/key"})
 	if err == nil {
 		t.Error("GetValues() expected error for invalid YAML, got nil")
 	}
@@ -331,7 +332,7 @@ func TestGetValues_InvalidJSON(t *testing.T) {
 
 	client, _ := NewFileClient([]string{jsonFile}, "")
 
-	_, err := client.GetValues([]string{"/key"})
+	_, err := client.GetValues(context.Background(), []string{"/key"})
 	if err == nil {
 		t.Error("GetValues() expected error for invalid JSON, got nil")
 	}
@@ -347,7 +348,7 @@ func TestGetValues_EmptyFile(t *testing.T) {
 
 	client, _ := NewFileClient([]string{yamlFile}, "")
 
-	result, err := client.GetValues([]string{"/key"})
+	result, err := client.GetValues(context.Background(), []string{"/key"})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -371,7 +372,7 @@ key: value
 
 	client, _ := NewFileClient([]string{yamlFile}, "")
 
-	result, err := client.GetValues([]string{})
+	result, err := client.GetValues(context.Background(), []string{})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -395,7 +396,7 @@ func TestWatchPrefix_InitialCall(t *testing.T) {
 	stopChan := make(chan bool)
 
 	// waitIndex 0 should return immediately with 1
-	index, err := client.WatchPrefix("/", []string{"/key"}, 0, stopChan)
+	index, err := client.WatchPrefix(context.Background(), "/", []string{"/key"}, 0, stopChan)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}
@@ -420,7 +421,7 @@ func TestWatchPrefix_StopChannel(t *testing.T) {
 		stopChan <- true
 	}()
 
-	index, err := client.WatchPrefix("/", []string{"/key"}, 1, stopChan)
+	index, err := client.WatchPrefix(context.Background(), "/", []string{"/key"}, 1, stopChan)
 	if err != nil {
 		t.Errorf("WatchPrefix() unexpected error: %v", err)
 	}

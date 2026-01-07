@@ -1,6 +1,7 @@
 package env
 
 import (
+	"context"
 	"os"
 	"testing"
 )
@@ -13,7 +14,7 @@ func BenchmarkGetValues_SingleKey(b *testing.B) {
 	keys := []string{"/bench/test/key"}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client.GetValues(keys)
+		client.GetValues(context.Background(), keys)
 	}
 }
 
@@ -35,7 +36,7 @@ func BenchmarkGetValues_MultipleKeys(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		client.GetValues(keys)
+		client.GetValues(context.Background(), keys)
 	}
 }
 

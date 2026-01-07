@@ -1,40 +1,42 @@
 package acm
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/acm"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/acm"
+	"github.com/aws/aws-sdk-go-v2/service/acm/types"
 )
 
 // mockACM implements the acmAPI interface for testing
 type mockACM struct {
-	getCertificateFunc        func(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error)
-	exportCertificateFunc     func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error)
-	listCertificatesPagesFunc func(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error
+	getCertificateFunc    func(ctx context.Context, input *acm.GetCertificateInput, opts ...func(*acm.Options)) (*acm.GetCertificateOutput, error)
+	exportCertificateFunc func(ctx context.Context, input *acm.ExportCertificateInput, opts ...func(*acm.Options)) (*acm.ExportCertificateOutput, error)
+	listCertificatesFunc  func(ctx context.Context, input *acm.ListCertificatesInput, opts ...func(*acm.Options)) (*acm.ListCertificatesOutput, error)
 }
 
-func (m *mockACM) GetCertificate(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
+func (m *mockACM) GetCertificate(ctx context.Context, input *acm.GetCertificateInput, opts ...func(*acm.Options)) (*acm.GetCertificateOutput, error) {
 	if m.getCertificateFunc != nil {
-		return m.getCertificateFunc(input)
+		return m.getCertificateFunc(ctx, input, opts...)
 	}
 	return &acm.GetCertificateOutput{}, nil
 }
 
-func (m *mockACM) ExportCertificate(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+func (m *mockACM) ExportCertificate(ctx context.Context, input *acm.ExportCertificateInput, opts ...func(*acm.Options)) (*acm.ExportCertificateOutput, error) {
 	if m.exportCertificateFunc != nil {
-		return m.exportCertificateFunc(input)
+		return m.exportCertificateFunc(ctx, input, opts...)
 	}
 	return &acm.ExportCertificateOutput{}, nil
 }
 
-func (m *mockACM) ListCertificatesPages(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error {
-	if m.listCertificatesPagesFunc != nil {
-		return m.listCertificatesPagesFunc(input, fn)
+func (m *mockACM) ListCertificates(ctx context.Context, input *acm.ListCertificatesInput, opts ...func(*acm.Options)) (*acm.ListCertificatesOutput, error) {
+	if m.listCertificatesFunc != nil {
+		return m.listCertificatesFunc(ctx, input, opts...)
 	}
-	return nil
+	return &acm.ListCertificatesOutput{}, nil
 }
 
 // newTestClient creates a Client with a mock ACM for testing
@@ -63,7 +65,7 @@ func TestGetValues_SingleCertificate(t *testing.T) {
 	chainPEM := "-----BEGIN CERTIFICATE-----\nMIIF...\n-----END CERTIFICATE-----"
 
 	mock := &mockACM{
-		getCertificateFunc: func(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
+		getCertificateFunc: func(ctx context.Context, input *acm.GetCertificateInput, opts ...func(*acm.Options)) (*acm.GetCertificateOutput, error) {
 			// The client should strip the leading "/" before calling AWS
 			if *input.CertificateArn == certARN {
 				return &acm.GetCertificateOutput{
@@ -77,7 +79,7 @@ func TestGetValues_SingleCertificate(t *testing.T) {
 
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{certKey})
+	result, err := client.GetValues(context.Background(), []string{certKey})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -98,7 +100,7 @@ func TestGetValues_CertificateWithoutChain(t *testing.T) {
 	certPEM := "-----BEGIN CERTIFICATE-----\nMIIE...\n-----END CERTIFICATE-----"
 
 	mock := &mockACM{
-		getCertificateFunc: func(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
+		getCertificateFunc: func(ctx context.Context, input *acm.GetCertificateInput, opts ...func(*acm.Options)) (*acm.GetCertificateOutput, error) {
 			return &acm.GetCertificateOutput{
 				Certificate:      aws.String(certPEM),
 				CertificateChain: nil,
@@ -108,7 +110,7 @@ func TestGetValues_CertificateWithoutChain(t *testing.T) {
 
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{certKey})
+	result, err := client.GetValues(context.Background(), []string{certKey})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -127,7 +129,7 @@ func TestGetValues_WithoutPrefix(t *testing.T) {
 	certPEM := "-----BEGIN CERTIFICATE-----\nMIIE...\n-----END CERTIFICATE-----"
 
 	mock := &mockACM{
-		getCertificateFunc: func(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
+		getCertificateFunc: func(ctx context.Context, input *acm.GetCertificateInput, opts ...func(*acm.Options)) (*acm.GetCertificateOutput, error) {
 			if *input.CertificateArn == certARN {
 				return &acm.GetCertificateOutput{
 					Certificate: aws.String(certPEM),
@@ -139,7 +141,7 @@ func TestGetValues_WithoutPrefix(t *testing.T) {
 
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{certARN})
+	result, err := client.GetValues(context.Background(), []string{certARN})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -161,7 +163,7 @@ func TestGetValues_MultipleCertificates(t *testing.T) {
 	certPEM2 := "-----BEGIN CERTIFICATE-----\ncert2\n-----END CERTIFICATE-----"
 
 	mock := &mockACM{
-		getCertificateFunc: func(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
+		getCertificateFunc: func(ctx context.Context, input *acm.GetCertificateInput, opts ...func(*acm.Options)) (*acm.GetCertificateOutput, error) {
 			switch *input.CertificateArn {
 			case certARN1:
 				return &acm.GetCertificateOutput{
@@ -178,7 +180,7 @@ func TestGetValues_MultipleCertificates(t *testing.T) {
 
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{certKey1, certKey2})
+	result, err := client.GetValues(context.Background(), []string{certKey1, certKey2})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -196,14 +198,14 @@ func TestGetValues_Error(t *testing.T) {
 	certKey := "/arn:aws:acm:us-east-1:123456789012:certificate/nonexistent"
 
 	mock := &mockACM{
-		getCertificateFunc: func(input *acm.GetCertificateInput) (*acm.GetCertificateOutput, error) {
+		getCertificateFunc: func(ctx context.Context, input *acm.GetCertificateInput, opts ...func(*acm.Options)) (*acm.GetCertificateOutput, error) {
 			return nil, errors.New("ResourceNotFoundException: certificate not found")
 		},
 	}
 
 	client := newTestClient(mock)
 
-	_, err := client.GetValues([]string{certKey})
+	_, err := client.GetValues(context.Background(), []string{certKey})
 	if err == nil {
 		t.Fatal("GetValues() expected error, got nil")
 	}
@@ -213,7 +215,7 @@ func TestGetValues_EmptyKeys(t *testing.T) {
 	mock := &mockACM{}
 	client := newTestClient(mock)
 
-	result, err := client.GetValues([]string{})
+	result, err := client.GetValues(context.Background(), []string{})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -228,20 +230,19 @@ func TestListCertificates(t *testing.T) {
 	certARN2 := "arn:aws:acm:us-east-1:123456789012:certificate/cert-2"
 
 	mock := &mockACM{
-		listCertificatesPagesFunc: func(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error {
-			fn(&acm.ListCertificatesOutput{
-				CertificateSummaryList: []*acm.CertificateSummary{
+		listCertificatesFunc: func(ctx context.Context, input *acm.ListCertificatesInput, opts ...func(*acm.Options)) (*acm.ListCertificatesOutput, error) {
+			return &acm.ListCertificatesOutput{
+				CertificateSummaryList: []types.CertificateSummary{
 					{CertificateArn: aws.String(certARN1)},
 					{CertificateArn: aws.String(certARN2)},
 				},
-			}, true)
-			return nil
+			}, nil
 		},
 	}
 
 	client := newTestClient(mock)
 
-	result, err := client.ListCertificates()
+	result, err := client.ListCertificates(context.Background())
 	if err != nil {
 		t.Fatalf("ListCertificates() unexpected error: %v", err)
 	}
@@ -256,29 +257,28 @@ func TestListCertificates_Pagination(t *testing.T) {
 	certARN1 := "arn:aws:acm:us-east-1:123456789012:certificate/cert-1"
 	certARN2 := "arn:aws:acm:us-east-1:123456789012:certificate/cert-2"
 
-	callCount := 0
 	mock := &mockACM{
-		listCertificatesPagesFunc: func(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error {
-			// Simulate pagination with two pages
-			fn(&acm.ListCertificatesOutput{
-				CertificateSummaryList: []*acm.CertificateSummary{
-					{CertificateArn: aws.String(certARN1)},
-				},
-			}, false)
-			callCount++
-			fn(&acm.ListCertificatesOutput{
-				CertificateSummaryList: []*acm.CertificateSummary{
+		listCertificatesFunc: func(ctx context.Context, input *acm.ListCertificatesInput, opts ...func(*acm.Options)) (*acm.ListCertificatesOutput, error) {
+			if input.NextToken == nil {
+				return &acm.ListCertificatesOutput{
+					CertificateSummaryList: []types.CertificateSummary{
+						{CertificateArn: aws.String(certARN1)},
+					},
+					NextToken: aws.String("token"),
+				}, nil
+			}
+			return &acm.ListCertificatesOutput{
+				CertificateSummaryList: []types.CertificateSummary{
 					{CertificateArn: aws.String(certARN2)},
 				},
-			}, true)
-			callCount++
-			return nil
+				NextToken: nil,
+			}, nil
 		},
 	}
 
 	client := newTestClient(mock)
 
-	result, err := client.ListCertificates()
+	result, err := client.ListCertificates(context.Background())
 	if err != nil {
 		t.Fatalf("ListCertificates() unexpected error: %v", err)
 	}
@@ -291,17 +291,16 @@ func TestListCertificates_Pagination(t *testing.T) {
 
 func TestListCertificates_Empty(t *testing.T) {
 	mock := &mockACM{
-		listCertificatesPagesFunc: func(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error {
-			fn(&acm.ListCertificatesOutput{
-				CertificateSummaryList: []*acm.CertificateSummary{},
-			}, true)
-			return nil
+		listCertificatesFunc: func(ctx context.Context, input *acm.ListCertificatesInput, opts ...func(*acm.Options)) (*acm.ListCertificatesOutput, error) {
+			return &acm.ListCertificatesOutput{
+				CertificateSummaryList: []types.CertificateSummary{},
+			}, nil
 		},
 	}
 
 	client := newTestClient(mock)
 
-	result, err := client.ListCertificates()
+	result, err := client.ListCertificates(context.Background())
 	if err != nil {
 		t.Fatalf("ListCertificates() unexpected error: %v", err)
 	}
@@ -313,14 +312,14 @@ func TestListCertificates_Empty(t *testing.T) {
 
 func TestListCertificates_Error(t *testing.T) {
 	mock := &mockACM{
-		listCertificatesPagesFunc: func(input *acm.ListCertificatesInput, fn func(*acm.ListCertificatesOutput, bool) bool) error {
-			return errors.New("access denied")
+		listCertificatesFunc: func(ctx context.Context, input *acm.ListCertificatesInput, opts ...func(*acm.Options)) (*acm.ListCertificatesOutput, error) {
+			return nil, errors.New("access denied")
 		},
 	}
 
 	client := newTestClient(mock)
 
-	_, err := client.ListCertificates()
+	_, err := client.ListCertificates(context.Background())
 	if err == nil {
 		t.Fatal("ListCertificates() expected error, got nil")
 	}
@@ -333,7 +332,7 @@ func TestWatchPrefix(t *testing.T) {
 	stopChan := make(chan bool, 1)
 	stopChan <- true
 
-	waitIndex, err := client.WatchPrefix("/prefix", []string{"key"}, 0, stopChan)
+	waitIndex, err := client.WatchPrefix(context.Background(), "/prefix", []string{"key"}, 0, stopChan)
 	if err != nil {
 		t.Fatalf("WatchPrefix() unexpected error: %v", err)
 	}
@@ -352,7 +351,7 @@ func TestGetValues_ExportPrivateKey_Success(t *testing.T) {
 	passphrase := []byte("test-passphrase")
 
 	mock := &mockACM{
-		exportCertificateFunc: func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+		exportCertificateFunc: func(ctx context.Context, input *acm.ExportCertificateInput, opts ...func(*acm.Options)) (*acm.ExportCertificateOutput, error) {
 			// Verify the correct ARN is passed (without leading /)
 			if *input.CertificateArn != certARN {
 				return nil, errors.New("unexpected ARN")
@@ -371,7 +370,7 @@ func TestGetValues_ExportPrivateKey_Success(t *testing.T) {
 
 	client := newTestClientWithExport(mock, passphrase)
 
-	result, err := client.GetValues([]string{certKey})
+	result, err := client.GetValues(context.Background(), []string{certKey})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -394,7 +393,7 @@ func TestGetValues_ExportPrivateKey_WithoutChain(t *testing.T) {
 	passphrase := []byte("test-passphrase")
 
 	mock := &mockACM{
-		exportCertificateFunc: func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+		exportCertificateFunc: func(ctx context.Context, input *acm.ExportCertificateInput, opts ...func(*acm.Options)) (*acm.ExportCertificateOutput, error) {
 			return &acm.ExportCertificateOutput{
 				Certificate:      aws.String(certPEM),
 				CertificateChain: nil,
@@ -405,7 +404,7 @@ func TestGetValues_ExportPrivateKey_WithoutChain(t *testing.T) {
 
 	client := newTestClientWithExport(mock, passphrase)
 
-	result, err := client.GetValues([]string{certKey})
+	result, err := client.GetValues(context.Background(), []string{certKey})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
@@ -424,14 +423,14 @@ func TestGetValues_ExportPrivateKey_Error(t *testing.T) {
 	passphrase := []byte("test-passphrase")
 
 	mock := &mockACM{
-		exportCertificateFunc: func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+		exportCertificateFunc: func(ctx context.Context, input *acm.ExportCertificateInput, opts ...func(*acm.Options)) (*acm.ExportCertificateOutput, error) {
 			return nil, errors.New("ResourceNotFoundException: certificate not found")
 		},
 	}
 
 	client := newTestClientWithExport(mock, passphrase)
 
-	_, err := client.GetValues([]string{certKey})
+	_, err := client.GetValues(context.Background(), []string{certKey})
 	if err == nil {
 		t.Fatal("GetValues() expected error, got nil")
 	}
@@ -445,7 +444,7 @@ func TestGetValues_ExportPrivateKey_MultipleCertificates(t *testing.T) {
 	passphrase := []byte("test-passphrase")
 
 	mock := &mockACM{
-		exportCertificateFunc: func(input *acm.ExportCertificateInput) (*acm.ExportCertificateOutput, error) {
+		exportCertificateFunc: func(ctx context.Context, input *acm.ExportCertificateInput, opts ...func(*acm.Options)) (*acm.ExportCertificateOutput, error) {
 			switch *input.CertificateArn {
 			case certARN1:
 				return &acm.ExportCertificateOutput{
@@ -464,7 +463,7 @@ func TestGetValues_ExportPrivateKey_MultipleCertificates(t *testing.T) {
 
 	client := newTestClientWithExport(mock, passphrase)
 
-	result, err := client.GetValues([]string{certKey1, certKey2})
+	result, err := client.GetValues(context.Background(), []string{certKey1, certKey2})
 	if err != nil {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
