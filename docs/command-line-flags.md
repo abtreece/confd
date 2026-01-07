@@ -36,6 +36,8 @@ Usage of confd:
       backend polling interval (default 600)
   -keep-stage-file
       keep staged files
+  -log-format string
+      format of log messages (text or json)
   -log-level string
       level which confd should log messages
   -node value
