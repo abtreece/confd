@@ -42,7 +42,7 @@ Download the appropriate `.zip` file from the [releases page](https://github.com
 ARG CONFD_VERSION=0.32.0
 RUN CONFD_ARCH=$(arch | sed s/aarch64/arm64/ | sed s/x86_64/amd64/) \
     && curl -SL "https://github.com/abtreece/confd/releases/download/v${CONFD_VERSION}/confd-v${CONFD_VERSION}-linux-${CONFD_ARCH}.tar.gz" | tar -xz -C /usr/local/bin/ \
-    && confd -version
+    && confd --version
 ```
 
 #### Building from Source

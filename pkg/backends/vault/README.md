@@ -1,61 +1,183 @@
 # Vault Backend
 
-The vault backend enables `confd` to pull configuration parameters from Hashicorp Vault
+The Vault backend enables confd to retrieve configuration data from [HashiCorp Vault](https://www.vaultproject.io/). It supports the KV secrets engine (both v1 and v2) and multiple authentication methods.
 
 ## Configuration
 
-### Authentication
+### Authentication Methods
 
+Vault requires authentication. The `--auth-type` flag specifies which method to use.
 
+#### Token Authentication
 
-### Environment Variables
+The simplest method using a Vault token directly.
 
-Environment variables can be used to provide the required configurations to
-`confd`. They will override configurations set in the config and credentials
-files.
-
-```
-export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-export AWS_DEFAULT_REGION=us-east-2
+```bash
+confd vault --node http://127.0.0.1:8200 \
+  --auth-type token --auth-token s.XXXXXXXXXXXX --onetime
 ```
 
-### Config and Credentials Files
+#### AppRole Authentication
 
-AWS credentials and configuration can be stored in the standard AWS CLI config
-files. These may be set up manually or via `aws configure`
+Recommended for machine-to-machine authentication.
 
-\~/.aws/credentials
-
-```
-[default]
-aws_access_key_id=AKIAIOSFODNN7EXAMPLE
-aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+```bash
+confd vault --node http://127.0.0.1:8200 \
+  --auth-type app-role --role-id <role-id> --secret-id <secret-id> --onetime
 ```
 
-\~/.aws/config
+To use a custom mount path:
 
+```bash
+confd vault --node http://127.0.0.1:8200 \
+  --auth-type app-role --role-id <role-id> --secret-id <secret-id> \
+  --path my-approle --onetime
 ```
-[default]
-region=us-east-2
+
+#### Kubernetes Authentication
+
+For workloads running in Kubernetes. Automatically reads the service account JWT from `/var/run/secrets/kubernetes.io/serviceaccount/token`.
+
+```bash
+confd vault --node http://vault.vault:8200 \
+  --auth-type kubernetes --role-id <vault-role> --onetime
 ```
 
-### IAM Role for EC2
+See [kubernetes-auth.md](kubernetes-auth.md) for a detailed setup guide.
 
-An IAM role can be used to grant `confd` permissions to SSM. When used you will
-not need to set `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY`. When `confd` is
-executed on an EC2 instance it will acquire the AWS Region setting from EC2
-Metadata.
+#### Username/Password Authentication
 
-Setup of IAM roles for EC2 instances is well documented in the AWS User Guides.
+```bash
+confd vault --node http://127.0.0.1:8200 \
+  --auth-type userpass --username <user> --password <pass> --onetime
+```
 
+#### GitHub Authentication
+
+```bash
+confd vault --node http://127.0.0.1:8200 \
+  --auth-type github --auth-token <github-token> --onetime
+```
+
+#### TLS Certificate Authentication
+
+Uses client TLS certificates for authentication.
+
+```bash
+confd vault --node https://127.0.0.1:8200 \
+  --auth-type cert \
+  --client-cert /path/to/client.crt \
+  --client-key /path/to/client.key \
+  --client-ca-keys /path/to/ca.crt --onetime
+```
+
+#### App-ID Authentication (Deprecated)
+
+Legacy authentication method, use AppRole instead.
+
+```bash
+confd vault --node http://127.0.0.1:8200 \
+  --auth-type app-id --app-id <app-id> --user-id <user-id> --onetime
+```
+
+### TLS Configuration
+
+For Vault servers using TLS:
+
+```bash
+confd vault --node https://vault.example.com:8200 \
+  --auth-type token --auth-token s.XXXX \
+  --client-cert /path/to/client.crt \
+  --client-key /path/to/client.key \
+  --client-ca-keys /path/to/ca.crt --onetime
+```
 
 ## Options
 
-
+| Flag | Description | Required |
+|------|-------------|----------|
+| `-n, --node` | Vault server address | Yes |
+| `--auth-type` | Authentication method (token, app-role, kubernetes, userpass, github, cert, app-id) | Yes |
+| `--auth-token` | Token for token/github auth | Depends on auth-type |
+| `--role-id` | Role ID for app-role auth, or role name for kubernetes auth | Depends on auth-type |
+| `--secret-id` | Secret ID for app-role auth | Depends on auth-type |
+| `--username` | Username for userpass auth | Depends on auth-type |
+| `--password` | Password for userpass auth | Depends on auth-type |
+| `--app-id` | App ID for app-id auth (deprecated) | Depends on auth-type |
+| `--user-id` | User ID for app-id auth (deprecated) | Depends on auth-type |
+| `--path` | Custom mount path for auth method | No (defaults to auth method name) |
+| `--client-cert` | Path to client certificate | No |
+| `--client-key` | Path to client private key | No |
+| `--client-ca-keys` | Path to CA certificate | No |
 
 ## Basic Example
 
+Store secrets in Vault:
 
+```bash
+# Enable KV v2 secrets engine
+vault secrets enable -path=myapp kv-v2
+
+# Write secrets
+vault kv put myapp/database url=db.example.com user=admin password=secret
+```
+
+Create template resource (`/etc/confd/conf.d/myapp.toml`):
+
+```toml
+[template]
+src = "myapp.conf.tmpl"
+dest = "/etc/myapp/config.conf"
+keys = [
+  "/myapp/database",
+]
+```
+
+Create template (`/etc/confd/templates/myapp.conf.tmpl`):
+
+```
+[database]
+url = {{getv "/myapp/database/url"}}
+user = {{getv "/myapp/database/user"}}
+password = {{getv "/myapp/database/password"}}
+```
+
+Run confd:
+
+```bash
+confd vault --node http://127.0.0.1:8200 \
+  --auth-type token --auth-token $(vault print token) --onetime
+```
 
 ## Advanced Example
+
+Using AppRole in a production environment with TLS:
+
+```bash
+# Create AppRole
+vault auth enable approle
+vault write auth/approle/role/confd \
+  token_policies="confd-policy" \
+  token_ttl=1h \
+  token_max_ttl=4h
+
+# Get credentials
+vault read auth/approle/role/confd/role-id
+vault write -f auth/approle/role/confd/secret-id
+
+# Run confd
+confd vault --node https://vault.example.com:8200 \
+  --auth-type app-role \
+  --role-id 12345678-1234-1234-1234-123456789012 \
+  --secret-id abcdefgh-abcd-abcd-abcd-abcdefghijkl \
+  --client-ca-keys /etc/ssl/certs/vault-ca.crt \
+  --interval 60
+```
+
+## Watch Mode Support
+
+Watch mode is **not supported** for the Vault backend. Use interval mode (`--interval`) for periodic polling.
+
+## KV Secrets Engine Versions
+
+The Vault backend automatically detects whether you're using KV v1 or KV v2 secrets engine and handles the path differences accordingly. Secrets are flattened to individual key-value pairs for use in templates.

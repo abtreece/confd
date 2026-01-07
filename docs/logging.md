@@ -1,14 +1,14 @@
 # Logging
 
-confd logs everything to stdout. You can control the types of messages that get printed by using the `-log-level` flag and corresponding configuration file settings. See the [Configuration Guide](configuration-guide.md) for more details.
+confd logs everything to stdout. You can control the types of messages that get printed by using the `--log-level` flag and corresponding configuration file settings. See the [Configuration Guide](configuration-guide.md) for more details.
 
 ## Log Levels
 
-Use the `-log-level` flag to set the verbosity. Valid levels are: `panic`, `fatal`, `error`, `warn`, `info`, and `debug`.
+Use the `--log-level` flag to set the verbosity. Valid levels are: `panic`, `fatal`, `error`, `warn`, `info`, and `debug`.
 
 ## Log Formats
 
-confd supports two log formats, controlled by the `-log-format` flag:
+confd supports two log formats, controlled by the `--log-format` flag:
 
 ### Text Format (default)
 
@@ -24,10 +24,10 @@ The default text format includes timestamp, hostname, process name, PID, level, 
 
 ### JSON Format
 
-Use `-log-format=json` for structured JSON output, which is easier to parse with log indexing solutions (ELK, Splunk, etc.):
+Use `--log-format=json` for structured JSON output, which is easier to parse with log indexing solutions (ELK, Splunk, etc.):
 
 ```bash
-confd -log-format=json -backend=env -onetime
+confd env --log-format=json --onetime
 ```
 
 ```json
