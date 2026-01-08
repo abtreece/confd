@@ -300,3 +300,10 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 		return r.waitIndex, r.err
 	}
 }
+
+// HealthCheck verifies the backend connection is healthy.
+// It attempts to connect and ping the Redis server.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	_, err := c.connectedClient()
+	return err
+}

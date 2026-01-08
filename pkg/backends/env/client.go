@@ -57,3 +57,9 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	<-stopChan
 	return 0, nil
 }
+
+// HealthCheck verifies the backend is healthy.
+// Environment variables are always available, so this always returns nil.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	return nil
+}

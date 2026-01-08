@@ -397,3 +397,10 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	<-stopChan
 	return 0, nil
 }
+
+// HealthCheck verifies the backend connection is healthy.
+// It checks the Vault server health status.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	_, err := c.client.Sys().Health()
+	return err
+}

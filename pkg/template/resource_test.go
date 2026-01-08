@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"text/template"
+	"time"
 
 	"github.com/abtreece/confd/pkg/backends/env"
 	"github.com/abtreece/confd/pkg/log"
@@ -543,5 +544,214 @@ backend = "env"
 	// Both resources should use the same cached client
 	if tr1.storeClient != tr2.storeClient {
 		t.Error("Expected both resources to share the same cached client")
+	}
+}
+
+func TestMinReloadIntervalParsing(t *testing.T) {
+	log.SetLevel("warn")
+
+	tempConfDir, err := createTempDirs()
+	if err != nil {
+		t.Fatalf("Failed to create temp dirs: %s", err.Error())
+	}
+	defer os.RemoveAll(tempConfDir)
+
+	// Create a minimal template file
+	srcTemplateFile := filepath.Join(tempConfDir, "templates", "test.tmpl")
+	err = os.WriteFile(srcTemplateFile, []byte(`test`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	storeClient, err := env.NewEnvClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name             string
+		minReloadConfig  string
+		expectedDuration string
+		expectError      bool
+	}{
+		{
+			name:             "30 seconds",
+			minReloadConfig:  `min_reload_interval = "30s"`,
+			expectedDuration: "30s",
+			expectError:      false,
+		},
+		{
+			name:             "1 minute",
+			minReloadConfig:  `min_reload_interval = "1m"`,
+			expectedDuration: "1m0s",
+			expectError:      false,
+		},
+		{
+			name:             "500 milliseconds",
+			minReloadConfig:  `min_reload_interval = "500ms"`,
+			expectedDuration: "500ms",
+			expectError:      false,
+		},
+		{
+			name:             "invalid duration",
+			minReloadConfig:  `min_reload_interval = "invalid"`,
+			expectedDuration: "",
+			expectError:      true,
+		},
+		{
+			name:             "no min_reload_interval",
+			minReloadConfig:  "",
+			expectedDuration: "0s",
+			expectError:      false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resourceContent := `[template]
+src = "test.tmpl"
+dest = "/tmp/test.conf"
+keys = ["/foo"]
+` + tc.minReloadConfig
+
+			resourcePath := filepath.Join(tempConfDir, "conf.d", "test.toml")
+			err := os.WriteFile(resourcePath, []byte(resourceContent), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			config := Config{
+				ConfDir:     tempConfDir,
+				ConfigDir:   filepath.Join(tempConfDir, "conf.d"),
+				Prefix:      "",
+				StoreClient: storeClient,
+				TemplateDir: filepath.Join(tempConfDir, "templates"),
+			}
+
+			tr, err := NewTemplateResource(resourcePath, config)
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NewTemplateResource failed: %s", err)
+			}
+
+			if tr.minReloadIntervalDur.String() != tc.expectedDuration {
+				t.Errorf("Expected min_reload_interval %q, got %q", tc.expectedDuration, tr.minReloadIntervalDur.String())
+			}
+		})
+	}
+}
+
+func TestDebounceParsing(t *testing.T) {
+	log.SetLevel("warn")
+
+	tempConfDir, err := createTempDirs()
+	if err != nil {
+		t.Fatalf("Failed to create temp dirs: %s", err.Error())
+	}
+	defer os.RemoveAll(tempConfDir)
+
+	// Create a minimal template file
+	srcTemplateFile := filepath.Join(tempConfDir, "templates", "test.tmpl")
+	err = os.WriteFile(srcTemplateFile, []byte(`test`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	storeClient, err := env.NewEnvClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name             string
+		debounceConfig   string
+		globalDebounce   string
+		expectedDuration string
+		expectError      bool
+	}{
+		{
+			name:             "2 seconds",
+			debounceConfig:   `debounce = "2s"`,
+			globalDebounce:   "",
+			expectedDuration: "2s",
+			expectError:      false,
+		},
+		{
+			name:             "500 milliseconds",
+			debounceConfig:   `debounce = "500ms"`,
+			globalDebounce:   "",
+			expectedDuration: "500ms",
+			expectError:      false,
+		},
+		{
+			name:             "invalid debounce",
+			debounceConfig:   `debounce = "invalid"`,
+			globalDebounce:   "",
+			expectedDuration: "",
+			expectError:      true,
+		},
+		{
+			name:             "global debounce fallback",
+			debounceConfig:   "",
+			globalDebounce:   "3s",
+			expectedDuration: "3s",
+			expectError:      false,
+		},
+		{
+			name:             "per-resource overrides global",
+			debounceConfig:   `debounce = "1s"`,
+			globalDebounce:   "5s",
+			expectedDuration: "1s",
+			expectError:      false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resourceContent := `[template]
+src = "test.tmpl"
+dest = "/tmp/test.conf"
+keys = ["/foo"]
+` + tc.debounceConfig
+
+			resourcePath := filepath.Join(tempConfDir, "conf.d", "test.toml")
+			err := os.WriteFile(resourcePath, []byte(resourceContent), 0644)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			config := Config{
+				ConfDir:     tempConfDir,
+				ConfigDir:   filepath.Join(tempConfDir, "conf.d"),
+				Prefix:      "",
+				StoreClient: storeClient,
+				TemplateDir: filepath.Join(tempConfDir, "templates"),
+			}
+
+			if tc.globalDebounce != "" {
+				d, _ := time.ParseDuration(tc.globalDebounce)
+				config.Debounce = d
+			}
+
+			tr, err := NewTemplateResource(resourcePath, config)
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NewTemplateResource failed: %s", err)
+			}
+
+			if tr.debounceDur.String() != tc.expectedDuration {
+				t.Errorf("Expected debounce %q, got %q", tc.expectedDuration, tr.debounceDur.String())
+			}
+		})
 	}
 }

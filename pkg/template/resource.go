@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/backends"
@@ -31,6 +32,13 @@ type Config struct {
 	StoreClient   backends.StoreClient
 	SyncOnly      bool `toml:"sync-only"`
 	TemplateDir   string
+	// Diff settings for noop mode
+	ShowDiff    bool
+	DiffContext int
+	ColorDiff   bool
+	// Watch mode settings
+	Debounce      time.Duration // Global debounce for all templates
+	BatchInterval time.Duration // Batch processing interval
 }
 
 // TemplateResourceConfig holds the parsed template resource.
@@ -41,26 +49,38 @@ type TemplateResourceConfig struct {
 
 // TemplateResource is the representation of a parsed template resource.
 type TemplateResource struct {
-	CheckCmd      string `toml:"check_cmd"`
-	Dest          string
-	FileMode      os.FileMode
-	Gid           int
-	Group         string
-	Keys          []string
-	Mode          string
-	Owner         string
-	Prefix        string
-	ReloadCmd     string `toml:"reload_cmd"`
-	Src           string
-	StageFile     *os.File
-	Uid           int
-	funcMap       map[string]interface{}
-	lastIndex     uint64
-	keepStageFile bool
-	noop          bool
-	store         memkv.Store
-	storeClient   backends.StoreClient
-	syncOnly      bool
+	CheckCmd          string `toml:"check_cmd"`
+	Dest              string
+	FileMode          os.FileMode
+	Gid               int
+	Group             string
+	Keys              []string
+	Mode              string
+	OutputFormat      string `toml:"output_format"`       // json, yaml, toml, xml
+	MinReloadInterval string `toml:"min_reload_interval"` // e.g., "30s", "1m"
+	Debounce          string `toml:"debounce"`            // e.g., "2s", "500ms"
+	Owner             string
+	Prefix            string
+	ReloadCmd         string `toml:"reload_cmd"`
+	Src               string
+	StageFile         *os.File
+	Uid               int
+	funcMap           map[string]interface{}
+	lastIndex         uint64
+	keepStageFile     bool
+	noop              bool
+	store             memkv.Store
+	storeClient       backends.StoreClient
+	syncOnly          bool
+	templateDir       string
+	// Parsed duration values
+	minReloadIntervalDur time.Duration
+	debounceDur          time.Duration
+	lastReloadTime       time.Time
+	// Diff settings
+	showDiff    bool
+	diffContext int
+	colorDiff   bool
 }
 
 var ErrEmptySrc = errors.New("empty src template")
@@ -83,6 +103,9 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tr.funcMap = newFuncMap()
 	tr.store = memkv.New()
 	tr.syncOnly = config.SyncOnly
+	tr.showDiff = config.ShowDiff
+	tr.diffContext = config.DiffContext
+	tr.colorDiff = config.ColorDiff
 	addFuncs(tr.funcMap, tr.store.FuncMap)
 
 	// Determine which backend client to use:
@@ -149,6 +172,26 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		}
 	}
 
+	// Parse duration settings
+	if tr.MinReloadInterval != "" {
+		d, err := time.ParseDuration(tr.MinReloadInterval)
+		if err != nil {
+			return nil, fmt.Errorf("invalid min_reload_interval %q: %w", tr.MinReloadInterval, err)
+		}
+		tr.minReloadIntervalDur = d
+	}
+	if tr.Debounce != "" {
+		d, err := time.ParseDuration(tr.Debounce)
+		if err != nil {
+			return nil, fmt.Errorf("invalid debounce %q: %w", tr.Debounce, err)
+		}
+		tr.debounceDur = d
+	} else if config.Debounce > 0 {
+		// Use global debounce if per-resource not set
+		tr.debounceDur = config.Debounce
+	}
+
+	tr.templateDir = config.TemplateDir
 	tr.Src = filepath.Join(config.TemplateDir, tr.Src)
 	return &tr, nil
 }
@@ -186,6 +229,10 @@ func (t *TemplateResource) createStageFile() error {
 
 	log.Debug("Compiling source template %s", t.Src)
 
+	// Add include function to funcMap for this template
+	includeCtx := NewIncludeContext()
+	t.funcMap["include"] = NewIncludeFunc(t.templateDir, t.funcMap, includeCtx)
+
 	tmpl, err := template.New(filepath.Base(t.Src)).Funcs(t.funcMap).ParseFiles(t.Src)
 	if err != nil {
 		return fmt.Errorf("Unable to process template %s, %s", t.Src, err)
@@ -202,6 +249,29 @@ func (t *TemplateResource) createStageFile() error {
 		os.Remove(temp.Name())
 		return err
 	}
+
+	// Validate output format if specified
+	if t.OutputFormat != "" {
+		// Read the rendered content for validation
+		if _, err := temp.Seek(0, 0); err != nil {
+			temp.Close()
+			os.Remove(temp.Name())
+			return fmt.Errorf("failed to seek staged file: %w", err)
+		}
+		content, err := os.ReadFile(temp.Name())
+		if err != nil {
+			temp.Close()
+			os.Remove(temp.Name())
+			return fmt.Errorf("failed to read staged file for validation: %w", err)
+		}
+		if err := util.ValidateFormat(content, t.OutputFormat); err != nil {
+			temp.Close()
+			os.Remove(temp.Name())
+			return fmt.Errorf("output format validation failed (%s): %w", t.OutputFormat, err)
+		}
+		log.Debug("Output format validation passed (%s)", t.OutputFormat)
+	}
+
 	defer temp.Close()
 
 	// Set the owner, group, and mode on the stage file now to make it easier to
@@ -232,6 +302,17 @@ func (t *TemplateResource) sync() error {
 	}
 	if t.noop {
 		log.Warning("Noop mode enabled. %s will not be modified", t.Dest)
+		if ok && t.showDiff {
+			diff, diffErr := util.GenerateDiff(staged, t.Dest, t.diffContext)
+			if diffErr != nil {
+				log.Error("Failed to generate diff: %s", diffErr.Error())
+			} else if diff != "" {
+				if t.colorDiff {
+					diff = util.ColorizeDiff(diff)
+				}
+				fmt.Print(diff)
+			}
+		}
 		return nil
 	}
 	if ok {
@@ -301,7 +382,19 @@ func (t *TemplateResource) check() error {
 // with the full path of the destination file. This allows the reload command
 // to reference the relevant file paths.
 // It returns nil if the reload command returns 0.
+// If min_reload_interval is set and not enough time has passed since the last
+// reload, the reload is skipped and a warning is logged.
 func (t *TemplateResource) reload() error {
+	// Check rate limiting
+	if t.minReloadIntervalDur > 0 && !t.lastReloadTime.IsZero() {
+		elapsed := time.Since(t.lastReloadTime)
+		if elapsed < t.minReloadIntervalDur {
+			remaining := t.minReloadIntervalDur - elapsed
+			log.Warning("Reload throttled for %s (next allowed in %v)", t.Dest, remaining.Round(time.Second))
+			return nil
+		}
+	}
+
 	var cmdBuffer bytes.Buffer
 	data := make(map[string]string)
 	data["src"] = t.StageFile.Name()
@@ -313,7 +406,14 @@ func (t *TemplateResource) reload() error {
 	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
 		return err
 	}
-	return runCommand(cmdBuffer.String())
+
+	if err := runCommand(cmdBuffer.String()); err != nil {
+		return err
+	}
+
+	// Update last reload time on success
+	t.lastReloadTime = time.Now()
+	return nil
 }
 
 // runCommand is a shared function used by check and reload

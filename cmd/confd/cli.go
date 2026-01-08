@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
@@ -30,6 +31,22 @@ type CLI struct {
 	KeepStageFile bool   `name:"keep-stage-file" help:"keep staged files"`
 	SRVDomain     string `name:"srv-domain" help:"DNS SRV domain"`
 	SRVRecord     string `name:"srv-record" help:"SRV record for backend node discovery"`
+
+	// Validation flags
+	CheckConfig bool   `name:"check-config" help:"validate configuration files and exit"`
+	Preflight   bool   `help:"run connectivity checks and exit"`
+	Validate    bool   `help:"validate templates without processing (syntax check)"`
+	MockData    string `name:"mock-data" help:"JSON file with mock data for template validation"`
+	Resource    string `help:"specific resource file to validate (used with --check-config or --validate)"`
+
+	// Diff flags (for use with --noop)
+	Diff        bool `help:"show diff output in noop mode"`
+	DiffContext int  `name:"diff-context" help:"lines of context for diff" default:"3"`
+	Color       bool `help:"colorize diff output"`
+
+	// Watch mode flags
+	DebounceStr      string `name:"debounce" help:"debounce duration for watch mode (e.g., 2s, 500ms)"`
+	BatchIntervalStr string `name:"batch-interval" help:"batch processing interval for watch mode (e.g., 5s)"`
 
 	Version VersionFlag `help:"print version and exit"`
 
@@ -306,6 +323,16 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		log.SetFormat(cli.LogFormat)
 	}
 
+	// Check-config mode: validate configuration and exit (no backend needed)
+	if cli.CheckConfig {
+		return template.ValidateConfig(cli.ConfDir, cli.Resource)
+	}
+
+	// Validate mode: validate templates and exit (no backend needed)
+	if cli.Validate {
+		return template.ValidateTemplates(cli.ConfDir, cli.Resource, cli.MockData)
+	}
+
 	// Handle SRV record discovery
 	if cli.SRVDomain != "" && cli.SRVRecord == "" {
 		cli.SRVRecord = fmt.Sprintf("_%s._tcp.%s.", backendCfg.Backend, cli.SRVDomain)
@@ -343,6 +370,30 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		Prefix:        cli.Prefix,
 		SyncOnly:      cli.SyncOnly,
 		KeepStageFile: cli.KeepStageFile,
+		ShowDiff:      cli.Diff,
+		DiffContext:   cli.DiffContext,
+		ColorDiff:     cli.Color,
+	}
+
+	// Parse watch mode duration flags
+	if cli.DebounceStr != "" {
+		d, err := time.ParseDuration(cli.DebounceStr)
+		if err != nil {
+			return fmt.Errorf("invalid debounce duration %q: %w", cli.DebounceStr, err)
+		}
+		tmplCfg.Debounce = d
+	}
+	if cli.BatchIntervalStr != "" {
+		d, err := time.ParseDuration(cli.BatchIntervalStr)
+		if err != nil {
+			return fmt.Errorf("invalid batch-interval duration %q: %w", cli.BatchIntervalStr, err)
+		}
+		tmplCfg.BatchInterval = d
+	}
+
+	// Preflight mode: run connectivity checks and exit
+	if cli.Preflight {
+		return template.Preflight(tmplCfg)
 	}
 
 	// One-time mode
@@ -360,7 +411,13 @@ func run(cli *CLI, backendCfg backends.Config) error {
 
 	var processor template.Processor
 	if cli.Watch {
-		processor = template.WatchProcessor(tmplCfg, stopChan, doneChan, errChan)
+		if tmplCfg.BatchInterval > 0 {
+			// Use batch processor when --batch-interval is specified
+			log.Info("Batch processing enabled with interval %v", tmplCfg.BatchInterval)
+			processor = template.BatchWatchProcessor(tmplCfg, stopChan, doneChan, errChan)
+		} else {
+			processor = template.WatchProcessor(tmplCfg, stopChan, doneChan, errChan)
+		}
 	} else {
 		processor = template.IntervalProcessor(tmplCfg, stopChan, doneChan, errChan, cli.Interval)
 	}
