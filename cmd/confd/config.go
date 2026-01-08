@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/template"
 )
 
 // TOMLConfig represents the structure of the confd TOML config file
@@ -216,4 +218,110 @@ func processEnv(cfg *backends.Config) {
 	if os.Getenv("ACM_EXPORT_PRIVATE_KEY") != "" && !cfg.ACMExportPrivateKey {
 		cfg.ACMExportPrivateKey = true
 	}
+}
+
+// reloadConfig reloads the configuration from the config file and applies reloadable changes
+func reloadConfig(cli *CLI, currentBackendCfg *backends.Config, currentTmplCfg *template.Config) error {
+	// Create a new CLI struct with default values to load the new config
+	newCLI := &CLI{
+		ConfDir:    cli.ConfDir,
+		ConfigFile: cli.ConfigFile,
+		Interval:   600, // default
+		LogLevel:   "",
+		LogFormat:  "",
+		Noop:       false,
+		Prefix:     "",
+		SyncOnly:   false,
+		Watch:      cli.Watch, // Watch mode cannot be changed
+	}
+
+	// Load the new config file
+	newBackendCfg := &backends.Config{
+		Backend: currentBackendCfg.Backend, // Backend type cannot be changed
+	}
+	
+	if err := loadConfigFile(newCLI, newBackendCfg); err != nil {
+		return fmt.Errorf("failed to load config file: %w", err)
+	}
+
+	// Validate that non-reloadable settings haven't changed
+	if err := validateReloadableConfig(cli, newCLI, currentBackendCfg, newBackendCfg); err != nil {
+		return err
+	}
+
+	// Apply reloadable settings
+	changes := make([]string, 0)
+
+	// Update log level
+	if newCLI.LogLevel != "" && newCLI.LogLevel != cli.LogLevel {
+		log.SetLevel(newCLI.LogLevel)
+		changes = append(changes, fmt.Sprintf("  - log_level: %s -> %s", cli.LogLevel, newCLI.LogLevel))
+		cli.LogLevel = newCLI.LogLevel
+	}
+
+	// Update log format
+	if newCLI.LogFormat != "" && newCLI.LogFormat != cli.LogFormat {
+		log.SetFormat(newCLI.LogFormat)
+		changes = append(changes, fmt.Sprintf("  - log_format: %s -> %s", cli.LogFormat, newCLI.LogFormat))
+		cli.LogFormat = newCLI.LogFormat
+	}
+
+	// Update interval
+	if newCLI.Interval != cli.Interval {
+		changes = append(changes, fmt.Sprintf("  - interval: %d -> %d", cli.Interval, newCLI.Interval))
+		cli.Interval = newCLI.Interval
+		// Note: IntervalProcessor will pick up the new interval on its next cycle
+	}
+
+	// Update prefix
+	if newCLI.Prefix != cli.Prefix {
+		changes = append(changes, fmt.Sprintf("  - prefix: %s -> %s", cli.Prefix, newCLI.Prefix))
+		cli.Prefix = newCLI.Prefix
+		currentTmplCfg.Prefix = newCLI.Prefix
+	}
+
+	// Update noop
+	if newCLI.Noop != cli.Noop {
+		changes = append(changes, fmt.Sprintf("  - noop: %t -> %t", cli.Noop, newCLI.Noop))
+		cli.Noop = newCLI.Noop
+		currentTmplCfg.Noop = newCLI.Noop
+	}
+
+	// Update sync_only
+	if newCLI.SyncOnly != cli.SyncOnly {
+		changes = append(changes, fmt.Sprintf("  - sync_only: %t -> %t", cli.SyncOnly, newCLI.SyncOnly))
+		cli.SyncOnly = newCLI.SyncOnly
+		currentTmplCfg.SyncOnly = newCLI.SyncOnly
+	}
+
+	// Log changes
+	log.Info("Configuration validated successfully")
+	if len(changes) > 0 {
+		log.Info("Applied changes:")
+		for _, change := range changes {
+			log.Info("%s", change)
+		}
+	} else {
+		log.Info("No configuration changes detected")
+	}
+
+	// Note: Template resource changes will be picked up by the processor on its next cycle
+	// as it calls getTemplateResources() which reads from conf.d/
+
+	return nil
+}
+
+// validateReloadableConfig validates that non-reloadable settings haven't changed
+func validateReloadableConfig(oldCLI *CLI, newCLI *CLI, oldBackendCfg *backends.Config, newBackendCfg *backends.Config) error {
+	// Backend type cannot be changed
+	if oldBackendCfg.Backend != newBackendCfg.Backend && newBackendCfg.Backend != "" {
+		return fmt.Errorf("backend type cannot be changed via reload (current: %s)", oldBackendCfg.Backend)
+	}
+
+	// Watch mode cannot be changed
+	if oldCLI.Watch != newCLI.Watch {
+		return fmt.Errorf("watch mode cannot be changed via reload")
+	}
+
+	return nil
 }

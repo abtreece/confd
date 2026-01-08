@@ -425,14 +425,24 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	go processor.Process()
 
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	for {
 		select {
 		case err := <-errChan:
 			log.Error("%s", err.Error())
 		case s := <-signalChan:
-			log.Info("Captured %v. Exiting...", s)
-			close(doneChan)
+			if s == syscall.SIGHUP {
+				log.Info("Received SIGHUP, reloading configuration...")
+				if err := reloadConfig(cli, &backendCfg, &tmplCfg); err != nil {
+					log.Error("Configuration reload failed: %s", err.Error())
+					log.Error("Keeping existing configuration")
+				} else {
+					log.Info("Configuration reload complete")
+				}
+			} else {
+				log.Info("Captured %v. Exiting...", s)
+				close(stopChan)
+			}
 		case <-doneChan:
 			return nil
 		}

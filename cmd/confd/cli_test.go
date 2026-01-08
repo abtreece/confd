@@ -3,10 +3,12 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/template"
 	"github.com/alecthomas/kong"
 )
 
@@ -663,5 +665,141 @@ func TestProcessEnvDoesNotOverride(t *testing.T) {
 
 	if cfg.ClientCert != "/cli/cert" {
 		t.Errorf("Expected ClientCert '/cli/cert' (not overridden), got %q", cfg.ClientCert)
+	}
+}
+
+func TestReloadConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "confd.toml")
+	
+	// Initial config
+	initialConfig := `
+interval = 600
+log-level = "info"
+prefix = "/initial"
+`
+	if err := os.WriteFile(configPath, []byte(initialConfig), 0644); err != nil {
+		t.Fatalf("Failed to write initial config: %v", err)
+	}
+
+	cli := &CLI{
+		ConfDir:    tmpDir,
+		ConfigFile: configPath,
+		Interval:   600,
+		LogLevel:   "info",
+		Prefix:     "/initial",
+		Watch:      false,
+	}
+	
+	backendCfg := &backends.Config{
+		Backend: "env",
+	}
+	
+	tmplCfg := &template.Config{
+		ConfDir: tmpDir,
+		Prefix:  "/initial",
+	}
+	
+	// Update config file
+	updatedConfig := `
+interval = 300
+log-level = "debug"
+prefix = "/updated"
+noop = true
+`
+	if err := os.WriteFile(configPath, []byte(updatedConfig), 0644); err != nil {
+		t.Fatalf("Failed to write updated config: %v", err)
+	}
+	
+	// Reload config
+	if err := reloadConfig(cli, backendCfg, tmplCfg); err != nil {
+		t.Fatalf("reloadConfig failed: %v", err)
+	}
+	
+	// Verify changes were applied
+	if cli.Interval != 300 {
+		t.Errorf("Expected interval 300, got %d", cli.Interval)
+	}
+	if cli.LogLevel != "debug" {
+		t.Errorf("Expected log-level 'debug', got %q", cli.LogLevel)
+	}
+	if cli.Prefix != "/updated" {
+		t.Errorf("Expected prefix '/updated', got %q", cli.Prefix)
+	}
+	if !cli.Noop {
+		t.Error("Expected noop to be true")
+	}
+	if tmplCfg.Prefix != "/updated" {
+		t.Errorf("Expected template config prefix '/updated', got %q", tmplCfg.Prefix)
+	}
+}
+
+func TestReloadConfigBackendTypeValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "confd.toml")
+	
+	initialConfig := `
+interval = 600
+`
+	if err := os.WriteFile(configPath, []byte(initialConfig), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	cli := &CLI{
+		ConfDir:    tmpDir,
+		ConfigFile: configPath,
+		Interval:   600,
+		Watch:      false,
+	}
+	
+	backendCfg := &backends.Config{
+		Backend: "consul",
+	}
+	
+	tmplCfg := &template.Config{
+		ConfDir: tmpDir,
+	}
+	
+	// This should succeed (no backend type change)
+	if err := reloadConfig(cli, backendCfg, tmplCfg); err != nil {
+		t.Errorf("reloadConfig should succeed with no backend change: %v", err)
+	}
+}
+
+func TestReloadConfigWatchModeValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "confd.toml")
+	
+	// Try to change watch mode via config (should fail)
+	updatedConfig := `
+interval = 300
+watch = true
+`
+	if err := os.WriteFile(configPath, []byte(updatedConfig), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	cli := &CLI{
+		ConfDir:    tmpDir,
+		ConfigFile: configPath,
+		Interval:   600,
+		Watch:      false, // Watch is false initially
+	}
+	
+	backendCfg := &backends.Config{
+		Backend: "env",
+	}
+	
+	tmplCfg := &template.Config{
+		ConfDir: tmpDir,
+	}
+	
+	// This should fail because watch mode cannot be changed
+	err := reloadConfig(cli, backendCfg, tmplCfg)
+	if err == nil {
+		t.Error("reloadConfig should fail when trying to change watch mode")
+	}
+	if err != nil && !strings.Contains(err.Error(), "watch mode cannot be changed") {
+		t.Errorf("Expected watch mode error, got: %v", err)
 	}
 }
