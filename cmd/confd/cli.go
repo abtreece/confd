@@ -36,6 +36,11 @@ type CLI struct {
 	Preflight   bool   `help:"run connectivity checks and exit"`
 	Resource    string `help:"specific resource file to validate (used with --check-config)"`
 
+	// Diff flags (for use with --noop)
+	Diff        bool `help:"show diff output in noop mode"`
+	DiffContext int  `name:"diff-context" help:"lines of context for diff" default:"3"`
+	Color       bool `help:"colorize diff output"`
+
 	Version VersionFlag `help:"print version and exit"`
 
 	// Backend subcommands
@@ -353,6 +358,9 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		Prefix:        cli.Prefix,
 		SyncOnly:      cli.SyncOnly,
 		KeepStageFile: cli.KeepStageFile,
+		ShowDiff:      cli.Diff,
+		DiffContext:   cli.DiffContext,
+		ColorDiff:     cli.Color,
 	}
 
 	// Preflight mode: run connectivity checks and exit

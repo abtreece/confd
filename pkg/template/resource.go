@@ -31,6 +31,10 @@ type Config struct {
 	StoreClient   backends.StoreClient
 	SyncOnly      bool `toml:"sync-only"`
 	TemplateDir   string
+	// Diff settings for noop mode
+	ShowDiff    bool
+	DiffContext int
+	ColorDiff   bool
 }
 
 // TemplateResourceConfig holds the parsed template resource.
@@ -62,6 +66,10 @@ type TemplateResource struct {
 	store         memkv.Store
 	storeClient   backends.StoreClient
 	syncOnly      bool
+	// Diff settings
+	showDiff    bool
+	diffContext int
+	colorDiff   bool
 }
 
 var ErrEmptySrc = errors.New("empty src template")
@@ -84,6 +92,9 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tr.funcMap = newFuncMap()
 	tr.store = memkv.New()
 	tr.syncOnly = config.SyncOnly
+	tr.showDiff = config.ShowDiff
+	tr.diffContext = config.DiffContext
+	tr.colorDiff = config.ColorDiff
 	addFuncs(tr.funcMap, tr.store.FuncMap)
 
 	// Determine which backend client to use:
@@ -256,6 +267,17 @@ func (t *TemplateResource) sync() error {
 	}
 	if t.noop {
 		log.Warning("Noop mode enabled. %s will not be modified", t.Dest)
+		if ok && t.showDiff {
+			diff, diffErr := util.GenerateDiff(staged, t.Dest, t.diffContext)
+			if diffErr != nil {
+				log.Error("Failed to generate diff: %s", diffErr.Error())
+			} else if diff != "" {
+				if t.colorDiff {
+					diff = util.ColorizeDiff(diff)
+				}
+				fmt.Print(diff)
+			}
+		}
 		return nil
 	}
 	if ok {
