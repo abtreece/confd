@@ -48,6 +48,11 @@ type CLI struct {
 	DebounceStr      string `name:"debounce" help:"debounce duration for watch mode (e.g., 2s, 500ms)"`
 	BatchIntervalStr string `name:"batch-interval" help:"batch processing interval for watch mode (e.g., 5s)"`
 
+	// Template cache flags
+	TemplateCacheEnabled *bool  `name:"template-cache" help:"enable template caching (default: true)"`
+	TemplateCacheSize    int    `name:"template-cache-size" help:"maximum cached templates" default:"100"`
+	TemplateCachePolicy  string `name:"template-cache-policy" help:"eviction policy: lru, lfu, fifo" default:"lru"`
+
 	Version VersionFlag `help:"print version and exit"`
 
 	// Backend subcommands
@@ -360,19 +365,29 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		return err
 	}
 
+	// Initialize template cache
+	templateCacheEnabled := true
+	if cli.TemplateCacheEnabled != nil {
+		templateCacheEnabled = *cli.TemplateCacheEnabled
+	}
+	template.InitGlobalTemplateCache(templateCacheEnabled, cli.TemplateCacheSize, cli.TemplateCachePolicy)
+
 	// Build template config
 	tmplCfg := template.Config{
-		ConfDir:       cli.ConfDir,
-		ConfigDir:     filepath.Join(cli.ConfDir, "conf.d"),
-		TemplateDir:   filepath.Join(cli.ConfDir, "templates"),
-		StoreClient:   storeClient,
-		Noop:          cli.Noop,
-		Prefix:        cli.Prefix,
-		SyncOnly:      cli.SyncOnly,
-		KeepStageFile: cli.KeepStageFile,
-		ShowDiff:      cli.Diff,
-		DiffContext:   cli.DiffContext,
-		ColorDiff:     cli.Color,
+		ConfDir:              cli.ConfDir,
+		ConfigDir:            filepath.Join(cli.ConfDir, "conf.d"),
+		TemplateDir:          filepath.Join(cli.ConfDir, "templates"),
+		StoreClient:          storeClient,
+		Noop:                 cli.Noop,
+		Prefix:               cli.Prefix,
+		SyncOnly:             cli.SyncOnly,
+		KeepStageFile:        cli.KeepStageFile,
+		ShowDiff:             cli.Diff,
+		DiffContext:          cli.DiffContext,
+		ColorDiff:            cli.Color,
+		TemplateCacheEnabled: templateCacheEnabled,
+		TemplateCacheSize:    cli.TemplateCacheSize,
+		TemplateCachePolicy:  cli.TemplateCachePolicy,
 	}
 
 	// Parse watch mode duration flags

@@ -545,6 +545,9 @@ keys = [
 // TestTemplates runs all tests in templateTests
 func TestTemplates(t *testing.T) {
 	for _, tt := range templateTests {
+		// Clear cache before each test to ensure isolation
+		cache := GetGlobalTemplateCache()
+		cache.Clear()
 		ExecuteTestTemplate(tt, t)
 	}
 }

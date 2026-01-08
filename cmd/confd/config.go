@@ -26,6 +26,11 @@ type TOMLConfig struct {
 	SRVRecord     string   `toml:"srv_record"`
 	Nodes         []string `toml:"nodes"`
 
+	// Template cache settings
+	TemplateCacheEnabled bool   `toml:"template_cache"`
+	TemplateCacheSize    int    `toml:"template_cache_size"`
+	TemplateCachePolicy  string `toml:"template_cache_policy"`
+
 	// Backend-specific settings
 	AuthToken      string   `toml:"auth_token"`
 	AuthType       string   `toml:"auth_type"`
@@ -105,6 +110,22 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if cli.SRVRecord == "" && tomlCfg.SRVRecord != "" {
 		cli.SRVRecord = tomlCfg.SRVRecord
+	}
+
+	// Template cache settings (only apply if not set via CLI)
+	if cli.TemplateCacheEnabled == nil {
+		// Default to true if not specified in TOML, otherwise use TOML value
+		enabled := true
+		if tomlCfg.TemplateCacheEnabled {
+			enabled = true
+		}
+		cli.TemplateCacheEnabled = &enabled
+	}
+	if cli.TemplateCacheSize == 100 && tomlCfg.TemplateCacheSize != 0 {
+		cli.TemplateCacheSize = tomlCfg.TemplateCacheSize
+	}
+	if cli.TemplateCachePolicy == "lru" && tomlCfg.TemplateCachePolicy != "" {
+		cli.TemplateCachePolicy = tomlCfg.TemplateCachePolicy
 	}
 
 	// Backend settings (only apply if not already set via CLI)

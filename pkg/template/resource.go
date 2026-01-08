@@ -39,6 +39,10 @@ type Config struct {
 	// Watch mode settings
 	Debounce      time.Duration // Global debounce for all templates
 	BatchInterval time.Duration // Batch processing interval
+	// Template cache settings
+	TemplateCacheEnabled bool   // Enable template caching (default: true)
+	TemplateCacheSize    int    // Maximum cached templates (default: 100)
+	TemplateCachePolicy  string // Eviction policy: lru, lfu, fifo (default: lru)
 }
 
 // TemplateResourceConfig holds the parsed template resource.
@@ -229,13 +233,30 @@ func (t *TemplateResource) createStageFile() error {
 
 	log.Debug("Compiling source template %s", t.Src)
 
-	// Add include function to funcMap for this template
-	includeCtx := NewIncludeContext()
-	t.funcMap["include"] = NewIncludeFunc(t.templateDir, t.funcMap, includeCtx)
-
-	tmpl, err := template.New(filepath.Base(t.Src)).Funcs(t.funcMap).ParseFiles(t.Src)
+	// Get template from cache or compile it
+	// Note: We pass the funcMap WITHOUT the include function first,
+	// then we'll clone and add include for execution
+	cache := GetGlobalTemplateCache()
+	baseTmpl, err := cache.Get(t.Src, t.funcMap)
 	if err != nil {
 		return fmt.Errorf("Unable to process template %s, %s", t.Src, err)
+	}
+
+	// Clone the template and add the include function for this execution
+	// This ensures each execution has its own include context
+	includeCtx := NewIncludeContext()
+	tmpl, err := baseTmpl.Clone()
+	if err != nil {
+		return fmt.Errorf("Failed to clone template %s: %w", t.Src, err)
+	}
+	tmpl.Funcs(map[string]interface{}{
+		"include": NewIncludeFunc(t.templateDir, t.funcMap, includeCtx),
+	})
+
+	// Get the actual template by name (ParseFiles creates a template set)
+	tmplToExecute := tmpl.Lookup(filepath.Base(t.Src))
+	if tmplToExecute == nil {
+		return fmt.Errorf("template %s not found in template set", filepath.Base(t.Src))
 	}
 
 	// create TempFile in Dest directory to avoid cross-filesystem issues
@@ -244,7 +265,7 @@ func (t *TemplateResource) createStageFile() error {
 		return err
 	}
 
-	if err = tmpl.Execute(temp, nil); err != nil {
+	if err = tmplToExecute.Execute(temp, nil); err != nil {
 		temp.Close()
 		os.Remove(temp.Name())
 		return err
