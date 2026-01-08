@@ -367,3 +367,158 @@ func TestValidationError(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateTemplates(t *testing.T) {
+	// Create temporary directory structure
+	tmpDir, err := os.MkdirTemp("", "confd-validate-templates-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	confDir := filepath.Join(tmpDir, "conf.d")
+	templateDir := filepath.Join(tmpDir, "templates")
+	destDir := filepath.Join(tmpDir, "dest")
+
+	if err := os.MkdirAll(confDir, 0755); err != nil {
+		t.Fatalf("Failed to create conf.d: %v", err)
+	}
+	if err := os.MkdirAll(templateDir, 0755); err != nil {
+		t.Fatalf("Failed to create templates: %v", err)
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatalf("Failed to create dest: %v", err)
+	}
+
+	t.Run("valid template syntax", func(t *testing.T) {
+		// Create template file with valid syntax
+		templateContent := `server {
+    listen {{ getv "/port" }};
+    server_name {{ getv "/hostname" }};
+}
+`
+		if err := os.WriteFile(filepath.Join(templateDir, "nginx.conf.tmpl"), []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template: %v", err)
+		}
+
+		// Create resource file
+		resourceContent := `[template]
+src = "nginx.conf.tmpl"
+dest = "` + filepath.Join(destDir, "nginx.conf") + `"
+keys = ["/nginx"]
+`
+		if err := os.WriteFile(filepath.Join(confDir, "nginx.toml"), []byte(resourceContent), 0644); err != nil {
+			t.Fatalf("Failed to create resource: %v", err)
+		}
+		defer os.Remove(filepath.Join(confDir, "nginx.toml"))
+
+		err := ValidateTemplates(tmpDir, "", "")
+		if err != nil {
+			t.Errorf("Expected no error but got: %v", err)
+		}
+	})
+
+	t.Run("invalid template syntax", func(t *testing.T) {
+		// Create template file with invalid syntax
+		templateContent := `server {
+    listen {{ getv "/port" };
+}
+`
+		if err := os.WriteFile(filepath.Join(templateDir, "bad.conf.tmpl"), []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template: %v", err)
+		}
+		defer os.Remove(filepath.Join(templateDir, "bad.conf.tmpl"))
+
+		// Create resource file
+		resourceContent := `[template]
+src = "bad.conf.tmpl"
+dest = "` + filepath.Join(destDir, "bad.conf") + `"
+keys = ["/app"]
+`
+		if err := os.WriteFile(filepath.Join(confDir, "bad.toml"), []byte(resourceContent), 0644); err != nil {
+			t.Fatalf("Failed to create resource: %v", err)
+		}
+		defer os.Remove(filepath.Join(confDir, "bad.toml"))
+
+		err := ValidateTemplates(tmpDir, "bad.toml", "")
+		if err == nil {
+			t.Error("Expected error for invalid template syntax")
+		}
+	})
+
+	t.Run("with mock data", func(t *testing.T) {
+		// Create template file
+		templateContent := `{
+    "name": "{{ .name }}",
+    "port": {{ .port }}
+}
+`
+		if err := os.WriteFile(filepath.Join(templateDir, "config.json.tmpl"), []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template: %v", err)
+		}
+		defer os.Remove(filepath.Join(templateDir, "config.json.tmpl"))
+
+		// Create resource file
+		resourceContent := `[template]
+src = "config.json.tmpl"
+dest = "` + filepath.Join(destDir, "config.json") + `"
+keys = ["/app"]
+output_format = "json"
+`
+		if err := os.WriteFile(filepath.Join(confDir, "json.toml"), []byte(resourceContent), 0644); err != nil {
+			t.Fatalf("Failed to create resource: %v", err)
+		}
+		defer os.Remove(filepath.Join(confDir, "json.toml"))
+
+		// Create mock data file
+		mockContent := `{"name": "myapp", "port": 8080}`
+		mockFile := filepath.Join(tmpDir, "mock.json")
+		if err := os.WriteFile(mockFile, []byte(mockContent), 0644); err != nil {
+			t.Fatalf("Failed to create mock data: %v", err)
+		}
+		defer os.Remove(mockFile)
+
+		err := ValidateTemplates(tmpDir, "json.toml", mockFile)
+		if err != nil {
+			t.Errorf("Expected no error but got: %v", err)
+		}
+	})
+
+	t.Run("config dir not found", func(t *testing.T) {
+		err := ValidateTemplates("/nonexistent/path", "", "")
+		if err == nil {
+			t.Error("Expected error for nonexistent config directory")
+		}
+	})
+
+	t.Run("invalid mock data", func(t *testing.T) {
+		// Create a simple template for this test
+		templateContent := `{{ .value }}`
+		if err := os.WriteFile(filepath.Join(templateDir, "simple.tmpl"), []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template: %v", err)
+		}
+		defer os.Remove(filepath.Join(templateDir, "simple.tmpl"))
+
+		// Create resource file
+		resourceContent := `[template]
+src = "simple.tmpl"
+dest = "` + filepath.Join(destDir, "simple.conf") + `"
+keys = ["/test"]
+`
+		if err := os.WriteFile(filepath.Join(confDir, "simple.toml"), []byte(resourceContent), 0644); err != nil {
+			t.Fatalf("Failed to create resource: %v", err)
+		}
+		defer os.Remove(filepath.Join(confDir, "simple.toml"))
+
+		mockFile := filepath.Join(tmpDir, "invalid-mock.json")
+		if err := os.WriteFile(mockFile, []byte(`{invalid json`), 0644); err != nil {
+			t.Fatalf("Failed to create mock data: %v", err)
+		}
+		defer os.Remove(mockFile)
+
+		err := ValidateTemplates(tmpDir, "", mockFile)
+		if err == nil {
+			t.Error("Expected error for invalid mock data")
+		}
+	})
+}

@@ -34,7 +34,9 @@ type CLI struct {
 	// Validation flags
 	CheckConfig bool   `name:"check-config" help:"validate configuration files and exit"`
 	Preflight   bool   `help:"run connectivity checks and exit"`
-	Resource    string `help:"specific resource file to validate (used with --check-config)"`
+	Validate    bool   `help:"validate templates without processing (syntax check)"`
+	MockData    string `name:"mock-data" help:"JSON file with mock data for template validation"`
+	Resource    string `help:"specific resource file to validate (used with --check-config or --validate)"`
 
 	// Diff flags (for use with --noop)
 	Diff        bool `help:"show diff output in noop mode"`
@@ -319,6 +321,11 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	// Check-config mode: validate configuration and exit (no backend needed)
 	if cli.CheckConfig {
 		return template.ValidateConfig(cli.ConfDir, cli.Resource)
+	}
+
+	// Validate mode: validate templates and exit (no backend needed)
+	if cli.Validate {
+		return template.ValidateTemplates(cli.ConfDir, cli.Resource, cli.MockData)
 	}
 
 	// Handle SRV record discovery

@@ -1,11 +1,15 @@
 package template
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/log"
@@ -223,6 +227,207 @@ func validateResourceFile(path string, templateDir string) []ValidationError {
 					File:    path,
 					Field:   "backend.backend",
 					Message: fmt.Sprintf("unknown backend type: %q", tc.BackendConfig.Backend),
+				})
+			}
+		}
+	}
+
+	return errs
+}
+
+// ValidateTemplates validates template files by parsing them.
+// If mockDataFile is provided, templates are also executed with mock data.
+// If resourceFile is empty, all templates are validated.
+func ValidateTemplates(confDir string, resourceFile string, mockDataFile string) error {
+	configDir := filepath.Join(confDir, "conf.d")
+	templateDir := filepath.Join(confDir, "templates")
+
+	var files []string
+	var err error
+
+	if resourceFile != "" {
+		// Validate specific resource file
+		if !filepath.IsAbs(resourceFile) {
+			resourceFile = filepath.Join(configDir, resourceFile)
+		}
+		if !util.IsFileExist(resourceFile) {
+			return fmt.Errorf("resource file not found: %s", resourceFile)
+		}
+		files = []string{resourceFile}
+	} else {
+		// Validate all resource files
+		if !util.IsFileExist(configDir) {
+			return fmt.Errorf("config directory not found: %s", configDir)
+		}
+		files, err = util.RecursiveFilesLookup(configDir, "*toml")
+		if err != nil {
+			return fmt.Errorf("failed to list config files: %w", err)
+		}
+		if len(files) == 0 {
+			log.Warning("No configuration files found in %s", configDir)
+			return nil
+		}
+	}
+
+	// Load mock data if provided
+	var mockData map[string]interface{}
+	if mockDataFile != "" {
+		data, err := loadMockData(mockDataFile)
+		if err != nil {
+			return fmt.Errorf("failed to load mock data: %w", err)
+		}
+		mockData = data
+	}
+
+	var validationErrors []error
+	validCount := 0
+
+	for _, f := range files {
+		errs := validateTemplate(f, templateDir, mockData)
+		if len(errs) > 0 {
+			for _, e := range errs {
+				log.Error("%s", e.Error())
+				validationErrors = append(validationErrors, e)
+			}
+		} else {
+			log.Info("OK: %s", f)
+			validCount++
+		}
+	}
+
+	log.Info("Template validation complete: %d/%d passed", validCount, len(files))
+
+	if len(validationErrors) > 0 {
+		return errors.Join(validationErrors...)
+	}
+	return nil
+}
+
+// newValidationFuncMap creates a function map for template validation.
+// It includes stub implementations of store functions that return empty values.
+func newValidationFuncMap() template.FuncMap {
+	// Start with base functions
+	funcMap := newFuncMap()
+
+	// Add stub implementations of store functions
+	// These allow syntax validation without a live backend
+	funcMap["getv"] = func(key string, defaultValue ...string) string {
+		if len(defaultValue) > 0 {
+			return defaultValue[0]
+		}
+		return ""
+	}
+	funcMap["gets"] = func(pattern string) []string {
+		return []string{}
+	}
+	funcMap["getvs"] = func(pattern string) []string {
+		return []string{}
+	}
+	funcMap["getenv"] = func(key string, defaultValue ...string) string {
+		if len(defaultValue) > 0 {
+			return defaultValue[0]
+		}
+		return ""
+	}
+	funcMap["ls"] = func(dir string) []string {
+		return []string{}
+	}
+	funcMap["lsdir"] = func(dir string) []string {
+		return []string{}
+	}
+	funcMap["exists"] = func(key string) bool {
+		return false
+	}
+	funcMap["get"] = func(key string) interface{} {
+		return nil
+	}
+	funcMap["getall"] = func(pattern string) map[string]string {
+		return map[string]string{}
+	}
+
+	return funcMap
+}
+
+// loadMockData loads mock data from a JSON file.
+func loadMockData(path string) (map[string]interface{}, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(content, &data); err != nil {
+		return nil, fmt.Errorf("invalid JSON in mock data file: %w", err)
+	}
+	return data, nil
+}
+
+// validateTemplate validates a single template by parsing it.
+// If mockData is provided, the template is also executed.
+func validateTemplate(resourcePath string, templateDir string, mockData map[string]interface{}) []ValidationError {
+	var errs []ValidationError
+
+	// Parse resource file
+	var tc TemplateResourceConfig
+	_, err := toml.DecodeFile(resourcePath, &tc)
+	if err != nil {
+		errs = append(errs, ValidationError{
+			File:    resourcePath,
+			Message: fmt.Sprintf("TOML parse error: %v", err),
+		})
+		return errs
+	}
+
+	if tc.TemplateResource.Src == "" {
+		errs = append(errs, ValidationError{
+			File:    resourcePath,
+			Field:   "src",
+			Message: "required field is missing",
+		})
+		return errs
+	}
+
+	templatePath := filepath.Join(templateDir, tc.TemplateResource.Src)
+	if !util.IsFileExist(templatePath) {
+		errs = append(errs, ValidationError{
+			File:    resourcePath,
+			Field:   "src",
+			Message: fmt.Sprintf("template file not found: %s", templatePath),
+		})
+		return errs
+	}
+
+	// Create function map with template functions and stub store functions
+	funcMap := newValidationFuncMap()
+
+	// Parse template
+	tmpl, err := template.New(filepath.Base(templatePath)).Funcs(funcMap).ParseFiles(templatePath)
+	if err != nil {
+		errs = append(errs, ValidationError{
+			File:    templatePath,
+			Message: fmt.Sprintf("template parse error: %v", err),
+		})
+		return errs
+	}
+
+	// Execute template with mock data if provided
+	if mockData != nil {
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, mockData); err != nil {
+			errs = append(errs, ValidationError{
+				File:    templatePath,
+				Message: fmt.Sprintf("template execution error: %v", err),
+			})
+			return errs
+		}
+
+		// Validate output format if specified
+		if tc.TemplateResource.OutputFormat != "" {
+			if err := util.ValidateFormat(buf.Bytes(), tc.TemplateResource.OutputFormat); err != nil {
+				errs = append(errs, ValidationError{
+					File:    templatePath,
+					Field:   "output_format",
+					Message: fmt.Sprintf("output validation failed: %v", err),
 				})
 			}
 		}
