@@ -1,0 +1,13 @@
+name: Claude Code Issue Fix
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  claude-label-fix:
+    uses: fractureinc/claude-code-github-action/.github/workflows/claude-label-fix.yml@v0.5.6
+    with:
+      issue-label: 'claude-fix'  # Must match your chosen label
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

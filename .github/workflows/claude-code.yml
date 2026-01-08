@@ -1,0 +1,15 @@
+name: Claude Code Integration
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude-integration:
+    uses: fractureinc/claude-code-github-action/.github/workflows/claude-full.yml@v0.5.6
+    with:
+      issue-label: 'claude-fix'  # Label that triggers issue fixes
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
