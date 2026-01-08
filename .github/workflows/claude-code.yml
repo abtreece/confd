@@ -6,6 +6,11 @@ on:
   pull_request_review_comment:
     types: [created]
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   claude-integration:
     uses: fractureinc/claude-code-github-action/.github/workflows/claude-full.yml@v0.5.6

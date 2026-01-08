@@ -4,6 +4,11 @@ on:
   issues:
     types: [labeled]
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   claude-label-fix:
     uses: fractureinc/claude-code-github-action/.github/workflows/claude-label-fix.yml@v0.5.6
