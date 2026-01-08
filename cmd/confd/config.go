@@ -25,6 +25,7 @@ type TOMLConfig struct {
 	SRVDomain     string   `toml:"srv_domain"`
 	SRVRecord     string   `toml:"srv_record"`
 	Nodes         []string `toml:"nodes"`
+	MetricsAddr   string   `toml:"metrics_addr"`
 
 	// Backend-specific settings
 	AuthToken      string   `toml:"auth_token"`
@@ -105,6 +106,9 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if cli.SRVRecord == "" && tomlCfg.SRVRecord != "" {
 		cli.SRVRecord = tomlCfg.SRVRecord
+	}
+	if cli.MetricsAddr == "" && tomlCfg.MetricsAddr != "" {
+		cli.MetricsAddr = tomlCfg.MetricsAddr
 	}
 
 	// Backend settings (only apply if not already set via CLI)
