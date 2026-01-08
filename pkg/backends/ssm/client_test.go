@@ -301,3 +301,37 @@ func TestWatchPrefix(t *testing.T) {
 		t.Errorf("WatchPrefix() index = %d, want 0", index)
 	}
 }
+
+func TestHealthCheck_Success(t *testing.T) {
+	mock := &mockSSM{
+		getParametersByPathFunc: func(ctx context.Context, input *ssm.GetParametersByPathInput, opts ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error) {
+			return &ssm.GetParametersByPathOutput{Parameters: []types.Parameter{}}, nil
+		},
+	}
+
+	client := newTestClient(mock)
+
+	err := client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_Error(t *testing.T) {
+	expectedErr := errors.New("access denied")
+	mock := &mockSSM{
+		getParametersByPathFunc: func(ctx context.Context, input *ssm.GetParametersByPathInput, opts ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error) {
+			return nil, expectedErr
+		},
+	}
+
+	client := newTestClient(mock)
+
+	err := client.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("HealthCheck() expected error, got nil")
+	}
+	if err != expectedErr {
+		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
+	}
+}

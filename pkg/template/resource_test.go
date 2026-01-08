@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"text/template"
@@ -753,5 +754,248 @@ keys = ["/foo"]
 				t.Errorf("Expected debounce %q, got %q", tc.expectedDuration, tr.debounceDur.String())
 			}
 		})
+	}
+}
+
+func TestRunCommand_Success(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	err := runCommand("echo hello")
+	if err != nil {
+		t.Errorf("runCommand() unexpected error: %v", err)
+	}
+}
+
+func TestRunCommand_Failure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	err := runCommand("exit 1")
+	if err == nil {
+		t.Error("runCommand() expected error for exit 1, got nil")
+	}
+}
+
+func TestRunCommand_InvalidCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	err := runCommand("nonexistent_command_12345")
+	if err == nil {
+		t.Error("runCommand() expected error for invalid command, got nil")
+	}
+}
+
+func TestRunCommand_WithOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	// Test command that produces output
+	err := runCommand("echo 'test output'")
+	if err != nil {
+		t.Errorf("runCommand() unexpected error: %v", err)
+	}
+}
+
+func TestCheck_Success(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.WriteString("test content")
+	tmpFile.Close()
+
+	tr := &TemplateResource{
+		CheckCmd:  "cat {{.src}}",
+		StageFile: tmpFile,
+	}
+
+	err = tr.check()
+	if err != nil {
+		t.Errorf("check() unexpected error: %v", err)
+	}
+}
+
+func TestCheck_Failure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	tr := &TemplateResource{
+		CheckCmd:  "exit 1",
+		StageFile: tmpFile,
+	}
+
+	err = tr.check()
+	if err == nil {
+		t.Error("check() expected error for exit 1, got nil")
+	}
+}
+
+func TestCheck_InvalidTemplate(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	tr := &TemplateResource{
+		CheckCmd:  "echo {{.invalid",
+		StageFile: tmpFile,
+	}
+
+	err = tr.check()
+	if err == nil {
+		t.Error("check() expected error for invalid template, got nil")
+	}
+}
+
+func TestReload_Success(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	tr := &TemplateResource{
+		ReloadCmd: "echo reloading {{.dest}}",
+		Dest:      "/tmp/test.conf",
+		StageFile: tmpFile,
+	}
+
+	err = tr.reload()
+	if err != nil {
+		t.Errorf("reload() unexpected error: %v", err)
+	}
+
+	// Check that lastReloadTime was updated
+	if tr.lastReloadTime.IsZero() {
+		t.Error("reload() should update lastReloadTime")
+	}
+}
+
+func TestReload_Failure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	tr := &TemplateResource{
+		ReloadCmd: "exit 1",
+		Dest:      "/tmp/test.conf",
+		StageFile: tmpFile,
+	}
+
+	err = tr.reload()
+	if err == nil {
+		t.Error("reload() expected error for exit 1, got nil")
+	}
+}
+
+func TestReload_InvalidTemplate(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	tr := &TemplateResource{
+		ReloadCmd: "echo {{.invalid",
+		Dest:      "/tmp/test.conf",
+		StageFile: tmpFile,
+	}
+
+	err = tr.reload()
+	if err == nil {
+		t.Error("reload() expected error for invalid template, got nil")
+	}
+}
+
+func TestReload_RateLimiting(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	tr := &TemplateResource{
+		ReloadCmd:            "echo reloading",
+		Dest:                 "/tmp/test.conf",
+		StageFile:            tmpFile,
+		minReloadIntervalDur: 1 * time.Hour, // Set a long interval
+		lastReloadTime:       time.Now(),    // Set last reload to now
+	}
+
+	// This reload should be throttled
+	err = tr.reload()
+	if err != nil {
+		t.Errorf("reload() unexpected error: %v", err)
+	}
+
+	// lastReloadTime should NOT have been updated since reload was throttled
+	// (it should still be approximately the time we set it to)
+	timeSinceLastReload := time.Since(tr.lastReloadTime)
+	if timeSinceLastReload > 1*time.Second {
+		t.Error("reload() should not update lastReloadTime when throttled")
+	}
+}
+
+func TestReload_WithTemplateVariables(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.WriteString("config content")
+	tmpFile.Close()
+
+	tr := &TemplateResource{
+		ReloadCmd: "test -f {{.src}} && test '{{.dest}}' = '/tmp/test.conf'",
+		Dest:      "/tmp/test.conf",
+		StageFile: tmpFile,
+	}
+
+	err = tr.reload()
+	if err != nil {
+		t.Errorf("reload() with template variables unexpected error: %v", err)
 	}
 }

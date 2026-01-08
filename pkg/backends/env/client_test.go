@@ -197,3 +197,16 @@ func TestWatchPrefix(t *testing.T) {
 		t.Errorf("WatchPrefix() index = %d, want 0", index)
 	}
 }
+
+func TestHealthCheck(t *testing.T) {
+	client, err := NewEnvClient()
+	if err != nil {
+		t.Fatalf("NewEnvClient() error: %v", err)
+	}
+
+	// HealthCheck for env backend should always return nil
+	err = client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}

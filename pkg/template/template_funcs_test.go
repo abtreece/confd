@@ -1,6 +1,8 @@
 package template
 
 import (
+	"net"
+	"os"
 	"reflect"
 	"testing"
 
@@ -500,5 +502,111 @@ func TestBase64RoundTrip(t *testing.T) {
 				t.Errorf("Base64 round trip failed: got %q, want %q", decoded, s)
 			}
 		})
+	}
+}
+
+func TestGetHostname(t *testing.T) {
+	result, err := GetHostname()
+	if err != nil {
+		t.Errorf("GetHostname() unexpected error: %v", err)
+		return
+	}
+
+	// Compare with os.Hostname
+	expected, _ := os.Hostname()
+	if result != expected {
+		t.Errorf("GetHostname() = %q, want %q", result, expected)
+	}
+}
+
+func TestLookupIfaceIPV4_NonExistent(t *testing.T) {
+	// Test with a non-existent interface
+	result := LookupIfaceIPV4("nonexistent-interface-12345")
+	if result != "" && result != "<nil>" {
+		t.Errorf("LookupIfaceIPV4(nonexistent) = %q, want empty string or <nil>", result)
+	}
+}
+
+func TestLookupIfaceIPV4_ExistingInterface(t *testing.T) {
+	// Try to find an interface with an IPv4 address
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		t.Skip("Cannot get network interfaces")
+	}
+
+	var testIface *net.Interface
+	for i := range ifaces {
+		addrs, err := ifaces[i].Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
+				testIface = &ifaces[i]
+				break
+			}
+		}
+		if testIface != nil {
+			break
+		}
+	}
+
+	if testIface == nil {
+		t.Skip("No interface with IPv4 address found")
+	}
+
+	result := LookupIfaceIPV4(testIface.Name)
+	if result == "" || result == "<nil>" {
+		t.Errorf("LookupIfaceIPV4(%s) returned empty, expected IPv4 address", testIface.Name)
+	}
+}
+
+func TestLookupIfaceIPV6_NonExistent(t *testing.T) {
+	// Test with a non-existent interface
+	result := LookupIfaceIPV6("nonexistent-interface-12345")
+	if result != "" && result != "<nil>" {
+		t.Errorf("LookupIfaceIPV6(nonexistent) = %q, want empty string or <nil>", result)
+	}
+}
+
+func TestLookupSRV_NonExistent(t *testing.T) {
+	// Test with a non-existent SRV record
+	result := LookupSRV("nonexistent", "tcp", "nonexistent.invalid")
+	if result == nil {
+		t.Error("LookupSRV() returned nil, expected empty slice")
+	}
+	if len(result) != 0 {
+		t.Errorf("LookupSRV(nonexistent) = %v, want empty slice", result)
+	}
+}
+
+func TestSortSRV(t *testing.T) {
+	// Test the sortSRV type's Len, Swap, Less methods
+	srvs := sortSRV{
+		{Target: "host2.example.com.", Port: 80, Priority: 10, Weight: 5},
+		{Target: "host1.example.com.", Port: 80, Priority: 10, Weight: 5},
+		{Target: "host1.example.com.", Port: 443, Priority: 10, Weight: 5},
+	}
+
+	// Test Len
+	if srvs.Len() != 3 {
+		t.Errorf("sortSRV.Len() = %d, want 3", srvs.Len())
+	}
+
+	// Test Swap
+	original0 := srvs[0]
+	original1 := srvs[1]
+	srvs.Swap(0, 1)
+	if srvs[0] != original1 || srvs[1] != original0 {
+		t.Error("sortSRV.Swap() did not swap correctly")
+	}
+	srvs.Swap(0, 1) // Swap back
+
+	// Test Less
+	if !srvs.Less(1, 0) {
+		t.Error("sortSRV.Less() should return true for host1 < host2")
+	}
+	if srvs.Less(0, 1) {
+		t.Error("sortSRV.Less() should return false for host2 > host1")
 	}
 }

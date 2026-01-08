@@ -478,3 +478,39 @@ func TestGetValues_ExportPrivateKey_MultipleCertificates(t *testing.T) {
 		t.Errorf("GetValues() = %v, want %v", result, expected)
 	}
 }
+
+func TestHealthCheck_Success(t *testing.T) {
+	mock := &mockACM{
+		listCertificatesFunc: func(ctx context.Context, input *acm.ListCertificatesInput, opts ...func(*acm.Options)) (*acm.ListCertificatesOutput, error) {
+			return &acm.ListCertificatesOutput{
+				CertificateSummaryList: []types.CertificateSummary{},
+			}, nil
+		},
+	}
+
+	client := newTestClient(mock)
+
+	err := client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_Error(t *testing.T) {
+	expectedErr := errors.New("access denied")
+	mock := &mockACM{
+		listCertificatesFunc: func(ctx context.Context, input *acm.ListCertificatesInput, opts ...func(*acm.Options)) (*acm.ListCertificatesOutput, error) {
+			return nil, expectedErr
+		},
+	}
+
+	client := newTestClient(mock)
+
+	err := client.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("HealthCheck() expected error, got nil")
+	}
+	if err != expectedErr {
+		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
+	}
+}
