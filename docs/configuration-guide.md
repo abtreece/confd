@@ -22,6 +22,7 @@ Optional:
 * `srv_domain` (string) - The name of the resource record.
 * `srv_record` (string) - The SRV record to search for backends nodes.
 * `sync-only` (bool) - sync without check_cmd and reload_cmd.
+* `template_cache` (bool) - Enable template compilation caching for improved performance. (true)
 * `watch` (bool) - Enable watch support.
 * `auth_token` (string) - Auth bearer token to use.
 * `auth_type` (string) - Vault auth backend type to use.

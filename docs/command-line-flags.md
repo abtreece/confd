@@ -47,6 +47,8 @@ Flags:
       --color                   colorize diff output
       --debounce=STRING         debounce duration for watch mode
       --batch-interval=STRING   batch processing interval for watch mode
+      --template-cache          enable template compilation caching (default: true)
+      --no-template-cache       disable template compilation caching
       --version                 print version and exit
 
 Commands:

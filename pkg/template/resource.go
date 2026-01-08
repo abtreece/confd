@@ -233,9 +233,25 @@ func (t *TemplateResource) createStageFile() error {
 	includeCtx := NewIncludeContext()
 	t.funcMap["include"] = NewIncludeFunc(t.templateDir, t.funcMap, includeCtx)
 
-	tmpl, err := template.New(filepath.Base(t.Src)).Funcs(t.funcMap).ParseFiles(t.Src)
-	if err != nil {
-		return fmt.Errorf("Unable to process template %s, %s", t.Src, err)
+	// Try to get template from cache
+	var tmpl *template.Template
+	var err error
+	tmpl, cacheHit := GetCachedTemplate(t.Src)
+	if !cacheHit {
+		log.Debug("Template cache miss for %s", t.Src)
+		stat, statErr := os.Stat(t.Src)
+		if statErr != nil {
+			return fmt.Errorf("Unable to stat template %s: %w", t.Src, statErr)
+		}
+		tmpl, err = template.New(filepath.Base(t.Src)).Funcs(t.funcMap).ParseFiles(t.Src)
+		if err != nil {
+			return fmt.Errorf("Unable to process template %s, %s", t.Src, err)
+		}
+		PutCachedTemplate(t.Src, tmpl, stat.ModTime())
+	} else {
+		log.Debug("Template cache hit for %s", t.Src)
+		// Update funcMap with fresh include function (functions resolved at execution time)
+		tmpl = tmpl.Funcs(t.funcMap)
 	}
 
 	// create TempFile in Dest directory to avoid cross-filesystem issues

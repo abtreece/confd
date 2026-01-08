@@ -48,6 +48,9 @@ type CLI struct {
 	DebounceStr      string `name:"debounce" help:"debounce duration for watch mode (e.g., 2s, 500ms)"`
 	BatchIntervalStr string `name:"batch-interval" help:"batch processing interval for watch mode (e.g., 5s)"`
 
+	// Performance flags
+	TemplateCache bool `name:"template-cache" help:"enable template compilation caching" default:"true" negatable:""`
+
 	Version VersionFlag `help:"print version and exit"`
 
 	// Backend subcommands
@@ -353,6 +356,9 @@ func run(cli *CLI, backendCfg backends.Config) error {
 
 	log.Info("Starting confd")
 	log.Info("Backend set to %s", backendCfg.Backend)
+
+	// Initialize template cache
+	template.InitTemplateCache(cli.TemplateCache)
 
 	// Create store client
 	storeClient, err := backends.New(backendCfg)
