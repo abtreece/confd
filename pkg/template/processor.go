@@ -97,6 +97,11 @@ func (p *watchProcessor) Process() {
 func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 	defer p.wg.Done()
 	keys := util.AppendPrefix(t.Prefix, t.Keys)
+
+	// Debounce timer management
+	var debounceTimer *time.Timer
+	var debounceChan <-chan time.Time
+
 	for {
 		index, err := t.storeClient.WatchPrefix(context.Background(), t.Prefix, keys, t.lastIndex, p.stopChan)
 		if err != nil {
@@ -106,8 +111,150 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 			continue
 		}
 		t.lastIndex = index
-		if err := t.process(); err != nil {
+
+		// Handle debouncing
+		if t.debounceDur > 0 {
+			// Reset or create debounce timer
+			if debounceTimer != nil {
+				debounceTimer.Stop()
+			}
+			debounceTimer = time.NewTimer(t.debounceDur)
+			debounceChan = debounceTimer.C
+
+			log.Debug("Debouncing changes for %s (%v)", t.Dest, t.debounceDur)
+
+			// Wait for either debounce timer to fire or more changes
+			select {
+			case <-debounceChan:
+				// Debounce period elapsed, process the template
+				log.Debug("Debounce period elapsed for %s, processing", t.Dest)
+				if err := t.process(); err != nil {
+					p.errChan <- err
+				}
+			case <-p.stopChan:
+				if debounceTimer != nil {
+					debounceTimer.Stop()
+				}
+				return
+			}
+		} else {
+			// No debouncing, process immediately
+			if err := t.process(); err != nil {
+				p.errChan <- err
+			}
+		}
+	}
+}
+
+// batchWatchProcessor processes changes in batches after a batch interval
+type batchWatchProcessor struct {
+	config     Config
+	stopChan   chan bool
+	doneChan   chan bool
+	errChan    chan error
+	changeChan chan *TemplateResource
+	wg         sync.WaitGroup
+}
+
+// BatchWatchProcessor creates a processor that batches changes before processing.
+// Changes from all templates are collected and processed together after the batch interval.
+func BatchWatchProcessor(config Config, stopChan, doneChan chan bool, errChan chan error) Processor {
+	var wg sync.WaitGroup
+	changeChan := make(chan *TemplateResource, 100)
+	return &batchWatchProcessor{config, stopChan, doneChan, errChan, changeChan, wg}
+}
+
+func (p *batchWatchProcessor) Process() {
+	defer close(p.doneChan)
+	ts, err := getTemplateResources(p.config)
+	if err != nil {
+		log.Fatal("%s", err.Error())
+		return
+	}
+
+	// Start batch processor goroutine
+	p.wg.Add(1)
+	go p.processBatch()
+
+	// Start monitor goroutines for each template
+	for _, t := range ts {
+		t := t
+		p.wg.Add(1)
+		go p.monitorForBatch(t)
+	}
+
+	p.wg.Wait()
+}
+
+func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
+	defer p.wg.Done()
+	keys := util.AppendPrefix(t.Prefix, t.Keys)
+
+	for {
+		index, err := t.storeClient.WatchPrefix(context.Background(), t.Prefix, keys, t.lastIndex, p.stopChan)
+		if err != nil {
 			p.errChan <- err
+			time.Sleep(time.Second * 2)
+			continue
+		}
+		t.lastIndex = index
+
+		// Send to batch processor
+		select {
+		case p.changeChan <- t:
+			log.Debug("Queued change for batch processing: %s", t.Dest)
+		case <-p.stopChan:
+			return
+		}
+	}
+}
+
+func (p *batchWatchProcessor) processBatch() {
+	defer p.wg.Done()
+
+	pending := make(map[string]*TemplateResource)
+	timer := time.NewTimer(p.config.BatchInterval)
+	timer.Stop() // Start with stopped timer
+
+	timerRunning := false
+
+	for {
+		select {
+		case t := <-p.changeChan:
+			// Add to pending changes (deduplicates by dest path)
+			pending[t.Dest] = t
+
+			// Start or reset the batch timer
+			if !timerRunning {
+				timer.Reset(p.config.BatchInterval)
+				timerRunning = true
+				log.Debug("Batch timer started (%v)", p.config.BatchInterval)
+			}
+
+		case <-timer.C:
+			timerRunning = false
+			if len(pending) > 0 {
+				log.Info("Processing batch of %d template changes", len(pending))
+				for dest, t := range pending {
+					if err := t.process(); err != nil {
+						p.errChan <- err
+					}
+					delete(pending, dest)
+				}
+			}
+
+		case <-p.stopChan:
+			timer.Stop()
+			// Process any remaining pending changes before shutdown
+			if len(pending) > 0 {
+				log.Info("Processing %d pending template changes before shutdown", len(pending))
+				for _, t := range pending {
+					if err := t.process(); err != nil {
+						p.errChan <- err
+					}
+				}
+			}
+			return
 		}
 	}
 }

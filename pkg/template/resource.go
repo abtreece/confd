@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/backends"
@@ -35,6 +36,9 @@ type Config struct {
 	ShowDiff    bool
 	DiffContext int
 	ColorDiff   bool
+	// Watch mode settings
+	Debounce      time.Duration // Global debounce for all templates
+	BatchInterval time.Duration // Batch processing interval
 }
 
 // TemplateResourceConfig holds the parsed template resource.
@@ -45,28 +49,34 @@ type TemplateResourceConfig struct {
 
 // TemplateResource is the representation of a parsed template resource.
 type TemplateResource struct {
-	CheckCmd      string `toml:"check_cmd"`
-	Dest          string
-	FileMode      os.FileMode
-	Gid           int
-	Group         string
-	Keys          []string
-	Mode          string
-	OutputFormat  string `toml:"output_format"` // json, yaml, toml, xml, ini
-	Owner         string
-	Prefix        string
-	ReloadCmd     string `toml:"reload_cmd"`
-	Src           string
-	StageFile     *os.File
-	Uid           int
-	funcMap       map[string]interface{}
-	lastIndex     uint64
-	keepStageFile bool
-	noop          bool
-	store         memkv.Store
-	storeClient   backends.StoreClient
-	syncOnly      bool
-	templateDir   string
+	CheckCmd          string `toml:"check_cmd"`
+	Dest              string
+	FileMode          os.FileMode
+	Gid               int
+	Group             string
+	Keys              []string
+	Mode              string
+	OutputFormat      string `toml:"output_format"`       // json, yaml, toml, xml
+	MinReloadInterval string `toml:"min_reload_interval"` // e.g., "30s", "1m"
+	Debounce          string `toml:"debounce"`            // e.g., "2s", "500ms"
+	Owner             string
+	Prefix            string
+	ReloadCmd         string `toml:"reload_cmd"`
+	Src               string
+	StageFile         *os.File
+	Uid               int
+	funcMap           map[string]interface{}
+	lastIndex         uint64
+	keepStageFile     bool
+	noop              bool
+	store             memkv.Store
+	storeClient       backends.StoreClient
+	syncOnly          bool
+	templateDir       string
+	// Parsed duration values
+	minReloadIntervalDur time.Duration
+	debounceDur          time.Duration
+	lastReloadTime       time.Time
 	// Diff settings
 	showDiff    bool
 	diffContext int
@@ -160,6 +170,25 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		} else {
 			tr.Gid = os.Getegid()
 		}
+	}
+
+	// Parse duration settings
+	if tr.MinReloadInterval != "" {
+		d, err := time.ParseDuration(tr.MinReloadInterval)
+		if err != nil {
+			return nil, fmt.Errorf("invalid min_reload_interval %q: %w", tr.MinReloadInterval, err)
+		}
+		tr.minReloadIntervalDur = d
+	}
+	if tr.Debounce != "" {
+		d, err := time.ParseDuration(tr.Debounce)
+		if err != nil {
+			return nil, fmt.Errorf("invalid debounce %q: %w", tr.Debounce, err)
+		}
+		tr.debounceDur = d
+	} else if config.Debounce > 0 {
+		// Use global debounce if per-resource not set
+		tr.debounceDur = config.Debounce
 	}
 
 	tr.templateDir = config.TemplateDir
@@ -353,7 +382,19 @@ func (t *TemplateResource) check() error {
 // with the full path of the destination file. This allows the reload command
 // to reference the relevant file paths.
 // It returns nil if the reload command returns 0.
+// If min_reload_interval is set and not enough time has passed since the last
+// reload, the reload is skipped and a warning is logged.
 func (t *TemplateResource) reload() error {
+	// Check rate limiting
+	if t.minReloadIntervalDur > 0 && !t.lastReloadTime.IsZero() {
+		elapsed := time.Since(t.lastReloadTime)
+		if elapsed < t.minReloadIntervalDur {
+			remaining := t.minReloadIntervalDur - elapsed
+			log.Warning("Reload throttled for %s (next allowed in %v)", t.Dest, remaining.Round(time.Second))
+			return nil
+		}
+	}
+
 	var cmdBuffer bytes.Buffer
 	data := make(map[string]string)
 	data["src"] = t.StageFile.Name()
@@ -365,7 +406,14 @@ func (t *TemplateResource) reload() error {
 	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
 		return err
 	}
-	return runCommand(cmdBuffer.String())
+
+	if err := runCommand(cmdBuffer.String()); err != nil {
+		return err
+	}
+
+	// Update last reload time on success
+	t.lastReloadTime = time.Now()
+	return nil
 }
 
 // runCommand is a shared function used by check and reload

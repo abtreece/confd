@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/log"
@@ -195,6 +196,30 @@ func validateResourceFile(path string, templateDir string) []ValidationError {
 				File:    path,
 				Field:   "output_format",
 				Message: fmt.Sprintf("unknown format: %q (supported: json, yaml, yml, toml, xml)", tr.OutputFormat),
+			})
+		}
+	}
+
+	// Validate min_reload_interval if specified
+	if tr.MinReloadInterval != "" {
+		_, err := time.ParseDuration(tr.MinReloadInterval)
+		if err != nil {
+			errs = append(errs, ValidationError{
+				File:    path,
+				Field:   "min_reload_interval",
+				Message: fmt.Sprintf("invalid duration: %q (use Go duration format, e.g., \"30s\", \"1m\")", tr.MinReloadInterval),
+			})
+		}
+	}
+
+	// Validate debounce if specified
+	if tr.Debounce != "" {
+		_, err := time.ParseDuration(tr.Debounce)
+		if err != nil {
+			errs = append(errs, ValidationError{
+				File:    path,
+				Field:   "debounce",
+				Message: fmt.Sprintf("invalid duration: %q (use Go duration format, e.g., \"2s\", \"500ms\")", tr.Debounce),
 			})
 		}
 	}

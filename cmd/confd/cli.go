@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
@@ -42,6 +43,10 @@ type CLI struct {
 	Diff        bool `help:"show diff output in noop mode"`
 	DiffContext int  `name:"diff-context" help:"lines of context for diff" default:"3"`
 	Color       bool `help:"colorize diff output"`
+
+	// Watch mode flags
+	DebounceStr      string `name:"debounce" help:"debounce duration for watch mode (e.g., 2s, 500ms)"`
+	BatchIntervalStr string `name:"batch-interval" help:"batch processing interval for watch mode (e.g., 5s)"`
 
 	Version VersionFlag `help:"print version and exit"`
 
@@ -370,6 +375,22 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		ColorDiff:     cli.Color,
 	}
 
+	// Parse watch mode duration flags
+	if cli.DebounceStr != "" {
+		d, err := time.ParseDuration(cli.DebounceStr)
+		if err != nil {
+			return fmt.Errorf("invalid debounce duration %q: %w", cli.DebounceStr, err)
+		}
+		tmplCfg.Debounce = d
+	}
+	if cli.BatchIntervalStr != "" {
+		d, err := time.ParseDuration(cli.BatchIntervalStr)
+		if err != nil {
+			return fmt.Errorf("invalid batch-interval duration %q: %w", cli.BatchIntervalStr, err)
+		}
+		tmplCfg.BatchInterval = d
+	}
+
 	// Preflight mode: run connectivity checks and exit
 	if cli.Preflight {
 		return template.Preflight(tmplCfg)
@@ -390,7 +411,13 @@ func run(cli *CLI, backendCfg backends.Config) error {
 
 	var processor template.Processor
 	if cli.Watch {
-		processor = template.WatchProcessor(tmplCfg, stopChan, doneChan, errChan)
+		if tmplCfg.BatchInterval > 0 {
+			// Use batch processor when --batch-interval is specified
+			log.Info("Batch processing enabled with interval %v", tmplCfg.BatchInterval)
+			processor = template.BatchWatchProcessor(tmplCfg, stopChan, doneChan, errChan)
+		} else {
+			processor = template.WatchProcessor(tmplCfg, stopChan, doneChan, errChan)
+		}
 	} else {
 		processor = template.IntervalProcessor(tmplCfg, stopChan, doneChan, errChan, cli.Interval)
 	}

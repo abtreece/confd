@@ -226,6 +226,68 @@ output_format = "invalid"
 			expectError: true,
 			errorFields: []string{"output_format"},
 		},
+		{
+			name: "valid min_reload_interval",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+min_reload_interval = "30s"
+`,
+			expectError: false,
+		},
+		{
+			name: "valid min_reload_interval 1 minute",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+min_reload_interval = "1m"
+`,
+			expectError: false,
+		},
+		{
+			name: "invalid min_reload_interval",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+min_reload_interval = "invalid"
+`,
+			expectError: true,
+			errorFields: []string{"min_reload_interval"},
+		},
+		{
+			name: "valid debounce",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+debounce = "2s"
+`,
+			expectError: false,
+		},
+		{
+			name: "valid debounce milliseconds",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+debounce = "500ms"
+`,
+			expectError: false,
+		},
+		{
+			name: "invalid debounce",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+debounce = "invalid"
+`,
+			expectError: true,
+			errorFields: []string{"debounce"},
+		},
 	}
 
 	for _, tt := range tests {
