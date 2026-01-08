@@ -36,6 +36,10 @@ Before we begin be sure to [download and install confd](docs/installation.md).
 
 * [quick start guide](docs/quick-start-guide.md)
 
+## Features
+
+* **Hot Reload**: Change confd configuration without restarting the process. Send `SIGHUP` to reload settings like `interval`, `log-level`, and template resources. See [hot reload documentation](docs/hot-reload.md) for details.
+
 ## Next steps
 
 Check out the [docs directory](docs) for more docs.

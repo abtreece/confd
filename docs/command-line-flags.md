@@ -331,6 +331,30 @@ confd --watch --batch-interval 5s consul
 - `--debounce`: Per-template, waits for individual template changes to settle
 - `--batch-interval`: Global, collects all changes and processes them together
 
+## Hot Reload
+
+Many configuration settings can be changed at runtime without restarting confd by sending a `SIGHUP` signal:
+
+```bash
+kill -SIGHUP $(pidof confd)
+```
+
+Reloadable settings include:
+- `--interval`
+- `--log-level`
+- `--log-format`
+- `--prefix`
+- `--noop`
+- `--sync-only`
+- Template resources in conf.d/
+
+Non-reloadable settings (require restart):
+- Backend type
+- `--watch` mode
+- Backend connection settings (nodes, certificates)
+
+See [Hot Reload Documentation](hot-reload.md) for detailed information.
+
 ## Environment Variables
 
 Global configuration can also be set via environment variables with the `CONFD_` prefix:
