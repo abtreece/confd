@@ -760,9 +760,14 @@ interval = 600
 		ConfDir: tmpDir,
 	}
 	
-	// This should succeed (no backend type change)
+	// This should succeed (no backend type change - backend is not in TOML)
 	if err := reloadConfig(cli, backendCfg, tmplCfg); err != nil {
 		t.Errorf("reloadConfig should succeed with no backend change: %v", err)
+	}
+	
+	// Verify that the backend type is preserved
+	if backendCfg.Backend != "consul" {
+		t.Errorf("Expected backend 'consul' to be preserved, got %q", backendCfg.Backend)
 	}
 }
 

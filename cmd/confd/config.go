@@ -236,9 +236,7 @@ func reloadConfig(cli *CLI, currentBackendCfg *backends.Config, currentTmplCfg *
 	}
 
 	// Load the new config file
-	newBackendCfg := &backends.Config{
-		Backend: currentBackendCfg.Backend, // Backend type cannot be changed
-	}
+	newBackendCfg := &backends.Config{}
 	
 	if err := loadConfigFile(newCLI, newBackendCfg); err != nil {
 		return fmt.Errorf("failed to load config file: %w", err)
@@ -313,14 +311,16 @@ func reloadConfig(cli *CLI, currentBackendCfg *backends.Config, currentTmplCfg *
 
 // validateReloadableConfig validates that non-reloadable settings haven't changed
 func validateReloadableConfig(oldCLI *CLI, newCLI *CLI, oldBackendCfg *backends.Config, newBackendCfg *backends.Config) error {
-	// Backend type cannot be changed
-	if oldBackendCfg.Backend != newBackendCfg.Backend && newBackendCfg.Backend != "" {
-		return fmt.Errorf("backend type cannot be changed via reload (current: %s)", oldBackendCfg.Backend)
-	}
-
 	// Watch mode cannot be changed
 	if oldCLI.Watch != newCLI.Watch {
 		return fmt.Errorf("watch mode cannot be changed via reload")
+	}
+
+	// Note: Backend type validation is not strictly necessary since backend type
+	// is specified via CLI subcommand, not TOML config file. It's kept here
+	// as defensive programming in case the config structure changes in the future.
+	if newBackendCfg.Backend != "" && oldBackendCfg.Backend != newBackendCfg.Backend {
+		return fmt.Errorf("backend type cannot be changed via reload (current: %s, new: %s)", oldBackendCfg.Backend, newBackendCfg.Backend)
 	}
 
 	return nil
