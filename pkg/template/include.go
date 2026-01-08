@@ -106,7 +106,10 @@ func NewIncludeFunc(baseDir string, funcMap template.FuncMap, ctx *IncludeContex
 				return "", fmt.Errorf("include %s: %w", name, err)
 			}
 
-			stat, _ := os.Stat(includePath)
+			stat, err := os.Stat(includePath)
+			if err != nil {
+				return "", fmt.Errorf("include %s: %w", name, err)
+			}
 
 			// Parse the included template
 			tmpl, err = template.New(filepath.Base(includePath)).Funcs(includeFuncMap).Parse(string(content))

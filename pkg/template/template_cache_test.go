@@ -3,6 +3,7 @@ package template
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"text/template"
@@ -228,7 +229,7 @@ func TestCacheConcurrency(t *testing.T) {
 	mtimes := make([]time.Time, numFiles)
 
 	for i := 0; i < numFiles; i++ {
-		files[i] = filepath.Join(tmpDir, "test"+string(rune('0'+i))+".tmpl")
+		files[i] = filepath.Join(tmpDir, "test"+strconv.Itoa(i)+".tmpl")
 		if err := os.WriteFile(files[i], []byte("{{.}}"), 0644); err != nil {
 			t.Fatalf("Failed to create temp file: %v", err)
 		}
