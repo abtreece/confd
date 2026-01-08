@@ -19,8 +19,8 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/memkv"
 	util "github.com/abtreece/confd/pkg/util"
-	"github.com/kelseyhightower/memkv"
 )
 
 type Config struct {
@@ -69,7 +69,7 @@ type TemplateResource struct {
 	lastIndex         uint64
 	keepStageFile     bool
 	noop              bool
-	store             memkv.Store
+	store             *memkv.Store
 	storeClient       backends.StoreClient
 	syncOnly          bool
 	templateDir       string

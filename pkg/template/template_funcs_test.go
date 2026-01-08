@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/kelseyhightower/memkv"
+	"github.com/abtreece/confd/pkg/memkv"
 )
 
 func TestSeq(t *testing.T) {
