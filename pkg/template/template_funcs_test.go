@@ -569,6 +569,41 @@ func TestLookupIfaceIPV6_NonExistent(t *testing.T) {
 	}
 }
 
+func TestLookupIfaceIPV6_ExistingInterface(t *testing.T) {
+	// Try to find an interface with an IPv6 address
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		t.Skip("Cannot get network interfaces")
+	}
+
+	var testIface *net.Interface
+	for i := range ifaces {
+		addrs, err := ifaces[i].Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To16() != nil {
+				testIface = &ifaces[i]
+				break
+			}
+		}
+		if testIface != nil {
+			break
+		}
+	}
+
+	if testIface == nil {
+		t.Skip("No interface with IPv6 address found")
+	}
+
+	result := LookupIfaceIPV6(testIface.Name)
+	// Result should be a valid IP address (IPv6 or mapped IPv4)
+	if result == "" {
+		t.Errorf("LookupIfaceIPV6(%s) returned empty, expected IP address", testIface.Name)
+	}
+}
+
 func TestLookupSRV_NonExistent(t *testing.T) {
 	// Test with a non-existent SRV record
 	result := LookupSRV("nonexistent", "tcp", "nonexistent.invalid")

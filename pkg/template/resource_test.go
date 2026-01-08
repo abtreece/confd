@@ -999,3 +999,275 @@ func TestReload_WithTemplateVariables(t *testing.T) {
 		t.Errorf("reload() with template variables unexpected error: %v", err)
 	}
 }
+
+func TestSetFileMode_DefaultMode(t *testing.T) {
+	tr := &TemplateResource{
+		Mode: "",
+		Dest: "/nonexistent/file/path",
+	}
+
+	err := tr.setFileMode()
+	if err != nil {
+		t.Errorf("setFileMode() unexpected error: %v", err)
+	}
+
+	// When dest doesn't exist and Mode is empty, should default to 0644
+	if tr.FileMode != 0644 {
+		t.Errorf("setFileMode() FileMode = %v, want 0644", tr.FileMode)
+	}
+}
+
+func TestSetFileMode_ExistingFile(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "confd-setfilemode-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	// Set a specific mode on the file
+	os.Chmod(tmpFile.Name(), 0755)
+
+	tr := &TemplateResource{
+		Mode: "",
+		Dest: tmpFile.Name(),
+	}
+
+	err = tr.setFileMode()
+	if err != nil {
+		t.Errorf("setFileMode() unexpected error: %v", err)
+	}
+
+	// Should inherit mode from existing file
+	if tr.FileMode != 0755 {
+		t.Errorf("setFileMode() FileMode = %v, want 0755", tr.FileMode)
+	}
+}
+
+func TestSetFileMode_ExplicitMode(t *testing.T) {
+	tr := &TemplateResource{
+		Mode: "0600",
+		Dest: "/tmp/test.conf",
+	}
+
+	err := tr.setFileMode()
+	if err != nil {
+		t.Errorf("setFileMode() unexpected error: %v", err)
+	}
+
+	if tr.FileMode != 0600 {
+		t.Errorf("setFileMode() FileMode = %v, want 0600", tr.FileMode)
+	}
+}
+
+func TestSetFileMode_OctalMode(t *testing.T) {
+	tr := &TemplateResource{
+		Mode: "0755",
+		Dest: "/tmp/test.conf",
+	}
+
+	err := tr.setFileMode()
+	if err != nil {
+		t.Errorf("setFileMode() unexpected error: %v", err)
+	}
+
+	if tr.FileMode != 0755 {
+		t.Errorf("setFileMode() FileMode = %v, want 0755", tr.FileMode)
+	}
+}
+
+func TestSetFileMode_InvalidMode(t *testing.T) {
+	tr := &TemplateResource{
+		Mode: "invalid",
+		Dest: "/tmp/test.conf",
+	}
+
+	err := tr.setFileMode()
+	if err == nil {
+		t.Error("setFileMode() expected error for invalid mode, got nil")
+	}
+}
+
+func TestSync_NoopMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Create a staged file with content
+	stagedFile, err := os.CreateTemp(tmpDir, "staged-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	stagedFile.WriteString("new content")
+	stagedFile.Sync()
+
+	// Create a dest file with different content
+	destFile := filepath.Join(tmpDir, "dest.conf")
+	os.WriteFile(destFile, []byte("old content"), 0644)
+
+	tr := &TemplateResource{
+		Dest:      destFile,
+		StageFile: stagedFile,
+		noop:      true,
+		FileMode:  0644,
+	}
+
+	err = tr.sync()
+	if err != nil {
+		t.Errorf("sync() unexpected error: %v", err)
+	}
+
+	// In noop mode, dest file should not be modified
+	content, _ := os.ReadFile(destFile)
+	if string(content) != "old content" {
+		t.Error("sync() in noop mode should not modify dest file")
+	}
+}
+
+func TestSync_ConfigInSync(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Create dest file
+	destFile := filepath.Join(tmpDir, "dest.conf")
+	os.WriteFile(destFile, []byte("same content"), 0644)
+
+	// Create staged file with same content
+	stagedFile, err := os.CreateTemp(tmpDir, "staged-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	stagedFile.WriteString("same content")
+	stagedFile.Sync()
+	os.Chmod(stagedFile.Name(), 0644)
+
+	tr := &TemplateResource{
+		Dest:      destFile,
+		StageFile: stagedFile,
+		noop:      false,
+		FileMode:  0644,
+	}
+
+	err = tr.sync()
+	if err != nil {
+		t.Errorf("sync() unexpected error: %v", err)
+	}
+}
+
+func TestSync_ConfigChanged(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Create dest file
+	destFile := filepath.Join(tmpDir, "dest.conf")
+	os.WriteFile(destFile, []byte("old content"), 0644)
+
+	// Create staged file with different content
+	stagedFile, err := os.CreateTemp(tmpDir, "staged-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	stagedFile.WriteString("new content")
+	stagedFile.Sync()
+	os.Chmod(stagedFile.Name(), 0644)
+
+	tr := &TemplateResource{
+		Dest:      destFile,
+		StageFile: stagedFile,
+		noop:      false,
+		syncOnly:  true,
+		FileMode:  0644,
+	}
+
+	err = tr.sync()
+	if err != nil {
+		t.Errorf("sync() unexpected error: %v", err)
+	}
+
+	// Dest file should be updated
+	content, _ := os.ReadFile(destFile)
+	if string(content) != "new content" {
+		t.Errorf("sync() dest content = %s, want 'new content'", string(content))
+	}
+}
+
+func TestSync_WithCheckCmd(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Create dest file
+	destFile := filepath.Join(tmpDir, "dest.conf")
+	os.WriteFile(destFile, []byte("old"), 0644)
+
+	// Create staged file with different content
+	stagedFile, err := os.CreateTemp(tmpDir, "staged-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	stagedFile.WriteString("new")
+	stagedFile.Sync()
+	os.Chmod(stagedFile.Name(), 0644)
+
+	tr := &TemplateResource{
+		Dest:      destFile,
+		StageFile: stagedFile,
+		CheckCmd:  "cat {{.src}}",
+		noop:      false,
+		syncOnly:  false,
+		FileMode:  0644,
+	}
+
+	err = tr.sync()
+	if err != nil {
+		t.Errorf("sync() unexpected error: %v", err)
+	}
+}
+
+func TestSync_CheckCmdFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Create dest file
+	destFile := filepath.Join(tmpDir, "dest.conf")
+	os.WriteFile(destFile, []byte("old"), 0644)
+
+	// Create staged file with different content
+	stagedFile, err := os.CreateTemp(tmpDir, "staged-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	stagedFile.WriteString("new")
+	stagedFile.Sync()
+	os.Chmod(stagedFile.Name(), 0644)
+
+	tr := &TemplateResource{
+		Dest:      destFile,
+		StageFile: stagedFile,
+		CheckCmd:  "exit 1",
+		noop:      false,
+		syncOnly:  false,
+		FileMode:  0644,
+	}
+
+	err = tr.sync()
+	if err == nil {
+		t.Error("sync() expected error when check command fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "Config check failed") {
+		t.Errorf("sync() error = %v, want error containing 'Config check failed'", err)
+	}
+}

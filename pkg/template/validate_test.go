@@ -584,3 +584,106 @@ keys = ["/test"]
 		}
 	})
 }
+
+func TestNewValidationFuncMap(t *testing.T) {
+	funcMap := newValidationFuncMap()
+
+	t.Run("getv without default", func(t *testing.T) {
+		fn := funcMap["getv"].(func(string, ...string) string)
+		result := fn("/some/key")
+		if result != "" {
+			t.Errorf("getv without default should return empty string, got %q", result)
+		}
+	})
+
+	t.Run("getv with default", func(t *testing.T) {
+		fn := funcMap["getv"].(func(string, ...string) string)
+		result := fn("/some/key", "default_value")
+		if result != "default_value" {
+			t.Errorf("getv with default should return default_value, got %q", result)
+		}
+	})
+
+	t.Run("gets returns empty slice", func(t *testing.T) {
+		fn := funcMap["gets"].(func(string) []string)
+		result := fn("/some/*")
+		if len(result) != 0 {
+			t.Errorf("gets should return empty slice, got %v", result)
+		}
+	})
+
+	t.Run("getvs returns empty slice", func(t *testing.T) {
+		fn := funcMap["getvs"].(func(string) []string)
+		result := fn("/some/*")
+		if len(result) != 0 {
+			t.Errorf("getvs should return empty slice, got %v", result)
+		}
+	})
+
+	t.Run("getenv without default", func(t *testing.T) {
+		fn := funcMap["getenv"].(func(string, ...string) string)
+		result := fn("SOME_VAR")
+		if result != "" {
+			t.Errorf("getenv without default should return empty string, got %q", result)
+		}
+	})
+
+	t.Run("getenv with default", func(t *testing.T) {
+		fn := funcMap["getenv"].(func(string, ...string) string)
+		result := fn("SOME_VAR", "fallback")
+		if result != "fallback" {
+			t.Errorf("getenv with default should return fallback, got %q", result)
+		}
+	})
+
+	t.Run("ls returns empty slice", func(t *testing.T) {
+		fn := funcMap["ls"].(func(string) []string)
+		result := fn("/some/dir")
+		if len(result) != 0 {
+			t.Errorf("ls should return empty slice, got %v", result)
+		}
+	})
+
+	t.Run("lsdir returns empty slice", func(t *testing.T) {
+		fn := funcMap["lsdir"].(func(string) []string)
+		result := fn("/some/dir")
+		if len(result) != 0 {
+			t.Errorf("lsdir should return empty slice, got %v", result)
+		}
+	})
+
+	t.Run("exists returns false", func(t *testing.T) {
+		fn := funcMap["exists"].(func(string) bool)
+		result := fn("/some/key")
+		if result != false {
+			t.Errorf("exists should return false, got %v", result)
+		}
+	})
+
+	t.Run("get returns nil", func(t *testing.T) {
+		fn := funcMap["get"].(func(string) interface{})
+		result := fn("/some/key")
+		if result != nil {
+			t.Errorf("get should return nil, got %v", result)
+		}
+	})
+
+	t.Run("getall returns empty map", func(t *testing.T) {
+		fn := funcMap["getall"].(func(string) map[string]string)
+		result := fn("/some/*")
+		if len(result) != 0 {
+			t.Errorf("getall should return empty map, got %v", result)
+		}
+	})
+
+	t.Run("include returns empty string", func(t *testing.T) {
+		fn := funcMap["include"].(func(string, ...interface{}) (string, error))
+		result, err := fn("somefile")
+		if err != nil {
+			t.Errorf("include should not return error, got %v", err)
+		}
+		if result != "" {
+			t.Errorf("include should return empty string, got %q", result)
+		}
+	})
+}
