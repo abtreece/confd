@@ -113,12 +113,11 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 
 	// Template cache settings (only apply if not set via CLI)
-	// Default to true for enabled, but TOML can explicitly set to false
+	// Note: We cannot distinguish between "not set" and "false" in TOML for booleans,
+	// so template_cache defaults to true. Users must use CLI flag --template-cache=false
+	// to explicitly disable the cache if TOML is not honored.
 	if cli.TemplateCacheEnabled == nil {
 		enabled := true // Default
-		// Note: TOML decodes false as the zero value, so we can't distinguish
-		// between "not set" and "set to false". We default to true.
-		// Users must explicitly set template_cache = false in TOML to disable.
 		cli.TemplateCacheEnabled = &enabled
 	}
 	if cli.TemplateCacheSize == 100 && tomlCfg.TemplateCacheSize != 0 {

@@ -169,8 +169,8 @@ func TestTemplateCacheDisabled(t *testing.T) {
 	if stats.Hits != 0 {
 		t.Errorf("expected 0 hits with disabled cache, got %d", stats.Hits)
 	}
-	if !stats.Enabled {
-		// This is correct - cache should report as disabled
+	if stats.Enabled {
+		t.Error("cache should report as disabled")
 	}
 }
 
