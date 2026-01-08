@@ -85,6 +85,10 @@ jobs:
           test/integration/env/test.sh
           test/integration/expect/check.sh
 
+      - name: Test Per-Resource Backend
+        run: |
+          test/integration/per-resource-backend/test.sh
+
       - name: Test File
         run: |
           test/integration/file/test_yaml.sh

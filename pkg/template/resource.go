@@ -36,6 +36,7 @@ type Config struct {
 // TemplateResourceConfig holds the parsed template resource.
 type TemplateResourceConfig struct {
 	TemplateResource TemplateResource `toml:"template"`
+	BackendConfig    *backends.Config `toml:"backend"`
 }
 
 // TemplateResource is the representation of a parsed template resource.
@@ -66,13 +67,9 @@ var ErrEmptySrc = errors.New("empty src template")
 
 // NewTemplateResource creates a TemplateResource.
 func NewTemplateResource(path string, config Config) (*TemplateResource, error) {
-	if config.StoreClient == nil {
-		return nil, errors.New("A valid StoreClient is required.")
-	}
-
 	// Set the default uid and gid so we can determine if it was
 	// unset from configuration.
-	tc := &TemplateResourceConfig{TemplateResource{Uid: -1, Gid: -1}}
+	tc := &TemplateResourceConfig{TemplateResource: TemplateResource{Uid: -1, Gid: -1}}
 
 	log.Debug("Loading template resource from %s", path)
 	_, err := toml.DecodeFile(path, &tc)
@@ -83,11 +80,27 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tr := tc.TemplateResource
 	tr.keepStageFile = config.KeepStageFile
 	tr.noop = config.Noop
-	tr.storeClient = config.StoreClient
 	tr.funcMap = newFuncMap()
 	tr.store = memkv.New()
 	tr.syncOnly = config.SyncOnly
 	addFuncs(tr.funcMap, tr.store.FuncMap)
+
+	// Determine which backend client to use:
+	// 1. Per-resource backend config takes precedence
+	// 2. Fall back to global StoreClient from config
+	// 3. Error if neither is available
+	if tc.BackendConfig != nil && tc.BackendConfig.Backend != "" {
+		log.Debug("Using per-resource backend: %s", tc.BackendConfig.Backend)
+		client, err := getOrCreateClient(*tc.BackendConfig)
+		if err != nil {
+			return nil, fmt.Errorf("Cannot create backend client for %s - %s", path, err.Error())
+		}
+		tr.storeClient = client
+	} else if config.StoreClient != nil {
+		tr.storeClient = config.StoreClient
+	} else {
+		return nil, errors.New("A valid StoreClient is required. Either configure a global backend or specify a [backend] section in the template resource.")
+	}
 
 	// Concatenate global config prefix with resource prefix.
 	// This allows hierarchical prefixes like /production/myapp where

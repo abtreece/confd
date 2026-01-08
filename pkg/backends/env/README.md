@@ -132,6 +132,29 @@ For periodic updates:
 confd env --interval 60
 ```
 
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own env backend configuration. This allows mixing backends within a single confd instance.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "myapp.conf.tmpl"
+dest = "/etc/myapp/config.conf"
+keys = [
+  "/myapp/database",
+]
+
+[backend]
+backend = "env"
+```
+
+Available backend options:
+- `backend` - Must be `"env"`
+
+The env backend has no additional configuration options.
+
 ## Use Cases
 
 The env backend is ideal for:

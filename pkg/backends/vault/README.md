@@ -178,6 +178,46 @@ confd vault --node https://vault.example.com:8200 \
 
 Watch mode is **not supported** for the Vault backend. Use interval mode (`--interval`) for periodic polling.
 
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own Vault backend configuration. This is especially useful for fetching secrets from Vault while using a different backend for application config.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "secrets.conf.tmpl"
+dest = "/etc/myapp/secrets.conf"
+mode = "0600"
+keys = [
+  "/secret/data/myapp",
+]
+
+[backend]
+backend = "vault"
+nodes = ["https://vault.example.com:8200"]
+auth_type = "approle"
+role_id = "my-role-id"
+secret_id = "my-secret-id"
+client_cakeys = "/path/to/ca.crt"
+```
+
+Available backend options:
+- `backend` - Must be `"vault"`
+- `nodes` - Array with Vault server address (only first is used)
+- `auth_type` - Authentication method: `token`, `app-role`, `kubernetes`, `userpass`, `github`, `cert`, `app-id`
+- `auth_token` - Token for token/github auth
+- `role_id` - Role ID for app-role auth, or role name for kubernetes auth
+- `secret_id` - Secret ID for app-role auth
+- `username` - Username for userpass auth
+- `password` - Password for userpass auth
+- `app_id` - App ID for app-id auth (deprecated)
+- `user_id` - User ID for app-id auth (deprecated)
+- `path` - Custom mount path for auth method
+- `client_cert` - Path to client certificate
+- `client_key` - Path to client private key
+- `client_cakeys` - Path to CA certificate
+
 ## KV Secrets Engine Versions
 
 The Vault backend automatically detects whether you're using KV v1 or KV v2 secrets engine and handles the path differences accordingly. Secrets are flattened to individual key-value pairs for use in templates.

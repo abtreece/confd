@@ -161,6 +161,43 @@ confd etcd --node http://127.0.0.1:2379 --watch
 
 When keys change in etcd, confd immediately detects the change and re-renders affected templates.
 
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own etcd backend configuration. This allows mixing backends within a single confd instance.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "myapp.conf.tmpl"
+dest = "/etc/myapp/config.conf"
+keys = [
+  "/myapp/database",
+]
+
+[backend]
+backend = "etcd"
+nodes = ["https://etcd.example.com:2379"]
+basic_auth = true
+username = "admin"
+password = "secret"
+client_cert = "/path/to/client.crt"
+client_key = "/path/to/client.key"
+client_cakeys = "/path/to/ca.crt"
+```
+
+Available backend options:
+- `backend` - Must be `"etcd"`
+- `nodes` - Array of etcd node addresses
+- `scheme` - `"http"` or `"https"`
+- `basic_auth` - Enable basic authentication
+- `username` - Username for basic auth
+- `password` - Password for basic auth
+- `client_cert` - Path to client certificate
+- `client_key` - Path to client private key
+- `client_cakeys` - Path to CA certificate
+- `client_insecure` - Skip TLS certificate verification
+
 ## Connection Behavior
 
 - **Dial timeout**: 5 seconds
