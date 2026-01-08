@@ -148,6 +148,17 @@ func (c *Client) watchChanges(watcher *fsnotify.Watcher, stopChan chan bool) Res
 	return <-outputChannel
 }
 
+// HealthCheck verifies the backend is healthy.
+// It checks that all configured files exist and are readable.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	for _, path := range c.filepath {
+		if _, err := os.Stat(path); err != nil {
+			return fmt.Errorf("file not accessible: %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	if waitIndex == 0 {
 		return 1, nil

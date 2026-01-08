@@ -229,6 +229,17 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 	return vars, nil
 }
 
+// HealthCheck verifies the backend connection is healthy.
+// It checks the status of the first etcd endpoint.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	endpoints := c.client.Endpoints()
+	if len(endpoints) == 0 {
+		return nil
+	}
+	_, err := c.client.Status(ctx, endpoints[0])
+	return err
+}
+
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	var err error
 

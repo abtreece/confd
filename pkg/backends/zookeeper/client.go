@@ -174,3 +174,10 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 		}
 	}
 }
+
+// HealthCheck verifies the backend connection is healthy.
+// It checks that the root path exists in Zookeeper.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	_, _, err := c.client.Exists("/")
+	return err
+}

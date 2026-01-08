@@ -139,3 +139,10 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	<-stopChan
 	return 0, nil
 }
+
+// HealthCheck verifies the backend connection is healthy.
+// It checks that the DynamoDB table exists and is accessible.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	_, err := c.client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: &c.table})
+	return err
+}

@@ -31,6 +31,11 @@ type CLI struct {
 	SRVDomain     string `name:"srv-domain" help:"DNS SRV domain"`
 	SRVRecord     string `name:"srv-record" help:"SRV record for backend node discovery"`
 
+	// Validation flags
+	CheckConfig bool   `name:"check-config" help:"validate configuration files and exit"`
+	Preflight   bool   `help:"run connectivity checks and exit"`
+	Resource    string `help:"specific resource file to validate (used with --check-config)"`
+
 	Version VersionFlag `help:"print version and exit"`
 
 	// Backend subcommands
@@ -306,6 +311,11 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		log.SetFormat(cli.LogFormat)
 	}
 
+	// Check-config mode: validate configuration and exit (no backend needed)
+	if cli.CheckConfig {
+		return template.ValidateConfig(cli.ConfDir, cli.Resource)
+	}
+
 	// Handle SRV record discovery
 	if cli.SRVDomain != "" && cli.SRVRecord == "" {
 		cli.SRVRecord = fmt.Sprintf("_%s._tcp.%s.", backendCfg.Backend, cli.SRVDomain)
@@ -343,6 +353,11 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		Prefix:        cli.Prefix,
 		SyncOnly:      cli.SyncOnly,
 		KeepStageFile: cli.KeepStageFile,
+	}
+
+	// Preflight mode: run connectivity checks and exit
+	if cli.Preflight {
+		return template.Preflight(tmplCfg)
 	}
 
 	// One-time mode

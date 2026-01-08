@@ -149,3 +149,16 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	<-stopChan
 	return 0, nil
 }
+
+// HealthCheck verifies the backend connection is healthy.
+// It attempts a simple operation to verify AWS credentials and connectivity.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	// Try to list parameters in root path to verify connectivity
+	// This may return empty results but will fail if credentials are invalid
+	_, err := c.client.GetParametersByPath(ctx, &ssm.GetParametersByPathInput{
+		Path:      aws.String("/"),
+		Recursive: aws.Bool(false),
+		MaxResults: aws.Int32(1),
+	})
+	return err
+}

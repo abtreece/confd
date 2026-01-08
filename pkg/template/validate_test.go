@@ -1,0 +1,308 @@
+package template
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestValidateResourceFile(t *testing.T) {
+	// Create temporary directory structure
+	tmpDir, err := os.MkdirTemp("", "confd-validate-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	confDir := filepath.Join(tmpDir, "conf.d")
+	templateDir := filepath.Join(tmpDir, "templates")
+	destDir := filepath.Join(tmpDir, "dest")
+
+	if err := os.MkdirAll(confDir, 0755); err != nil {
+		t.Fatalf("Failed to create conf.d: %v", err)
+	}
+	if err := os.MkdirAll(templateDir, 0755); err != nil {
+		t.Fatalf("Failed to create templates: %v", err)
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatalf("Failed to create dest: %v", err)
+	}
+
+	// Create a template file
+	templateFile := filepath.Join(templateDir, "test.tmpl")
+	if err := os.WriteFile(templateFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("Failed to create template file: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		content     string
+		expectError bool
+		errorFields []string
+	}{
+		{
+			name: "valid config",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+`,
+			expectError: false,
+		},
+		{
+			name: "missing src",
+			content: `[template]
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+`,
+			expectError: true,
+			errorFields: []string{"src"},
+		},
+		{
+			name: "missing dest",
+			content: `[template]
+src = "test.tmpl"
+keys = ["/app/test"]
+`,
+			expectError: true,
+			errorFields: []string{"dest"},
+		},
+		{
+			name: "missing keys",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+`,
+			expectError: true,
+			errorFields: []string{"keys"},
+		},
+		{
+			name: "invalid mode",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+mode = "invalid"
+`,
+			expectError: true,
+			errorFields: []string{"mode"},
+		},
+		{
+			name: "valid octal mode",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+mode = "0644"
+`,
+			expectError: false,
+		},
+		{
+			name: "template not found",
+			content: `[template]
+src = "nonexistent.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+`,
+			expectError: true,
+			errorFields: []string{"src"},
+		},
+		{
+			name: "dest dir not found",
+			content: `[template]
+src = "test.tmpl"
+dest = "/nonexistent/path/test.conf"
+keys = ["/app/test"]
+`,
+			expectError: true,
+			errorFields: []string{"dest"},
+		},
+		{
+			name: "empty key in array",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test", ""]
+`,
+			expectError: true,
+			errorFields: []string{"keys[1]"},
+		},
+		{
+			name: "valid config with backend section",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+
+[backend]
+backend = "env"
+`,
+			expectError: false,
+		},
+		{
+			name: "backend section missing backend type",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+
+[backend]
+nodes = ["127.0.0.1:8500"]
+`,
+			expectError: true,
+			errorFields: []string{"backend.backend"},
+		},
+		{
+			name: "unknown backend type",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+
+[backend]
+backend = "unknown"
+`,
+			expectError: true,
+			errorFields: []string{"backend.backend"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Write the test config file
+			configFile := filepath.Join(confDir, "test.toml")
+			if err := os.WriteFile(configFile, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+			defer os.Remove(configFile)
+
+			errs := validateResourceFile(configFile, templateDir)
+
+			if tt.expectError && len(errs) == 0 {
+				t.Error("Expected validation errors but got none")
+			}
+			if !tt.expectError && len(errs) > 0 {
+				t.Errorf("Expected no validation errors but got: %v", errs)
+			}
+
+			// Check that expected error fields are present
+			if tt.expectError {
+				for _, expectedField := range tt.errorFields {
+					found := false
+					for _, err := range errs {
+						if err.Field == expectedField {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("Expected error for field %q but didn't find one. Got errors: %v", expectedField, errs)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestValidateConfig(t *testing.T) {
+	// Create temporary directory structure
+	tmpDir, err := os.MkdirTemp("", "confd-validate-config-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	confDir := filepath.Join(tmpDir, "conf.d")
+	templateDir := filepath.Join(tmpDir, "templates")
+	destDir := filepath.Join(tmpDir, "dest")
+
+	if err := os.MkdirAll(confDir, 0755); err != nil {
+		t.Fatalf("Failed to create conf.d: %v", err)
+	}
+	if err := os.MkdirAll(templateDir, 0755); err != nil {
+		t.Fatalf("Failed to create templates: %v", err)
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatalf("Failed to create dest: %v", err)
+	}
+
+	// Create template files
+	if err := os.WriteFile(filepath.Join(templateDir, "valid.tmpl"), []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create template: %v", err)
+	}
+
+	t.Run("all configs valid", func(t *testing.T) {
+		// Write valid config
+		content := `[template]
+src = "valid.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+`
+		if err := os.WriteFile(filepath.Join(confDir, "valid.toml"), []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write config: %v", err)
+		}
+		defer os.Remove(filepath.Join(confDir, "valid.toml"))
+
+		err := ValidateConfig(tmpDir, "")
+		if err != nil {
+			t.Errorf("Expected no error but got: %v", err)
+		}
+	})
+
+	t.Run("specific resource file", func(t *testing.T) {
+		content := `[template]
+src = "valid.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+`
+		configFile := filepath.Join(confDir, "specific.toml")
+		if err := os.WriteFile(configFile, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write config: %v", err)
+		}
+		defer os.Remove(configFile)
+
+		err := ValidateConfig(tmpDir, "specific.toml")
+		if err != nil {
+			t.Errorf("Expected no error but got: %v", err)
+		}
+	})
+
+	t.Run("specific resource file not found", func(t *testing.T) {
+		err := ValidateConfig(tmpDir, "nonexistent.toml")
+		if err == nil {
+			t.Error("Expected error for nonexistent resource file")
+		}
+	})
+
+	t.Run("config dir not found", func(t *testing.T) {
+		err := ValidateConfig("/nonexistent/path", "")
+		if err == nil {
+			t.Error("Expected error for nonexistent config directory")
+		}
+	})
+}
+
+func TestValidationError(t *testing.T) {
+	t.Run("with field", func(t *testing.T) {
+		err := ValidationError{
+			File:    "/path/to/config.toml",
+			Field:   "src",
+			Message: "required field is missing",
+		}
+		expected := "/path/to/config.toml: src: required field is missing"
+		if err.Error() != expected {
+			t.Errorf("Expected %q, got %q", expected, err.Error())
+		}
+	})
+
+	t.Run("without field", func(t *testing.T) {
+		err := ValidationError{
+			File:    "/path/to/config.toml",
+			Message: "TOML parse error",
+		}
+		expected := "/path/to/config.toml: TOML parse error"
+		if err.Error() != expected {
+			t.Errorf("Expected %q, got %q", expected, err.Error())
+		}
+	})
+}

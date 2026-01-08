@@ -93,3 +93,10 @@ func (c *ConsulClient) WatchPrefix(ctx context.Context, prefix string, keys []st
 		return r.waitIndex, r.err
 	}
 }
+
+// HealthCheck verifies the backend connection is healthy.
+// It attempts a simple list operation to verify connectivity.
+func (c *ConsulClient) HealthCheck(ctx context.Context) error {
+	_, _, err := c.client.List("", nil)
+	return err
+}
