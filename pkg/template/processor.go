@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
 	util "github.com/abtreece/confd/pkg/util"
 )
 
@@ -285,5 +286,16 @@ func getTemplateResources(config Config) ([]*TemplateResource, error) {
 		}
 		templates = append(templates, t)
 	}
+	
+	// Update templates loaded metric
+	metrics.SetTemplatesLoaded(len(templates))
+	
+	// Update watched keys metric (sum of all keys across templates)
+	totalKeys := 0
+	for _, t := range templates {
+		totalKeys += len(t.Keys)
+	}
+	metrics.SetWatchedKeys(totalKeys)
+	
 	return templates, lastError
 }

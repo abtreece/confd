@@ -37,13 +37,16 @@ func New(config Config) (StoreClient, error) {
 	}
 	backendNodes := config.BackendNodes
 
+	var client StoreClient
+	var err error
+
 	switch config.Backend {
 	case "acm":
 		log.Info("Backend source(s) set to AWS ACM")
-		return acm.New(config.ACMExportPrivateKey)
+		client, err = acm.New(config.ACMExportPrivateKey)
 	case "consul":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return consul.New(config.BackendNodes, config.Scheme,
+		client, err = consul.New(config.BackendNodes, config.Scheme,
 			config.ClientCert, config.ClientKey,
 			config.ClientCaKeys,
 			config.BasicAuth,
@@ -52,18 +55,18 @@ func New(config Config) (StoreClient, error) {
 		)
 	case "etcd":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return etcd.NewEtcdClient(backendNodes, config.ClientCert, config.ClientKey, config.ClientCaKeys, config.ClientInsecure, config.BasicAuth, config.Username, config.Password)
+		client, err = etcd.NewEtcdClient(backendNodes, config.ClientCert, config.ClientKey, config.ClientCaKeys, config.ClientInsecure, config.BasicAuth, config.Username, config.Password)
 	case "zookeeper":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return zookeeper.NewZookeeperClient(backendNodes)
+		client, err = zookeeper.NewZookeeperClient(backendNodes)
 	case "redis":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return redis.NewRedisClient(backendNodes, config.ClientKey, config.Separator)
+		client, err = redis.NewRedisClient(backendNodes, config.ClientKey, config.Separator)
 	case "env":
-		return env.NewEnvClient()
+		client, err = env.NewEnvClient()
 	case "file":
 		log.Info("Backend source(s) set to %s", strings.Join(config.YAMLFile, ", "))
-		return file.NewFileClient(config.YAMLFile, config.Filter)
+		client, err = file.NewFileClient(config.YAMLFile, config.Filter)
 	case "vault":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		vaultConfig := map[string]string{
@@ -79,16 +82,24 @@ func New(config Config) (StoreClient, error) {
 			"caCert":    config.ClientCaKeys,
 			"path":      config.Path,
 		}
-		return vault.New(backendNodes[0], config.AuthType, vaultConfig)
+		client, err = vault.New(backendNodes[0], config.AuthType, vaultConfig)
 	case "dynamodb":
 		table := config.Table
 		log.Info("DynamoDB table set to %s", table)
-		return dynamodb.NewDynamoDBClient(table)
+		client, err = dynamodb.NewDynamoDBClient(table)
 	case "ssm":
-		return ssm.New()
+		client, err = ssm.New()
 	case "secretsmanager":
 		log.Info("Backend source(s) set to AWS Secrets Manager")
-		return secretsmanager.New(config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten)
+		client, err = secretsmanager.New(config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten)
+	default:
+		return nil, errors.New("invalid backend")
 	}
-	return nil, errors.New("invalid backend")
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Wrap client with metrics collection
+	return NewWithMetrics(config.Backend, client), nil
 }

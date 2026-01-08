@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/abtreece/confd/pkg/template"
 	"github.com/alecthomas/kong"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // CLI is the root command structure
@@ -47,6 +49,9 @@ type CLI struct {
 	// Watch mode flags
 	DebounceStr      string `name:"debounce" help:"debounce duration for watch mode (e.g., 2s, 500ms)"`
 	BatchIntervalStr string `name:"batch-interval" help:"batch processing interval for watch mode (e.g., 5s)"`
+
+	// Metrics flags
+	MetricsAddr string `name:"metrics-addr" help:"address to serve Prometheus metrics (e.g., :9100)"`
 
 	Version VersionFlag `help:"print version and exit"`
 
@@ -354,6 +359,11 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	log.Info("Starting confd")
 	log.Info("Backend set to %s", backendCfg.Backend)
 
+	// Start metrics server if enabled
+	if cli.MetricsAddr != "" {
+		go startMetricsServer(cli.MetricsAddr)
+	}
+
 	// Create store client
 	storeClient, err := backends.New(backendCfg)
 	if err != nil {
@@ -438,3 +448,34 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		}
 	}
 }
+
+// startMetricsServer starts the HTTP server for Prometheus metrics
+func startMetricsServer(addr string) {
+	mux := http.NewServeMux()
+	
+	// Prometheus metrics endpoint
+	mux.Handle("/metrics", promhttp.Handler())
+	
+	// Health endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+	
+	// Readiness endpoint
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Ready"))
+	})
+	
+	log.Info("Starting metrics server on %s", addr)
+	server := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+	
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Error("Metrics server error: %s", err.Error())
+	}
+}
+

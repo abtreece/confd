@@ -19,6 +19,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
 	util "github.com/abtreece/confd/pkg/util"
 	"github.com/kelseyhightower/memkv"
 )
@@ -319,6 +320,7 @@ func (t *TemplateResource) sync() error {
 		log.Info("Target config %s out of sync", t.Dest)
 		if !t.syncOnly && t.CheckCmd != "" {
 			if err := t.check(); err != nil {
+				metrics.RecordConfigSync(t.Dest, false)
 				return errors.New("Config check failed: " + err.Error())
 			}
 		}
@@ -332,24 +334,29 @@ func (t *TemplateResource) sync() error {
 				var rerr error
 				contents, rerr = os.ReadFile(staged)
 				if rerr != nil {
+					metrics.RecordConfigSync(t.Dest, false)
 					return rerr
 				}
 				err := os.WriteFile(t.Dest, contents, t.FileMode)
 				// make sure owner and group match the temp file, in case the file was created with WriteFile
 				os.Chown(t.Dest, t.Uid, t.Gid)
 				if err != nil {
+					metrics.RecordConfigSync(t.Dest, false)
 					return err
 				}
 			} else {
+				metrics.RecordConfigSync(t.Dest, false)
 				return err
 			}
 		}
 		if !t.syncOnly && t.ReloadCmd != "" {
 			if err := t.reload(); err != nil {
+				metrics.RecordConfigSync(t.Dest, false)
 				return err
 			}
 		}
 		log.Info("Target config %s has been updated", t.Dest)
+		metrics.RecordConfigSync(t.Dest, true)
 	} else {
 		log.Debug("Target config %s in sync", t.Dest)
 	}
@@ -385,6 +392,8 @@ func (t *TemplateResource) check() error {
 // If min_reload_interval is set and not enough time has passed since the last
 // reload, the reload is skipped and a warning is logged.
 func (t *TemplateResource) reload() error {
+	start := time.Now()
+	
 	// Check rate limiting
 	if t.minReloadIntervalDur > 0 && !t.lastReloadTime.IsZero() {
 		elapsed := time.Since(t.lastReloadTime)
@@ -401,18 +410,22 @@ func (t *TemplateResource) reload() error {
 	data["dest"] = t.Dest
 	tmpl, err := template.New("reloadcmd").Parse(t.ReloadCmd)
 	if err != nil {
+		metrics.RecordReload(t.Dest, false, time.Since(start).Seconds())
 		return err
 	}
 	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
+		metrics.RecordReload(t.Dest, false, time.Since(start).Seconds())
 		return err
 	}
 
 	if err := runCommand(cmdBuffer.String()); err != nil {
+		metrics.RecordReload(t.Dest, false, time.Since(start).Seconds())
 		return err
 	}
 
 	// Update last reload time on success
 	t.lastReloadTime = time.Now()
+	metrics.RecordReload(t.Dest, true, time.Since(start).Seconds())
 	return nil
 }
 
@@ -444,16 +457,24 @@ func runCommand(cmd string) error {
 // things up.
 // It returns an error if any.
 func (t *TemplateResource) process() error {
-	if err := t.setFileMode(); err != nil {
+	start := time.Now()
+	var err error
+	
+	defer func() {
+		duration := time.Since(start).Seconds()
+		metrics.RecordTemplateRender(t.Dest, err == nil, duration)
+	}()
+	
+	if err = t.setFileMode(); err != nil {
 		return err
 	}
-	if err := t.setVars(); err != nil {
+	if err = t.setVars(); err != nil {
 		return err
 	}
-	if err := t.createStageFile(); err != nil {
+	if err = t.createStageFile(); err != nil {
 		return err
 	}
-	if err := t.sync(); err != nil {
+	if err = t.sync(); err != nil {
 		return err
 	}
 	return nil
