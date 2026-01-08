@@ -50,6 +50,10 @@ type TOMLConfig struct {
 	ACMExportPrivateKey          bool   `toml:"acm_export_private_key"`
 	SecretsManagerVersionStage   string `toml:"secretsmanager_version_stage"`
 	SecretsManagerNoFlatten      bool   `toml:"secretsmanager_no_flatten"`
+
+	// Graceful shutdown settings
+	ShutdownTimeout int    `toml:"shutdown_timeout"`
+	ShutdownCleanup string `toml:"shutdown_cleanup"`
 }
 
 // loadConfigFile loads the TOML config file and applies defaults to CLI and backend config
@@ -105,6 +109,12 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if cli.SRVRecord == "" && tomlCfg.SRVRecord != "" {
 		cli.SRVRecord = tomlCfg.SRVRecord
+	}
+	if cli.ShutdownTimeout == 15 && tomlCfg.ShutdownTimeout != 0 {
+		cli.ShutdownTimeout = tomlCfg.ShutdownTimeout
+	}
+	if cli.ShutdownCleanup == "" && tomlCfg.ShutdownCleanup != "" {
+		cli.ShutdownCleanup = tomlCfg.ShutdownCleanup
 	}
 
 	// Backend settings (only apply if not already set via CLI)

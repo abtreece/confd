@@ -47,6 +47,8 @@ Flags:
       --color                   colorize diff output
       --debounce=STRING         debounce duration for watch mode
       --batch-interval=STRING   batch processing interval for watch mode
+      --shutdown-timeout=15     graceful shutdown timeout in seconds
+      --shutdown-cleanup=STRING cleanup script to run on shutdown
       --version                 print version and exit
 
 Commands:
@@ -330,6 +332,63 @@ confd --watch --batch-interval 5s consul
 **Debounce vs Batch Processing:**
 - `--debounce`: Per-template, waits for individual template changes to settle
 - `--batch-interval`: Global, collects all changes and processes them together
+
+## Shutdown Flags
+
+### --shutdown-timeout
+
+Sets the graceful shutdown timeout in seconds (default: 15). When confd receives SIGTERM or SIGINT, it will wait up to this duration for in-flight operations to complete before forcing termination.
+
+```bash
+# Allow 30 seconds for graceful shutdown
+confd --shutdown-timeout 30 --watch consul
+```
+
+During graceful shutdown, confd will:
+1. Stop accepting new events
+2. Wait for in-flight template processing and reload commands to complete
+3. Execute cleanup hooks (if configured)
+4. Exit cleanly
+
+If the timeout is exceeded, confd logs a warning and forces termination.
+
+### --shutdown-cleanup
+
+Specifies a cleanup script to execute during the shutdown sequence:
+
+```bash
+confd --shutdown-cleanup /etc/confd/scripts/cleanup.sh consul
+```
+
+The cleanup script is useful for tasks such as:
+- Deregistering from load balancers
+- Updating status files
+- Gracefully closing connections
+- Saving state
+
+The cleanup script has a 30-second execution timeout.
+
+### Signal Handling
+
+- **SIGTERM / SIGINT**: Graceful shutdown with configured timeout
+- **SIGQUIT**: Immediate forced shutdown
+
+### Kubernetes Example
+
+When running in Kubernetes, ensure the pod's `terminationGracePeriodSeconds` is greater than `shutdown-timeout`:
+
+```bash
+# Use 30-second shutdown timeout
+confd --shutdown-timeout 30 \
+      --shutdown-cleanup /etc/confd/k8s-cleanup.sh \
+      --watch consul
+```
+
+```yaml
+# Pod spec with matching grace period
+spec:
+  terminationGracePeriodSeconds: 45  # Greater than 30
+```
 
 ## Environment Variables
 

@@ -3,14 +3,13 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
-	"syscall"
 	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/shutdown"
 	"github.com/abtreece/confd/pkg/template"
 	"github.com/alecthomas/kong"
 )
@@ -47,6 +46,10 @@ type CLI struct {
 	// Watch mode flags
 	DebounceStr      string `name:"debounce" help:"debounce duration for watch mode (e.g., 2s, 500ms)"`
 	BatchIntervalStr string `name:"batch-interval" help:"batch processing interval for watch mode (e.g., 5s)"`
+
+	// Shutdown flags
+	ShutdownTimeout int    `name:"shutdown-timeout" help:"graceful shutdown timeout in seconds" default:"15"`
+	ShutdownCleanup string `name:"shutdown-cleanup" help:"cleanup script to run on shutdown"`
 
 	Version VersionFlag `help:"print version and exit"`
 
@@ -422,19 +425,27 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		processor = template.IntervalProcessor(tmplCfg, stopChan, doneChan, errChan, cli.Interval)
 	}
 
+	// Create and start shutdown manager
+	shutdownMgr := shutdown.New(shutdown.Config{
+		Timeout:       time.Duration(cli.ShutdownTimeout) * time.Second,
+		CleanupScript: cli.ShutdownCleanup,
+		StopChan:      stopChan,
+		DoneChan:      doneChan,
+		ErrChan:       errChan,
+	})
+
+	if err := shutdownMgr.Start(); err != nil {
+		return fmt.Errorf("failed to start shutdown manager: %w", err)
+	}
+
 	go processor.Process()
 
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	for {
-		select {
-		case err := <-errChan:
-			log.Error("%s", err.Error())
-		case s := <-signalChan:
-			log.Info("Captured %v. Exiting...", s)
-			close(doneChan)
-		case <-doneChan:
-			return nil
-		}
+	// Wait for completion or error
+	select {
+	case err := <-errChan:
+		return fmt.Errorf("processor error: %w", err)
+	case <-doneChan:
+		log.Info("Process completed successfully")
+		return nil
 	}
 }

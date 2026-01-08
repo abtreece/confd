@@ -37,6 +37,8 @@ Optional:
 * `file` (array of strings) - The YAML file to watch for changes (file backend only).
 * `filter` (string) - Files filter (file backend only) (default "*").
 * `path` (string) - Vault mount path of the auth method (vault backend only).
+* `shutdown_timeout` (int) - Graceful shutdown timeout in seconds. (15)
+* `shutdown_cleanup` (string) - Path to cleanup script to execute during shutdown.
 
 Example:
 
@@ -54,4 +56,79 @@ noop = false
 prefix = "/production"
 scheme = "https"
 srv_domain = "etcd.example.com"
+```
+
+## Graceful Shutdown Configuration
+
+Confd supports graceful shutdown to ensure in-flight operations complete before the application terminates. This is particularly useful in orchestrated environments like Kubernetes.
+
+### shutdown_timeout (default: 15)
+
+Maximum time in seconds to wait for graceful shutdown before forcing termination. When a SIGTERM or SIGINT signal is received, confd will:
+
+1. Stop accepting new events
+2. Wait for in-flight template processing and reload commands to complete
+3. Execute cleanup hooks (if configured)
+4. Exit cleanly
+
+If the shutdown timeout is exceeded, confd will log a warning and force termination.
+
+```toml
+shutdown_timeout = 30  # Wait up to 30 seconds for graceful shutdown
+```
+
+### shutdown_cleanup
+
+Path to a script that will be executed during the shutdown sequence. This is useful for cleanup tasks such as deregistering services, updating status, or saving state.
+
+The cleanup script will be executed with a 30-second timeout. If the script fails or times out, the error will be logged but shutdown will continue.
+
+```toml
+shutdown_cleanup = "/etc/confd/scripts/cleanup.sh"
+```
+
+Example cleanup script:
+
+```bash
+#!/bin/bash
+# Deregister from load balancer
+curl -X DELETE http://lb.example.com/api/nodes/$(hostname)
+
+# Update status file
+echo "shutdown" > /var/run/confd/status
+```
+
+### Signal Handling
+
+Confd handles different signals with specific behaviors:
+
+- **SIGTERM / SIGINT**: Initiates graceful shutdown with the configured timeout
+- **SIGQUIT**: Forces immediate shutdown without waiting for operations to complete
+
+### Kubernetes Integration
+
+When running in Kubernetes, ensure the pod's `terminationGracePeriodSeconds` is greater than `shutdown_timeout` to allow confd to complete graceful shutdown before the pod is forcibly killed.
+
+Example Kubernetes pod spec:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp
+spec:
+  terminationGracePeriodSeconds: 45  # Greater than shutdown_timeout
+  containers:
+  - name: confd
+    image: confd:latest
+    # ...
+```
+
+Example configuration for Kubernetes:
+
+```toml
+backend = "etcd"
+watch = true
+shutdown_timeout = 30
+shutdown_cleanup = "/etc/confd/scripts/k8s-cleanup.sh"
 ```

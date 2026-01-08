@@ -13,6 +13,15 @@
   [vault](https://vaultproject.io), [zookeeper](https://zookeeper.apache.org), [aws ssm parameter store](https://aws.amazon.com/ec2/systems-manager/), [aws secrets manager](https://aws.amazon.com/secrets-manager/), [aws acm](https://aws.amazon.com/certificate-manager/), or env vars and processing [template resources](docs/template-resources.md).
 * reloading applications to pick up new config file changes
 
+## Features
+
+* **Multiple backend support**: etcd, Consul, Vault, DynamoDB, Redis, ZooKeeper, AWS SSM, AWS Secrets Manager, AWS ACM, environment variables, and file-based
+* **Watch mode**: Continuously monitor backends for changes
+* **Batch processing**: Collect and process multiple changes together
+* **Configuration validation**: Validate templates and configuration before deployment
+* **Graceful shutdown**: Ensure in-flight operations complete before termination (ideal for Kubernetes and orchestrated environments)
+* **Template functions**: Rich set of template functions for configuration generation
+
 ## Building
 
 Go 1.24+ is required to build confd.
