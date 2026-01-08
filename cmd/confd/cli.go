@@ -470,8 +470,11 @@ func startMetricsServer(addr string) {
 	
 	log.Info("Starting metrics server on %s", addr)
 	server := &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 	
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
