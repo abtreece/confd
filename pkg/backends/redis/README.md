@@ -200,6 +200,33 @@ notify-keyspace-events AKE
 
 confd watches for these events: `set`, `del`, `append`, `rename_from`, `rename_to`, `expire`, `incrby`, `incrbyfloat`, `hset`, `hincrby`, `hincrbyfloat`, `hdel`.
 
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own Redis backend configuration. This allows mixing backends within a single confd instance.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "myapp.conf.tmpl"
+dest = "/etc/myapp/config.conf"
+keys = [
+  "/myapp/database",
+]
+
+[backend]
+backend = "redis"
+nodes = ["redis.example.com:6379"]
+client_key = "secretpassword"
+separator = ":"
+```
+
+Available backend options:
+- `backend` - Must be `"redis"`
+- `nodes` - Array of Redis server addresses (host:port or socket path)
+- `client_key` - Redis password
+- `separator` - Character to replace `/` in keys (default: `/`)
+
 ## Connection Behavior
 
 - **Connection timeout**: 1 second

@@ -178,6 +178,29 @@ ZooKeeper uses a hierarchical namespace similar to a filesystem:
 - **Leaf znodes** (no children) store the actual configuration values
 - **Parent znodes** are traversed recursively to find all values
 
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own ZooKeeper backend configuration. This allows mixing backends within a single confd instance.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "myapp.conf.tmpl"
+dest = "/etc/myapp/config.conf"
+keys = [
+  "/myapp/database",
+]
+
+[backend]
+backend = "zookeeper"
+nodes = ["zk1.example.com:2181", "zk2.example.com:2181", "zk3.example.com:2181"]
+```
+
+Available backend options:
+- `backend` - Must be `"zookeeper"`
+- `nodes` - Array of ZooKeeper server addresses
+
 ## Connection Behavior
 
 - **Session timeout**: 1 second

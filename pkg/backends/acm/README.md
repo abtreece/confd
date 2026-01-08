@@ -219,6 +219,32 @@ confd acm --interval 3600
 
 Certificates typically don't change frequently, so longer intervals (e.g., hourly) are usually sufficient.
 
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own ACM backend configuration. This allows mixing backends within a single confd instance.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "certificate.tmpl"
+dest = "/etc/ssl/certs/app-cert.pem"
+mode = "0644"
+keys = [
+  "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012",
+]
+
+[backend]
+backend = "acm"
+acm_export_private_key = true
+```
+
+Available backend options:
+- `backend` - Must be `"acm"`
+- `acm_export_private_key` - Enable private key export (default: `false`)
+
+Note: AWS credentials are still read from the environment or IAM role. The `ACM_PASSPHRASE` environment variable is required when exporting private keys.
+
 ## Security Considerations
 
 1. **Private Key Protection**: When exporting private keys, ensure the passphrase is stored securely (e.g., in Kubernetes Secrets or AWS Secrets Manager)

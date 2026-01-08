@@ -184,6 +184,40 @@ confd consul --node 127.0.0.1:8500 --watch
 
 Consul blocking queries long-poll the server, returning immediately when data changes. This provides near-real-time updates without constant polling.
 
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own Consul backend configuration. This allows mixing backends within a single confd instance.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "myapp.conf.tmpl"
+dest = "/etc/myapp/config.conf"
+keys = [
+  "/myapp/database",
+]
+
+[backend]
+backend = "consul"
+nodes = ["consul.example.com:8500"]
+scheme = "https"
+basic_auth = true
+username = "admin"
+password = "secret"
+```
+
+Available backend options:
+- `backend` - Must be `"consul"`
+- `nodes` - Array of Consul agent addresses
+- `scheme` - `"http"` or `"https"`
+- `basic_auth` - Enable HTTP basic authentication
+- `username` - Username for basic auth
+- `password` - Password for basic auth
+- `client_cert` - Path to client certificate
+- `client_key` - Path to client private key
+- `client_cakeys` - Path to CA certificate
+
 ## Connection Notes
 
 - Only the first `--node` is used; Consul client does not support multiple nodes

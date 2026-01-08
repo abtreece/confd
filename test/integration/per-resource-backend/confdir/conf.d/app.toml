@@ -1,0 +1,7 @@
+# This template uses the global backend (env)
+[template]
+src = "app.conf.tmpl"
+dest = "/tmp/confd-per-resource-app.conf"
+keys = [
+  "/app/config",
+]

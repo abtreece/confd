@@ -183,6 +183,31 @@ server {{.Key}} = {{.Value}}
 {{end}}
 ```
 
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own file backend configuration. This allows mixing backends within a single confd instance.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "myapp.conf.tmpl"
+dest = "/etc/myapp/config.conf"
+keys = [
+  "/myapp/database",
+]
+
+[backend]
+backend = "file"
+file = ["/etc/myapp/values.yaml", "/etc/myapp/overrides.yaml"]
+filter = "*.yaml"
+```
+
+Available backend options:
+- `backend` - Must be `"file"`
+- `file` - Array of file or directory paths
+- `filter` - Glob pattern to filter files (default: `*`)
+
 ## Use Cases
 
 The file backend is ideal for:

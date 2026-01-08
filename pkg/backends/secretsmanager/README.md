@@ -237,3 +237,31 @@ Becomes:
 - `/myapp/database/host` = `db.example.com`
 - `/myapp/database/port` = `5432`
 - `/myapp/database/ssl` = `true`
+
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own Secrets Manager backend configuration. This is especially useful for fetching secrets while using a different backend for application config.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "secrets.conf.tmpl"
+dest = "/etc/myapp/secrets.conf"
+mode = "0600"
+keys = [
+  "/myapp/database",
+]
+
+[backend]
+backend = "secretsmanager"
+secretsmanager_version_stage = "AWSCURRENT"
+secretsmanager_no_flatten = false
+```
+
+Available backend options:
+- `backend` - Must be `"secretsmanager"`
+- `secretsmanager_version_stage` - Version stage (default: `AWSCURRENT`)
+- `secretsmanager_no_flatten` - Disable JSON flattening (default: `false`)
+
+Note: AWS credentials are still read from the environment or IAM role.

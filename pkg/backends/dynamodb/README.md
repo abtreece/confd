@@ -196,6 +196,31 @@ Watch mode is **not supported** for the DynamoDB backend. Use interval mode (`--
 confd dynamodb --table confd-config --interval 60
 ```
 
+## Per-Resource Backend Configuration
+
+Instead of using the global backend, individual template resources can specify their own DynamoDB backend configuration. This allows mixing backends within a single confd instance.
+
+Add a `[backend]` section to your template resource file:
+
+```toml
+[template]
+src = "myapp.conf.tmpl"
+dest = "/etc/myapp/config.conf"
+keys = [
+  "/myapp/database",
+]
+
+[backend]
+backend = "dynamodb"
+table = "my-config-table"
+```
+
+Available backend options:
+- `backend` - Must be `"dynamodb"`
+- `table` - DynamoDB table name
+
+Note: AWS credentials are still read from the environment or IAM role.
+
 ## Data Retrieval Behavior
 
 1. **Exact key lookup**: First attempts to get the item by exact key match
