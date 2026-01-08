@@ -37,6 +37,16 @@ Flags:
       --keep-stage-file         keep staged files
       --srv-domain=STRING       DNS SRV domain
       --srv-record=STRING       SRV record for backend node discovery
+      --check-config            validate configuration files and exit
+      --preflight               run connectivity checks and exit
+      --validate                validate templates without processing
+      --mock-data=STRING        JSON file with mock data for validation
+      --resource=STRING         specific resource file to validate
+      --diff                    show diff output in noop mode
+      --diff-context=3          lines of context for diff
+      --color                   colorize diff output
+      --debounce=STRING         debounce duration for watch mode
+      --batch-interval=STRING   batch processing interval for watch mode
       --version                 print version and exit
 
 Commands:
@@ -230,6 +240,96 @@ confd env --onetime
 ```bash
 confd file --file /etc/myapp/config.yaml --watch
 ```
+
+## Validation Flags
+
+These flags help validate your configuration without making changes:
+
+### --check-config
+
+Validates all template resource TOML files and exits. Checks for:
+- Valid TOML syntax
+- Required fields (src, dest, keys)
+- Valid file mode format
+- Template file existence
+- Destination directory existence
+- Valid backend configuration (if specified)
+- Valid duration formats for min_reload_interval and debounce
+
+```bash
+confd --check-config consul
+```
+
+### --preflight
+
+Runs connectivity checks against the backend and exits. Verifies:
+- Backend is reachable
+- Authentication is valid
+- Keys referenced in templates are accessible
+
+```bash
+confd --preflight consul --node 127.0.0.1:8500
+```
+
+### --validate
+
+Validates template syntax without processing. Can be combined with `--mock-data` to test template rendering:
+
+```bash
+# Syntax check only
+confd --validate consul
+
+# With mock data for full validation
+confd --validate --mock-data /path/to/mock.json consul
+```
+
+### --resource
+
+Validates a specific resource file instead of all resources:
+
+```bash
+confd --check-config --resource nginx.toml consul
+confd --validate --resource nginx.toml consul
+```
+
+## Dry-Run and Diff Flags
+
+### --noop with --diff
+
+Shows what changes would be made without applying them:
+
+```bash
+# Show pending changes with unified diff
+confd --noop --diff consul
+
+# With context lines (default: 3)
+confd --noop --diff --diff-context 5 consul
+
+# With colorized output
+confd --noop --diff --color consul
+```
+
+## Watch Mode Flags
+
+### --debounce
+
+Sets a global debounce duration for watch mode. After detecting a change, confd waits this duration before processing. Additional changes reset the timer:
+
+```bash
+confd --watch --debounce 2s consul
+```
+
+### --batch-interval
+
+Enables batch processing mode. Changes from all templates are collected and processed together after the interval:
+
+```bash
+confd --watch --batch-interval 5s consul
+```
+
+**Debounce vs Batch Processing:**
+- `--debounce`: Per-template, waits for individual template changes to settle
+- `--batch-interval`: Global, collects all changes and processes them together
 
 ## Environment Variables
 
