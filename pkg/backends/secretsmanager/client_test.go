@@ -352,3 +352,57 @@ func TestWatchPrefix(t *testing.T) {
 		t.Errorf("WatchPrefix() index = %d, want 0", index)
 	}
 }
+
+func TestHealthCheck_Success_NotFound(t *testing.T) {
+	// HealthCheck considers ResourceNotFoundException as success (connectivity is working)
+	mock := &mockSecretsManager{
+		getSecretValueFunc: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+			return nil, &types.ResourceNotFoundException{}
+		},
+	}
+
+	client := newTestClient(mock, "", false)
+
+	err := client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_Success_SecretExists(t *testing.T) {
+	// If the secret somehow exists, it's still a success
+	mock := &mockSecretsManager{
+		getSecretValueFunc: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+			return &secretsmanager.GetSecretValueOutput{
+				SecretString: aws.String("unexpected"),
+			}, nil
+		},
+	}
+
+	client := newTestClient(mock, "", false)
+
+	err := client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_Error(t *testing.T) {
+	// Non-NotFound errors should be returned
+	expectedErr := errors.New("access denied")
+	mock := &mockSecretsManager{
+		getSecretValueFunc: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+			return nil, expectedErr
+		},
+	}
+
+	client := newTestClient(mock, "", false)
+
+	err := client.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("HealthCheck() expected error, got nil")
+	}
+	if err != expectedErr {
+		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
+	}
+}

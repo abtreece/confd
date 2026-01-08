@@ -530,5 +530,39 @@ func TestWatch_Cancel(t *testing.T) {
 	}
 }
 
+func TestHealthCheck_Success(t *testing.T) {
+	mock := &mockZkConn{
+		existsFunc: func(path string) (bool, *zk.Stat, error) {
+			return true, &zk.Stat{}, nil
+		},
+	}
+
+	client := &Client{client: mock}
+
+	err := client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_Error(t *testing.T) {
+	expectedErr := errors.New("connection lost")
+	mock := &mockZkConn{
+		existsFunc: func(path string) (bool, *zk.Stat, error) {
+			return false, nil, expectedErr
+		},
+	}
+
+	client := &Client{client: mock}
+
+	err := client.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("HealthCheck() expected error, got nil")
+	}
+	if err != expectedErr {
+		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
+	}
+}
+
 // Note: Full integration tests require a running Zookeeper instance.
 // These are covered by integration tests in .github/workflows/integration-tests.yml

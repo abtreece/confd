@@ -303,3 +303,37 @@ func TestNew_WithHTTPS(t *testing.T) {
 // Note: TLS configuration tests with valid certificates require integration tests
 // as the Consul SDK validates certificate content. The basic New() tests above
 // cover the config setup paths that don't require certificate validation.
+
+func TestHealthCheck_Success(t *testing.T) {
+	mock := &mockConsulKV{
+		listFunc: func(prefix string, q *api.QueryOptions) (api.KVPairs, *api.QueryMeta, error) {
+			return nil, &api.QueryMeta{}, nil
+		},
+	}
+
+	client := newTestClient(mock)
+
+	err := client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_Error(t *testing.T) {
+	expectedErr := errors.New("connection refused")
+	mock := &mockConsulKV{
+		listFunc: func(prefix string, q *api.QueryOptions) (api.KVPairs, *api.QueryMeta, error) {
+			return nil, nil, expectedErr
+		},
+	}
+
+	client := newTestClient(mock)
+
+	err := client.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("HealthCheck() expected error, got nil")
+	}
+	if err != expectedErr {
+		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
+	}
+}

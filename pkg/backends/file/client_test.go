@@ -430,6 +430,67 @@ func TestWatchPrefix_StopChannel(t *testing.T) {
 	}
 }
 
+func TestHealthCheck_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlFile := filepath.Join(tmpDir, "config.yaml")
+
+	if err := os.WriteFile(yamlFile, []byte("key: value"), 0644); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	client, _ := NewFileClient([]string{yamlFile}, "")
+
+	err := client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_MissingFile(t *testing.T) {
+	client, _ := NewFileClient([]string{"/nonexistent/file.yaml"}, "")
+
+	err := client.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("HealthCheck() expected error for missing file, got nil")
+	}
+}
+
+func TestHealthCheck_MultipleFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	file1 := filepath.Join(tmpDir, "file1.yaml")
+	file2 := filepath.Join(tmpDir, "file2.yaml")
+
+	if err := os.WriteFile(file1, []byte("key1: value1"), 0644); err != nil {
+		t.Fatalf("Failed to write file1: %v", err)
+	}
+	if err := os.WriteFile(file2, []byte("key2: value2"), 0644); err != nil {
+		t.Fatalf("Failed to write file2: %v", err)
+	}
+
+	client, _ := NewFileClient([]string{file1, file2}, "")
+
+	err := client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_PartialMissingFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	existingFile := filepath.Join(tmpDir, "exists.yaml")
+
+	if err := os.WriteFile(existingFile, []byte("key: value"), 0644); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	client, _ := NewFileClient([]string{existingFile, "/nonexistent/file.yaml"}, "")
+
+	err := client.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("HealthCheck() expected error when one file is missing, got nil")
+	}
+}
+
 func TestNodeWalk(t *testing.T) {
 	tests := []struct {
 		name     string

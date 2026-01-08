@@ -297,3 +297,37 @@ func TestWatchPrefix(t *testing.T) {
 		t.Errorf("WatchPrefix() index = %d, want 0", index)
 	}
 }
+
+func TestHealthCheck_Success(t *testing.T) {
+	mock := &mockDynamoDB{
+		describeTableFunc: func(ctx context.Context, input *dynamodb.DescribeTableInput, opts ...func(*dynamodb.Options)) (*dynamodb.DescribeTableOutput, error) {
+			return &dynamodb.DescribeTableOutput{}, nil
+		},
+	}
+
+	client := newTestClient(mock, "test-table")
+
+	err := client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_Error(t *testing.T) {
+	expectedErr := errors.New("table not found")
+	mock := &mockDynamoDB{
+		describeTableFunc: func(ctx context.Context, input *dynamodb.DescribeTableInput, opts ...func(*dynamodb.Options)) (*dynamodb.DescribeTableOutput, error) {
+			return nil, expectedErr
+		},
+	}
+
+	client := newTestClient(mock, "test-table")
+
+	err := client.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("HealthCheck() expected error, got nil")
+	}
+	if err != expectedErr {
+		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
+	}
+}
