@@ -342,6 +342,57 @@ Wrapper for [os.Hostname](https://golang.org/pkg/os/#Hostname). Retrieves the va
 hostname: {{ hostname }}
 ```
 
+### include
+
+Includes another template file. The included template has access to all the same functions and can also use `include` for nested includes (up to 10 levels deep). Cycle detection prevents infinite loops.
+
+```
+{{ include "header.tmpl" }}
+```
+
+#### With data context
+
+You can pass data to the included template:
+
+```
+{{ include "server.tmpl" . }}
+{{ include "upstream.tmpl" $data }}
+```
+
+#### Include from subdirectory
+
+Templates can be organized in subdirectories:
+
+```
+{{ include "partials/footer.tmpl" }}
+{{ include "nginx/upstream.tmpl" . }}
+```
+
+#### Example: Reusable server block
+
+`/etc/confd/templates/partials/server-block.tmpl`:
+
+```
+server {
+    listen {{ .Port }};
+    server_name {{ .ServerName }};
+    location / {
+        proxy_pass http://{{ .Upstream }};
+    }
+}
+```
+
+`/etc/confd/templates/nginx.conf.tmpl`:
+
+```
+{{range gets "/services/*"}}
+{{$data := json .Value}}
+{{ include "partials/server-block.tmpl" $data }}
+{{end}}
+```
+
+**Note:** Included template paths are relative to the templates directory (default: `/etc/confd/templates/`). Directory traversal outside the templates directory is not allowed for security.
+
 ## Example Usage
 
 ```Bash

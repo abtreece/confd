@@ -66,6 +66,7 @@ type TemplateResource struct {
 	store         memkv.Store
 	storeClient   backends.StoreClient
 	syncOnly      bool
+	templateDir   string
 	// Diff settings
 	showDiff    bool
 	diffContext int
@@ -161,6 +162,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		}
 	}
 
+	tr.templateDir = config.TemplateDir
 	tr.Src = filepath.Join(config.TemplateDir, tr.Src)
 	return &tr, nil
 }
@@ -197,6 +199,10 @@ func (t *TemplateResource) createStageFile() error {
 	}
 
 	log.Debug("Compiling source template %s", t.Src)
+
+	// Add include function to funcMap for this template
+	includeCtx := NewIncludeContext()
+	t.funcMap["include"] = NewIncludeFunc(t.templateDir, t.funcMap, includeCtx)
 
 	tmpl, err := template.New(filepath.Base(t.Src)).Funcs(t.funcMap).ParseFiles(t.Src)
 	if err != nil {

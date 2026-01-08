@@ -344,6 +344,9 @@ func newValidationFuncMap() template.FuncMap {
 	funcMap["getall"] = func(pattern string) map[string]string {
 		return map[string]string{}
 	}
+	funcMap["include"] = func(name string, data ...interface{}) (string, error) {
+		return "", nil // Stub for validation
+	}
 
 	return funcMap
 }
