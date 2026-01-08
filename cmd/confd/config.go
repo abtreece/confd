@@ -50,6 +50,9 @@ type TOMLConfig struct {
 	ACMExportPrivateKey          bool   `toml:"acm_export_private_key"`
 	SecretsManagerVersionStage   string `toml:"secretsmanager_version_stage"`
 	SecretsManagerNoFlatten      bool   `toml:"secretsmanager_no_flatten"`
+
+	// Performance settings
+	TemplateCache *bool `toml:"template_cache"` // Pointer to distinguish unset from false
 }
 
 // loadConfigFile loads the TOML config file and applies defaults to CLI and backend config
@@ -99,6 +102,10 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if !cli.KeepStageFile && tomlCfg.KeepStageFile {
 		cli.KeepStageFile = true
+	}
+	// Template cache: TOML can only disable (CLI default is true)
+	if tomlCfg.TemplateCache != nil && !*tomlCfg.TemplateCache {
+		cli.TemplateCache = false
 	}
 	if cli.SRVDomain == "" && tomlCfg.SRVDomain != "" {
 		cli.SRVDomain = tomlCfg.SRVDomain

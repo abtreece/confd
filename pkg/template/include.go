@@ -87,12 +87,6 @@ func NewIncludeFunc(baseDir string, funcMap template.FuncMap, ctx *IncludeContex
 		}
 		defer ctx.Pop()
 
-		// Read the included template
-		content, err := os.ReadFile(includePath)
-		if err != nil {
-			return "", fmt.Errorf("include %s: %w", name, err)
-		}
-
 		// Create a new function map that includes the include function itself
 		// to support nested includes
 		includeFuncMap := make(template.FuncMap)
@@ -102,10 +96,31 @@ func NewIncludeFunc(baseDir string, funcMap template.FuncMap, ctx *IncludeContex
 		// Update the include function to use the same context
 		includeFuncMap["include"] = NewIncludeFunc(baseDir, funcMap, ctx)
 
-		// Parse the included template
-		tmpl, err := template.New(filepath.Base(includePath)).Funcs(includeFuncMap).Parse(string(content))
-		if err != nil {
-			return "", fmt.Errorf("parse include %s: %w", name, err)
+		// Try cache first
+		var tmpl *template.Template
+		tmpl, cacheHit := GetCachedTemplate(includePath)
+		if !cacheHit {
+			// Read the included template
+			content, err := os.ReadFile(includePath)
+			if err != nil {
+				return "", fmt.Errorf("include %s: %w", name, err)
+			}
+
+			stat, err := os.Stat(includePath)
+			if err != nil {
+				return "", fmt.Errorf("include %s: %w", name, err)
+			}
+
+			// Parse the included template
+			tmpl, err = template.New(filepath.Base(includePath)).Funcs(includeFuncMap).Parse(string(content))
+			if err != nil {
+				return "", fmt.Errorf("parse include %s: %w", name, err)
+			}
+
+			PutCachedTemplate(includePath, tmpl, stat.ModTime())
+		} else {
+			// Update funcMap on cached template
+			tmpl = tmpl.Funcs(includeFuncMap)
 		}
 
 		// Execute with provided data or nil

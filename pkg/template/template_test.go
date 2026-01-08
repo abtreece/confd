@@ -553,6 +553,10 @@ func TestTemplates(t *testing.T) {
 // in the templateTest, writes a config file, and compares the result against the expectation
 // in the templateTest.
 func ExecuteTestTemplate(tt templateTest, t *testing.T) {
+	// Clear template cache to ensure tests don't interfere with each other
+	// (all tests use the same template file path)
+	ClearTemplateCache()
+
 	setupDirectoriesAndFiles(tt, t)
 	defer os.RemoveAll("test")
 
