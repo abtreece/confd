@@ -48,6 +48,7 @@ type TemplateResource struct {
 	Group         string
 	Keys          []string
 	Mode          string
+	OutputFormat  string `toml:"output_format"` // json, yaml, toml, xml, ini
 	Owner         string
 	Prefix        string
 	ReloadCmd     string `toml:"reload_cmd"`
@@ -202,6 +203,29 @@ func (t *TemplateResource) createStageFile() error {
 		os.Remove(temp.Name())
 		return err
 	}
+
+	// Validate output format if specified
+	if t.OutputFormat != "" {
+		// Read the rendered content for validation
+		if _, err := temp.Seek(0, 0); err != nil {
+			temp.Close()
+			os.Remove(temp.Name())
+			return fmt.Errorf("failed to seek staged file: %w", err)
+		}
+		content, err := os.ReadFile(temp.Name())
+		if err != nil {
+			temp.Close()
+			os.Remove(temp.Name())
+			return fmt.Errorf("failed to read staged file for validation: %w", err)
+		}
+		if err := util.ValidateFormat(content, t.OutputFormat); err != nil {
+			temp.Close()
+			os.Remove(temp.Name())
+			return fmt.Errorf("output format validation failed (%s): %w", t.OutputFormat, err)
+		}
+		log.Debug("Output format validation passed (%s)", t.OutputFormat)
+	}
+
 	defer temp.Close()
 
 	// Set the owner, group, and mode on the stage file now to make it easier to

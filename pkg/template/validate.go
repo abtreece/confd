@@ -177,6 +177,24 @@ func validateResourceFile(path string, templateDir string) []ValidationError {
 		}
 	}
 
+	// Validate output_format if specified
+	if tr.OutputFormat != "" {
+		validFormats := map[string]bool{
+			"json": true,
+			"yaml": true,
+			"yml":  true,
+			"toml": true,
+			"xml":  true,
+		}
+		if !validFormats[tr.OutputFormat] {
+			errs = append(errs, ValidationError{
+				File:    path,
+				Field:   "output_format",
+				Message: fmt.Sprintf("unknown format: %q (supported: json, yaml, yml, toml, xml)", tr.OutputFormat),
+			})
+		}
+	}
+
 	// Validate per-resource backend config if present
 	if tc.BackendConfig != nil {
 		if tc.BackendConfig.Backend == "" {

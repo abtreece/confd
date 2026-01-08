@@ -17,6 +17,7 @@ Template resources are stored under the `/etc/confd/conf.d` directory by default
 * `reload_cmd` (string) - The command to reload config. Use `{{.src}}` to reference the rendered source template, or `{{.dest}}` to reference the destination file.
 * `check_cmd` (string) - The command to check config. Use `{{.src}}` to reference the rendered source template.
 * `prefix` (string) - The string to prefix to keys. When a global prefix is also set in `confd.toml`, the prefixes are concatenated (e.g., global `production` + resource `myapp` = `/production/myapp`).
+* `output_format` (string) - Validate the rendered output as a specific format. Supported formats: `json`, `yaml`, `yml`, `toml`, `xml`. If validation fails, the template processing aborts and the destination file is not updated.
 
 ### Per-Resource Backend Configuration
 
@@ -83,3 +84,21 @@ auth_type = "approle"
 role_id = "my-role-id"
 secret_id = "my-secret-id"
 ```
+
+## Example with Output Format Validation
+
+This example validates that the rendered template is valid JSON before writing to the destination:
+
+```TOML
+[template]
+src = "config.json.tmpl"
+dest = "/etc/myapp/config.json"
+mode = "0644"
+keys = [
+  "/myapp/config",
+]
+output_format = "json"
+reload_cmd = "/usr/bin/systemctl reload myapp"
+```
+
+If the template renders invalid JSON, confd will log an error and skip updating the destination file. This prevents configuration errors from propagating to your application.

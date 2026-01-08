@@ -165,6 +165,67 @@ backend = "unknown"
 			expectError: true,
 			errorFields: []string{"backend.backend"},
 		},
+		{
+			name: "valid output_format json",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+output_format = "json"
+`,
+			expectError: false,
+		},
+		{
+			name: "valid output_format yaml",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+output_format = "yaml"
+`,
+			expectError: false,
+		},
+		{
+			name: "valid output_format yml",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+output_format = "yml"
+`,
+			expectError: false,
+		},
+		{
+			name: "valid output_format toml",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+output_format = "toml"
+`,
+			expectError: false,
+		},
+		{
+			name: "valid output_format xml",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+output_format = "xml"
+`,
+			expectError: false,
+		},
+		{
+			name: "invalid output_format",
+			content: `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+output_format = "invalid"
+`,
+			expectError: true,
+			errorFields: []string{"output_format"},
+		},
 	}
 
 	for _, tt := range tests {
