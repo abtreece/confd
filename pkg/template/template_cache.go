@@ -240,8 +240,9 @@ type CacheStats struct {
 
 // globalTemplateCache is the global instance used by all template resources
 var (
-	globalTemplateCache   *TemplateCache
-	globalTemplateCacheMu sync.RWMutex
+	globalTemplateCache     *TemplateCache
+	globalTemplateCacheMu   sync.RWMutex
+	globalTemplateCacheOnce sync.Once
 )
 
 // InitGlobalTemplateCache initializes the global template cache.
@@ -254,13 +255,13 @@ func InitGlobalTemplateCache(enabled bool, maxSize int, policy string) {
 
 // GetGlobalTemplateCache returns the global template cache instance.
 func GetGlobalTemplateCache() *TemplateCache {
+	globalTemplateCacheOnce.Do(func() {
+		// Initialize with defaults if not already initialized
+		if globalTemplateCache == nil {
+			InitGlobalTemplateCache(true, 100, "lru")
+		}
+	})
 	globalTemplateCacheMu.RLock()
 	defer globalTemplateCacheMu.RUnlock()
-	if globalTemplateCache == nil {
-		// Initialize with defaults if not already initialized
-		globalTemplateCacheMu.RUnlock()
-		InitGlobalTemplateCache(true, 100, "lru")
-		globalTemplateCacheMu.RLock()
-	}
 	return globalTemplateCache
 }

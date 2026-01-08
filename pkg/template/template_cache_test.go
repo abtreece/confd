@@ -217,15 +217,14 @@ func TestTemplateCacheEvictionLRU(t *testing.T) {
 	}
 
 	// Access first template again - should be a miss (was evicted)
-	cache.hits = 0
-	cache.misses = 0
+	statsBeforeMiss := cache.Stats()
 	_, err = cache.Get(paths[0], funcMap)
 	if err != nil {
 		t.Fatalf("Get failed for first template after eviction: %v", err)
 	}
-	stats = cache.Stats()
-	if stats.Misses != 1 {
-		t.Errorf("expected miss for evicted template, got %d misses", stats.Misses)
+	statsAfterMiss := cache.Stats()
+	if statsAfterMiss.Misses <= statsBeforeMiss.Misses {
+		t.Errorf("expected miss count to increase for evicted template")
 	}
 }
 
@@ -273,14 +272,14 @@ func TestTemplateCacheEvictionLFU(t *testing.T) {
 	}
 
 	// First template (most frequently used) should still be cached
-	cache.hits = 0
+	statsBeforeHit := cache.Stats()
 	_, err = cache.Get(paths[0], funcMap)
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
-	stats = cache.Stats()
-	if stats.Hits != 1 {
-		t.Errorf("expected hit for frequently used template, got %d hits", stats.Hits)
+	statsAfterHit := cache.Stats()
+	if statsAfterHit.Hits <= statsBeforeHit.Hits {
+		t.Errorf("expected hit count to increase for frequently used template")
 	}
 }
 
