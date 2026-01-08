@@ -3,6 +3,7 @@ package util
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -231,5 +232,262 @@ func TestIsConfigChangedFalse(t *testing.T) {
 	}
 	if status == false {
 		t.Errorf("Expected sameConfig(src, dest) to be %v, got %v", false, status)
+	}
+}
+
+func TestNodes_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		nodes    Nodes
+		expected string
+	}{
+		{
+			name:     "empty nodes",
+			nodes:    Nodes{},
+			expected: "[]",
+		},
+		{
+			name:     "single node",
+			nodes:    Nodes{"http://localhost:2379"},
+			expected: "[http://localhost:2379]",
+		},
+		{
+			name:     "multiple nodes",
+			nodes:    Nodes{"http://node1:2379", "http://node2:2379", "http://node3:2379"},
+			expected: "[http://node1:2379 http://node2:2379 http://node3:2379]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.nodes.String()
+			if result != tt.expected {
+				t.Errorf("Nodes.String() = %s, want %s", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNodes_Set(t *testing.T) {
+	var nodes Nodes
+
+	// Set first node
+	err := nodes.Set("http://node1:2379")
+	if err != nil {
+		t.Errorf("Nodes.Set() unexpected error: %v", err)
+	}
+	if len(nodes) != 1 || nodes[0] != "http://node1:2379" {
+		t.Errorf("Nodes.Set() nodes = %v, want [http://node1:2379]", nodes)
+	}
+
+	// Set second node
+	err = nodes.Set("http://node2:2379")
+	if err != nil {
+		t.Errorf("Nodes.Set() unexpected error: %v", err)
+	}
+	if len(nodes) != 2 || nodes[1] != "http://node2:2379" {
+		t.Errorf("Nodes.Set() nodes = %v, want [http://node1:2379 http://node2:2379]", nodes)
+	}
+}
+
+func TestAppendPrefix(t *testing.T) {
+	tests := []struct {
+		name     string
+		prefix   string
+		keys     []string
+		expected []string
+	}{
+		{
+			name:     "empty keys",
+			prefix:   "/app",
+			keys:     []string{},
+			expected: []string{},
+		},
+		{
+			name:     "single key",
+			prefix:   "/app",
+			keys:     []string{"/config"},
+			expected: []string{"/app/config"},
+		},
+		{
+			name:     "multiple keys",
+			prefix:   "/production",
+			keys:     []string{"/db/host", "/db/port", "/api/key"},
+			expected: []string{"/production/db/host", "/production/db/port", "/production/api/key"},
+		},
+		{
+			name:     "empty prefix",
+			prefix:   "",
+			keys:     []string{"/config"},
+			expected: []string{"/config"},
+		},
+		{
+			name:     "trailing slash prefix",
+			prefix:   "/app/",
+			keys:     []string{"config"},
+			expected: []string{"/app/config"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AppendPrefix(tt.prefix, tt.keys)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("AppendPrefix(%s, %v) = %v, want %v", tt.prefix, tt.keys, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestArrayShift(t *testing.T) {
+	tests := []struct {
+		name     string
+		array    []string
+		position int
+		value    string
+		expected []string
+	}{
+		{
+			name:     "insert at beginning",
+			array:    []string{"b", "c"},
+			position: 0,
+			value:    "a",
+			expected: []string{"a", "b", "c"},
+		},
+		{
+			name:     "insert in middle",
+			array:    []string{"a", "c"},
+			position: 1,
+			value:    "b",
+			expected: []string{"a", "b", "c"},
+		},
+		{
+			name:     "insert at end",
+			array:    []string{"a", "b"},
+			position: 2,
+			value:    "c",
+			expected: []string{"a", "b", "c"},
+		},
+		{
+			name:     "insert into empty array",
+			array:    []string{},
+			position: 0,
+			value:    "a",
+			expected: []string{"a"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			array := make([]string, len(tt.array))
+			copy(array, tt.array)
+			ArrayShift(&array, tt.position, tt.value)
+			if !reflect.DeepEqual(array, tt.expected) {
+				t.Errorf("ArrayShift() array = %v, want %v", array, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRecursiveDirsLookup(t *testing.T) {
+	log.SetLevel("warn")
+	// Setup temporary directories
+	rootDir, err := createDirStructure()
+	if err != nil {
+		t.Fatalf("Failed to create temp dirs: %s", err.Error())
+	}
+	defer os.RemoveAll(rootDir)
+
+	dirs, err := RecursiveDirsLookup(rootDir+"/root", "sub*")
+	if err != nil {
+		t.Fatalf("Failed to run RecursiveDirsLookup, got error: %s", err.Error())
+	}
+
+	// Should find subDir1, subDir2, and subSubDir
+	if len(dirs) < 2 {
+		t.Errorf("RecursiveDirsLookup() found %d dirs, expected at least 2", len(dirs))
+	}
+
+	// Check that results are directories
+	for _, dir := range dirs {
+		isDir, err := IsDirectory(dir)
+		if err != nil {
+			t.Errorf("IsDirectory(%s) error: %v", dir, err)
+		}
+		if !isDir {
+			t.Errorf("RecursiveDirsLookup() returned non-directory: %s", dir)
+		}
+	}
+}
+
+func TestIsDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Test directory
+	isDir, err := IsDirectory(tmpDir)
+	if err != nil {
+		t.Errorf("IsDirectory() unexpected error: %v", err)
+	}
+	if !isDir {
+		t.Error("IsDirectory() = false for directory, want true")
+	}
+
+	// Test file
+	tmpFile := filepath.Join(tmpDir, "testfile")
+	if err := os.WriteFile(tmpFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+
+	isDir, err = IsDirectory(tmpFile)
+	if err != nil {
+		t.Errorf("IsDirectory() unexpected error: %v", err)
+	}
+	if isDir {
+		t.Error("IsDirectory() = true for file, want false")
+	}
+
+	// Test non-existent path
+	_, err = IsDirectory("/nonexistent/path/12345")
+	if err == nil {
+		t.Error("IsDirectory() expected error for non-existent path, got nil")
+	}
+}
+
+func TestIsFileExist(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "testfile")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	// Test existing file
+	if !IsFileExist(tmpFile.Name()) {
+		t.Error("IsFileExist() = false for existing file, want true")
+	}
+
+	// Test non-existent file
+	if IsFileExist("/nonexistent/file/12345") {
+		t.Error("IsFileExist() = true for non-existent file, want false")
+	}
+}
+
+func TestIsConfigChanged_DestNotExist(t *testing.T) {
+	log.SetLevel("warn")
+	src, err := os.CreateTemp("", "src")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	src.WriteString("content")
+	src.Close()
+	defer os.Remove(src.Name())
+
+	// Destination doesn't exist - should return true (changed)
+	changed, err := IsConfigChanged(src.Name(), "/nonexistent/dest/file")
+	if err != nil {
+		t.Errorf("IsConfigChanged() unexpected error: %v", err)
+	}
+	if !changed {
+		t.Error("IsConfigChanged() = false when dest doesn't exist, want true")
 	}
 }
