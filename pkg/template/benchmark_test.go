@@ -5,7 +5,7 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/kelseyhightower/memkv"
+	"github.com/abtreece/confd/pkg/memkv"
 )
 
 // Benchmark template functions

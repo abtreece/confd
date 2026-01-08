@@ -231,9 +231,6 @@ github.com/hashicorp/serf/coordinate
 # github.com/hashicorp/vault/api v1.22.0
 ## explicit; go 1.23.0
 github.com/hashicorp/vault/api
-# github.com/kelseyhightower/memkv v0.1.1
-## explicit
-github.com/kelseyhightower/memkv
 # github.com/mattn/go-colorable v0.1.14
 ## explicit; go 1.18
 github.com/mattn/go-colorable
