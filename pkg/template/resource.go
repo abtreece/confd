@@ -311,8 +311,12 @@ func (t *TemplateResource) createStageFile() error {
 
 	// Set the owner, group, and mode on the stage file now to make it easier to
 	// compare against the destination configuration file later.
-	os.Chmod(temp.Name(), t.FileMode)
-	os.Chown(temp.Name(), t.Uid, t.Gid)
+	if err := os.Chmod(temp.Name(), t.FileMode); err != nil {
+		return fmt.Errorf("failed to chmod stage file: %w", err)
+	}
+	if err := os.Chown(temp.Name(), t.Uid, t.Gid); err != nil {
+		return fmt.Errorf("failed to chown stage file: %w", err)
+	}
 	t.StageFile = temp
 	return nil
 }
@@ -369,11 +373,12 @@ func (t *TemplateResource) sync() error {
 				if rerr != nil {
 					return rerr
 				}
-				err := os.WriteFile(t.Dest, contents, t.FileMode)
+				if err := os.WriteFile(t.Dest, contents, t.FileMode); err != nil {
+					return fmt.Errorf("failed to write to destination file: %w", err)
+				}
 				// make sure owner and group match the temp file, in case the file was created with WriteFile
-				os.Chown(t.Dest, t.Uid, t.Gid)
-				if err != nil {
-					return err
+				if err := os.Chown(t.Dest, t.Uid, t.Gid); err != nil {
+					return fmt.Errorf("failed to chown destination file: %w", err)
 				}
 			} else {
 				return err

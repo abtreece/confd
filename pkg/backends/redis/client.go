@@ -259,7 +259,10 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 			rClient, db, err := createClient(c.machines, c.password, false)
 			if err != nil {
 				c.pubsub = nil
-				c.pscChan <- watchResponse{0, err}
+				select {
+				case c.pscChan <- watchResponse{0, err}:
+				case <-ctx.Done():
+				}
 				return
 			}
 
@@ -282,20 +285,40 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 					"hset": true, "hincrby": true, "hincrbyfloat": true, "hdel": true,
 				}
 
-				for msg := range ch {
-					log.Debug("Redis Message: %s %s", msg.Channel, msg.Payload)
-					if commands[msg.Payload] {
-						c.pscChan <- watchResponse{1, nil}
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case msg, ok := <-ch:
+						if !ok {
+							// Channel closed - subscription ended
+							select {
+							case c.pscChan <- watchResponse{0, nil}:
+							case <-ctx.Done():
+							}
+							return
+						}
+						log.Debug("Redis Message: %s %s", msg.Channel, msg.Payload)
+						if commands[msg.Payload] {
+							select {
+							case c.pscChan <- watchResponse{1, nil}:
+							case <-ctx.Done():
+								return
+							}
+						}
 					}
 				}
-
-				// Channel closed - subscription ended
-				c.pscChan <- watchResponse{0, nil}
 			}()
 		}
 	}()
 
 	select {
+	case <-ctx.Done():
+		if c.pubsub != nil {
+			c.pubsub.Close()
+			c.pubsub = nil
+		}
+		return waitIndex, ctx.Err()
 	case <-stopChan:
 		if c.pubsub != nil {
 			c.pubsub.PUnsubscribe(ctx)
