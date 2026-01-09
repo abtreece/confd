@@ -13,7 +13,7 @@ import (
 	"github.com/abtreece/confd/pkg/log"
 	util "github.com/abtreece/confd/pkg/util"
 	"github.com/fsnotify/fsnotify"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // Client provides a shell for the yaml client
@@ -48,7 +48,7 @@ func readFile(path string, vars map[string]string) error {
 		}
 		err = nodeWalk(fileMap, "/", vars)
 	case "", ".yml", ".yaml":
-		fileMap := make(map[interface{}]interface{})
+		fileMap := make(map[string]interface{})
 		err = yaml.Unmarshal(data, &fileMap)
 		if err != nil {
 			return err

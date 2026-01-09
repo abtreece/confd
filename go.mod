@@ -16,7 +16,7 @@ require (
 	github.com/hashicorp/vault/api v1.22.0
 	github.com/sirupsen/logrus v1.9.3
 	go.etcd.io/etcd/client/v3 v3.6.7
-	gopkg.in/yaml.v2 v2.4.0
+	go.yaml.in/yaml/v3 v3.1.1
 )
 
 require (
