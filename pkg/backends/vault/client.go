@@ -31,37 +31,20 @@ type Client struct {
 	logical vaultLogical
 }
 
-// get a
-func getParameter(key string, parameters map[string]string) string {
+// getRequiredParameter retrieves a required parameter from the configuration.
+// Returns an error if the parameter is missing or empty.
+func getRequiredParameter(key string, parameters map[string]string) (string, error) {
 	value := parameters[key]
 	if value == "" {
-		// panic if a configuration is missing
-		panic(fmt.Sprintf("%s is missing from configuration", key))
+		return "", fmt.Errorf("required parameter %q is missing from configuration", key)
 	}
-	return value
-}
-
-// panicToError converts a panic to an error
-func panicToError(err *error) {
-	if r := recover(); r != nil {
-		switch t := r.(type) {
-		case string:
-			*err = errors.New(t)
-		case error:
-			*err = t
-		default: // panic again if we don't know how to handle
-			panic(r)
-		}
-	}
+	return value, nil
 }
 
 // authenticate with the remote client
-func authenticate(c *vaultapi.Client, authType string, params map[string]string) (err error) {
+func authenticate(c *vaultapi.Client, authType string, params map[string]string) error {
 	var secret *vaultapi.Secret
-
-	// handle panics gracefully by creating an error
-	// this would happen when we get a parameter that is missing
-	defer panicToError(&err)
+	var err error
 
 	path := params["path"]
 	if path == "" {
@@ -74,42 +57,94 @@ func authenticate(c *vaultapi.Client, authType string, params map[string]string)
 
 	switch authType {
 	case "app-role":
+		roleID, err := getRequiredParameter("role-id", params)
+		if err != nil {
+			return err
+		}
+		secretID, err := getRequiredParameter("secret-id", params)
+		if err != nil {
+			return err
+		}
 		secret, err = c.Logical().Write(url, map[string]interface{}{
-			"role_id":   getParameter("role-id", params),
-			"secret_id": getParameter("secret-id", params),
+			"role_id":   roleID,
+			"secret_id": secretID,
 		})
+		if err != nil {
+			return err
+		}
 	case "app-id":
+		appID, err := getRequiredParameter("app-id", params)
+		if err != nil {
+			return err
+		}
+		userID, err := getRequiredParameter("user-id", params)
+		if err != nil {
+			return err
+		}
 		secret, err = c.Logical().Write(url, map[string]interface{}{
-			"app_id":  getParameter("app-id", params),
-			"user_id": getParameter("user-id", params),
+			"app_id":  appID,
+			"user_id": userID,
 		})
+		if err != nil {
+			return err
+		}
 	case "github":
+		token, err := getRequiredParameter("token", params)
+		if err != nil {
+			return err
+		}
 		secret, err = c.Logical().Write(url, map[string]interface{}{
-			"token": getParameter("token", params),
+			"token": token,
 		})
+		if err != nil {
+			return err
+		}
 	case "token":
-		c.SetToken(getParameter("token", params))
+		token, err := getRequiredParameter("token", params)
+		if err != nil {
+			return err
+		}
+		c.SetToken(token)
 		secret, err = c.Logical().Read("/auth/token/lookup-self")
+		if err != nil {
+			return err
+		}
 	case "userpass":
-		username, password := getParameter("username", params), getParameter("password", params)
+		username, err := getRequiredParameter("username", params)
+		if err != nil {
+			return err
+		}
+		password, err := getRequiredParameter("password", params)
+		if err != nil {
+			return err
+		}
 		secret, err = c.Logical().Write(fmt.Sprintf("%s/%s", url, username), map[string]interface{}{
 			"password": password,
 		})
+		if err != nil {
+			return err
+		}
 	case "kubernetes":
-		jwt, jwtErr := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
-		if jwtErr != nil {
-			return jwtErr
+		jwt, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+		if err != nil {
+			return fmt.Errorf("failed to read kubernetes service account token: %w", err)
+		}
+		roleID, err := getRequiredParameter("role-id", params)
+		if err != nil {
+			return err
 		}
 		secret, err = c.Logical().Write(url, map[string]interface{}{
-			"jwt":  string(jwt[:]),
-			"role": getParameter("role-id", params),
+			"jwt":  string(jwt),
+			"role": roleID,
 		})
+		if err != nil {
+			return err
+		}
 	case "cert":
 		secret, err = c.Logical().Write(url, map[string]interface{}{})
-	}
-
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	// if the token has already been set

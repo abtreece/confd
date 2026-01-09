@@ -220,107 +220,39 @@ func TestFlatten_UnsupportedType(t *testing.T) {
 	}
 }
 
-func TestGetParameter_Success(t *testing.T) {
+func TestGetRequiredParameter_Success(t *testing.T) {
 	params := map[string]string{
 		"key1": "value1",
 		"key2": "value2",
 	}
 
-	result := getParameter("key1", params)
+	result, err := getRequiredParameter("key1", params)
+	if err != nil {
+		t.Errorf("getRequiredParameter() unexpected error: %v", err)
+	}
 	if result != "value1" {
-		t.Errorf("getParameter() = %s, want value1", result)
+		t.Errorf("getRequiredParameter() = %s, want value1", result)
 	}
 }
 
-func TestGetParameter_Missing(t *testing.T) {
+func TestGetRequiredParameter_Missing(t *testing.T) {
 	params := map[string]string{}
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("getParameter() expected panic for missing key")
-		}
-	}()
-
-	getParameter("missing", params)
+	_, err := getRequiredParameter("missing", params)
+	if err == nil {
+		t.Error("getRequiredParameter() expected error for missing key")
+	}
 }
 
-func TestGetParameter_EmptyValue(t *testing.T) {
+func TestGetRequiredParameter_EmptyValue(t *testing.T) {
 	params := map[string]string{
 		"key1": "",
 	}
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("getParameter() expected panic for empty value")
-		}
-	}()
-
-	getParameter("key1", params)
-}
-
-func TestPanicToError_StringPanic(t *testing.T) {
-	var err error
-
-	func() {
-		defer panicToError(&err)
-		panic("test error")
-	}()
-
+	_, err := getRequiredParameter("key1", params)
 	if err == nil {
-		t.Error("panicToError() expected error, got nil")
+		t.Error("getRequiredParameter() expected error for empty value")
 	}
-	if err.Error() != "test error" {
-		t.Errorf("panicToError() error = %v, want 'test error'", err)
-	}
-}
-
-func TestPanicToError_ErrorPanic(t *testing.T) {
-	var err error
-	expectedErr := &testError{msg: "test error"}
-
-	func() {
-		defer panicToError(&err)
-		panic(expectedErr)
-	}()
-
-	if err != expectedErr {
-		t.Errorf("panicToError() error = %v, want %v", err, expectedErr)
-	}
-}
-
-type testError struct {
-	msg string
-}
-
-func (e *testError) Error() string {
-	return e.msg
-}
-
-func TestPanicToError_NoPanic(t *testing.T) {
-	var err error
-
-	func() {
-		defer panicToError(&err)
-		// No panic
-	}()
-
-	if err != nil {
-		t.Errorf("panicToError() error = %v, want nil", err)
-	}
-}
-
-func TestPanicToError_UnknownPanicType(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("panicToError() should re-panic for unknown types")
-		}
-	}()
-
-	var err error
-	func() {
-		defer panicToError(&err)
-		panic(12345) // integer panic - unknown type
-	}()
 }
 
 func TestWatchPrefix(t *testing.T) {
