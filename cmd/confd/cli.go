@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -49,7 +50,8 @@ type CLI struct {
 	BatchIntervalStr string `name:"batch-interval" help:"batch processing interval for watch mode (e.g., 5s)"`
 
 	// Performance flags
-	TemplateCache bool `name:"template-cache" help:"enable template compilation caching" default:"true" negatable:""`
+	TemplateCache    bool          `name:"template-cache" help:"enable template compilation caching" default:"true" negatable:""`
+	BackendTimeout   time.Duration `name:"backend-timeout" help:"timeout for backend operations (e.g., 30s, 1m)" default:"30s"`
 
 	Version VersionFlag `help:"print version and exit"`
 
@@ -366,19 +368,25 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		return err
 	}
 
+	// Create root context for cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Build template config
 	tmplCfg := template.Config{
-		ConfDir:       cli.ConfDir,
-		ConfigDir:     filepath.Join(cli.ConfDir, "conf.d"),
-		TemplateDir:   filepath.Join(cli.ConfDir, "templates"),
-		StoreClient:   storeClient,
-		Noop:          cli.Noop,
-		Prefix:        cli.Prefix,
-		SyncOnly:      cli.SyncOnly,
-		KeepStageFile: cli.KeepStageFile,
-		ShowDiff:      cli.Diff,
-		DiffContext:   cli.DiffContext,
-		ColorDiff:     cli.Color,
+		ConfDir:        cli.ConfDir,
+		ConfigDir:      filepath.Join(cli.ConfDir, "conf.d"),
+		TemplateDir:    filepath.Join(cli.ConfDir, "templates"),
+		StoreClient:    storeClient,
+		Noop:           cli.Noop,
+		Prefix:         cli.Prefix,
+		SyncOnly:       cli.SyncOnly,
+		KeepStageFile:  cli.KeepStageFile,
+		ShowDiff:       cli.Diff,
+		DiffContext:    cli.DiffContext,
+		ColorDiff:      cli.Color,
+		Ctx:            ctx,
+		BackendTimeout: cli.BackendTimeout,
 	}
 
 	// Parse watch mode duration flags
@@ -437,7 +445,9 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		case err := <-errChan:
 			log.Error("%s", err.Error())
 		case s := <-signalChan:
-			log.Info("Captured %v. Exiting...", s)
+			log.Info("Captured %v. Initiating shutdown...", s)
+			cancel() // Cancel context to signal all goroutines
+			close(stopChan)
 			close(doneChan)
 		case <-doneChan:
 			return nil

@@ -176,8 +176,13 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 	maxTxnOps := 128
 	getOps := make([]string, 0, maxTxnOps)
 	doTxn := func(ops []string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(3)*time.Second)
-		defer cancel()
+		// Use passed context if it has a deadline, otherwise add a default timeout
+		txnCtx := ctx
+		if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+			var cancel context.CancelFunc
+			txnCtx, cancel = context.WithTimeout(ctx, time.Duration(3)*time.Second)
+			defer cancel()
+		}
 
 		txnOps := make([]clientv3.Op, 0, maxTxnOps)
 
@@ -188,7 +193,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 				clientv3.WithRev(first_rev)))
 		}
 
-		result, err := c.kvClient.Txn(ctx).Then(txnOps...).Commit()
+		result, err := c.kvClient.Txn(txnCtx).Then(txnOps...).Commit()
 		if err != nil {
 			return err
 		}
@@ -260,7 +265,8 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	}
 	c.wm.Unlock()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// Derive cancellable context from passed context
+	watchCtx, cancel := context.WithCancel(ctx)
 	cancelRoutine := make(chan struct{})
 	defer cancel()
 	defer close(cancelRoutine)
@@ -276,13 +282,13 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	notify := make(chan int64)
 	// Wait for all watches
 	for _, v := range watches {
-		go v.WaitNext(ctx, int64(waitIndex), notify)
+		go v.WaitNext(watchCtx, int64(waitIndex), notify)
 	}
 	select {
 	case nextRevision := <-notify:
 		return uint64(nextRevision), err
-	case <-ctx.Done():
-		return 0, ctx.Err()
+	case <-watchCtx.Done():
+		return 0, watchCtx.Err()
 	}
 
 }

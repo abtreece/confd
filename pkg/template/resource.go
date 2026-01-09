@@ -39,6 +39,9 @@ type Config struct {
 	// Watch mode settings
 	Debounce      time.Duration // Global debounce for all templates
 	BatchInterval time.Duration // Batch processing interval
+	// Context for cancellation and timeouts
+	Ctx            context.Context
+	BackendTimeout time.Duration // Timeout for backend operations
 }
 
 // TemplateResourceConfig holds the parsed template resource.
@@ -81,6 +84,9 @@ type TemplateResource struct {
 	showDiff    bool
 	diffContext int
 	colorDiff   bool
+	// Context for cancellation and timeouts
+	ctx            context.Context
+	backendTimeout time.Duration
 }
 
 var ErrEmptySrc = errors.New("empty src template")
@@ -106,6 +112,8 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tr.showDiff = config.ShowDiff
 	tr.diffContext = config.DiffContext
 	tr.colorDiff = config.ColorDiff
+	tr.ctx = config.Ctx
+	tr.backendTimeout = config.BackendTimeout
 	addFuncs(tr.funcMap, tr.store.FuncMap)
 
 	// Determine which backend client to use:
@@ -202,7 +210,18 @@ func (t *TemplateResource) setVars() error {
 	log.Debug("Retrieving keys from store")
 	log.Debug("Key prefix set to %s", t.Prefix)
 
-	result, err := t.storeClient.GetValues(context.Background(), util.AppendPrefix(t.Prefix, t.Keys))
+	// Use context with timeout if configured
+	ctx := t.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if t.backendTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, t.backendTimeout)
+		defer cancel()
+	}
+
+	result, err := t.storeClient.GetValues(ctx, util.AppendPrefix(t.Prefix, t.Keys))
 	if err != nil {
 		return err
 	}
