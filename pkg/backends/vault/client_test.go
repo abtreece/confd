@@ -503,9 +503,6 @@ func TestListSecretWithLogical_Error(t *testing.T) {
 }
 
 func TestRecursiveListSecretWithLogical_SingleSecret_V1(t *testing.T) {
-	// Reset global state
-	secretListPath = nil
-
 	mock := &mockVaultLogical{
 		listFunc: func(path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
@@ -535,9 +532,6 @@ func TestRecursiveListSecretWithLogical_SingleSecret_V1(t *testing.T) {
 }
 
 func TestRecursiveListSecretWithLogical_SingleSecret_V2(t *testing.T) {
-	// Reset global state
-	secretListPath = nil
-
 	mock := &mockVaultLogical{
 		listFunc: func(path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
@@ -567,9 +561,6 @@ func TestRecursiveListSecretWithLogical_SingleSecret_V2(t *testing.T) {
 }
 
 func TestRecursiveListSecretWithLogical_WithSubdirectory_V1(t *testing.T) {
-	// Reset global state
-	secretListPath = nil
-
 	callCount := 0
 	mock := &mockVaultLogical{
 		listFunc: func(path string) (*vaultapi.Secret, error) {
@@ -598,9 +589,6 @@ func TestRecursiveListSecretWithLogical_WithSubdirectory_V1(t *testing.T) {
 }
 
 func TestRecursiveListSecretWithLogical_NilSecretList_V1(t *testing.T) {
-	// Reset global state
-	secretListPath = nil
-
 	mock := &mockVaultLogical{
 		listFunc: func(path string) (*vaultapi.Secret, error) {
 			return nil, nil
@@ -608,23 +596,13 @@ func TestRecursiveListSecretWithLogical_NilSecretList_V1(t *testing.T) {
 	}
 
 	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
-	// When secretList is nil, the path itself should be added
-	found := false
-	for _, p := range result {
-		if p == "/secret" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("recursiveListSecretWithLogical() should add base path when list returns nil, got %v", result)
+	// When secretList is nil, an empty slice should be returned
+	if len(result) != 0 {
+		t.Errorf("recursiveListSecretWithLogical() expected empty slice when list returns nil, got %v", result)
 	}
 }
 
 func TestRecursiveListSecretWithLogical_NilSecretList_V2(t *testing.T) {
-	// Reset global state
-	secretListPath = nil
-
 	mock := &mockVaultLogical{
 		listFunc: func(path string) (*vaultapi.Secret, error) {
 			return nil, nil
@@ -632,28 +610,19 @@ func TestRecursiveListSecretWithLogical_NilSecretList_V2(t *testing.T) {
 	}
 
 	result := recursiveListSecretWithLogical(mock, "/secret", "", "2")
-	// When secretList is nil for v2, path + "data/" should be added
-	found := false
-	for _, p := range result {
-		if p == "/secretdata/" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("recursiveListSecretWithLogical() should add data path when list returns nil, got %v", result)
+	// When secretList is nil, an empty slice should be returned
+	if len(result) != 0 {
+		t.Errorf("recursiveListSecretWithLogical() expected empty slice when list returns nil, got %v", result)
 	}
 }
 
 func TestRecursiveListSecretWithLogical_UnsupportedVersion(t *testing.T) {
-	// Reset global state
-	secretListPath = nil
-
 	mock := &mockVaultLogical{}
 
 	result := recursiveListSecretWithLogical(mock, "/secret", "", "unsupported")
-	if result != nil {
-		t.Errorf("recursiveListSecretWithLogical() expected nil for unsupported version, got %v", result)
+	// For unsupported version, an empty slice should be returned since listSecretWithLogical returns nil
+	if len(result) != 0 {
+		t.Errorf("recursiveListSecretWithLogical() expected empty slice for unsupported version, got %v", result)
 	}
 }
 

@@ -26,9 +26,9 @@ type Client struct {
 }
 
 func NewZookeeperClient(machines []string) (*Client, error) {
-	c, _, err := zk.Connect(machines, time.Second) //*10)
+	c, _, err := zk.Connect(machines, time.Second)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return &Client{c}, nil
 }
@@ -96,22 +96,40 @@ type watchResponse struct {
 func (c *Client) watch(key string, respChan chan watchResponse, cancelRoutine chan bool) {
 	_, _, keyEventCh, err := c.client.GetW(key)
 	if err != nil {
-		respChan <- watchResponse{0, err}
+		select {
+		case respChan <- watchResponse{0, err}:
+		case <-cancelRoutine:
+		}
+		return
 	}
 	_, _, childEventCh, err := c.client.ChildrenW(key)
 	if err != nil {
-		respChan <- watchResponse{0, err}
+		select {
+		case respChan <- watchResponse{0, err}:
+		case <-cancelRoutine:
+		}
+		return
 	}
 
 	for {
 		select {
 		case e := <-keyEventCh:
 			if e.Type == zk.EventNodeDataChanged {
-				respChan <- watchResponse{1, e.Err}
+				select {
+				case respChan <- watchResponse{1, e.Err}:
+				case <-cancelRoutine:
+					log.Debug("Stop watching: %s", key)
+					return
+				}
 			}
 		case e := <-childEventCh:
 			if e.Type == zk.EventNodeChildrenChanged {
-				respChan <- watchResponse{1, e.Err}
+				select {
+				case respChan <- watchResponse{1, e.Err}:
+				case <-cancelRoutine:
+					log.Debug("Stop watching: %s", key)
+					return
+				}
 			}
 		case <-cancelRoutine:
 			log.Debug("Stop watching: %s", key)
@@ -167,6 +185,8 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 
 	for {
 		select {
+		case <-ctx.Done():
+			return waitIndex, ctx.Err()
 		case <-stopChan:
 			return waitIndex, nil
 		case r := <-respChan:

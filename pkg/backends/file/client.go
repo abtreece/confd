@@ -121,26 +121,23 @@ func nodeWalk(node interface{}, key string, vars map[string]string) error {
 }
 
 func (c *Client) watchChanges(watcher *fsnotify.Watcher, stopChan chan bool) ResultError {
-	outputChannel := make(chan ResultError)
-	go func() error {
-		defer close(outputChannel)
-		for {
-			select {
-			case event := <-watcher.Events:
-				log.Debug("Event: %s", event)
-				if event.Op&fsnotify.Write == fsnotify.Write ||
-					event.Op&fsnotify.Remove == fsnotify.Remove ||
-					event.Op&fsnotify.Create == fsnotify.Create {
-					outputChannel <- ResultError{response: 1, err: nil}
-				}
-			case err := <-watcher.Errors:
-				outputChannel <- ResultError{response: 0, err: err}
-			case <-stopChan:
-				outputChannel <- ResultError{response: 1, err: nil}
+	// No goroutine needed - just select directly since we only need one result
+	for {
+		select {
+		case event := <-watcher.Events:
+			log.Debug("Event: %s", event)
+			if event.Op&fsnotify.Write == fsnotify.Write ||
+				event.Op&fsnotify.Remove == fsnotify.Remove ||
+				event.Op&fsnotify.Create == fsnotify.Create {
+				return ResultError{response: 1, err: nil}
 			}
+			// Ignore other events and continue waiting
+		case err := <-watcher.Errors:
+			return ResultError{response: 0, err: err}
+		case <-stopChan:
+			return ResultError{response: 1, err: nil}
 		}
-	}()
-	return <-outputChannel
+	}
 }
 
 // HealthCheck verifies the backend is healthy.

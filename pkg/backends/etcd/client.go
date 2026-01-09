@@ -64,8 +64,10 @@ func (w *Watch) update(newRevision int64) {
 
 func createWatch(client *clientv3.Client, prefix string) (*Watch, error) {
 	w := &Watch{0, make(chan struct{}), sync.RWMutex{}}
+	// Use the client's context so watches terminate when client is closed
+	clientCtx := client.Ctx()
 	go func() {
-		rch := client.Watch(context.Background(), prefix, clientv3.WithPrefix(),
+		rch := client.Watch(clientCtx, prefix, clientv3.WithPrefix(),
 			clientv3.WithCreatedNotify())
 		log.Debug("Watch created on %s", prefix)
 		for {
@@ -83,18 +85,30 @@ func createWatch(client *clientv3.Client, prefix string) (*Watch, error) {
 					log.Error("Watch error: %s", err.Error())
 				}
 			}
+
+			// Check if client was closed - if so, exit the goroutine
+			if clientCtx.Err() != nil {
+				log.Debug("Watch to '%s' terminating - client closed", prefix)
+				return
+			}
+
 			log.Warning("Watch to '%s' stopped at revision %d", prefix, w.revision)
 			// Disconnected or cancelled
-			// Wait for a moment to avoid reconnecting
-			// too quickly
-			time.Sleep(time.Duration(1) * time.Second)
+			// Wait for a moment to avoid reconnecting too quickly
+			select {
+			case <-time.After(time.Second):
+			case <-clientCtx.Done():
+				log.Debug("Watch to '%s' terminating - client closed during reconnect delay", prefix)
+				return
+			}
+
 			// Start from next revision so we are not missing anything
 			if w.revision > 0 {
-				rch = client.Watch(context.Background(), prefix, clientv3.WithPrefix(),
+				rch = client.Watch(clientCtx, prefix, clientv3.WithPrefix(),
 					clientv3.WithRev(w.revision+1))
 			} else {
 				// Start from the latest revision
-				rch = client.Watch(context.Background(), prefix, clientv3.WithPrefix(),
+				rch = client.Watch(clientCtx, prefix, clientv3.WithPrefix(),
 					clientv3.WithCreatedNotify())
 			}
 		}

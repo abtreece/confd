@@ -229,43 +229,73 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 
 	for _, mount := range mounts {
 		resp, err := c.logical.ReadRaw("/sys/internal/ui/mounts/" + mount)
-		if resp != nil {
-			defer resp.Body.Close()
-		}
 		if err != nil {
-			fmt.Printf("there was an error getting %s version", mount)
-			fmt.Println(err)
+			log.Error("failed to get mount info for %s: %v", mount, err)
+			continue
 		}
+		if resp == nil || resp.Body == nil {
+			log.Error("empty response getting mount info for %s", mount)
+			continue
+		}
+		defer resp.Body.Close()
 
 		secret, err := vaultapi.ParseSecret(resp.Body)
 		if err != nil {
-			fmt.Printf("there was an error parsing secrets of %s", mount)
-			fmt.Println(err)
+			log.Error("failed to parse secret for %s: %v", mount, err)
+			continue
+		}
+		if secret == nil || secret.Data == nil {
+			log.Error("empty secret data for %s", mount)
+			continue
 		}
 
 		engine := secret.Data["type"]
 
 		if engine == "kv" {
-			options := secret.Data["options"]
-			versionRaw := options.(map[string]interface{})["version"]
-			version := versionRaw.(string)
+			version, err := getKVVersion(secret.Data)
+			if err != nil {
+				log.Error("failed to get KV version for %s: %v", mount, err)
+				continue
+			}
 			var key string
+			secrets := recursiveListSecretWithLogical(c.logical, mount, key, version)
 			switch version {
 			case "", "1":
-				for _, secret := range recursiveListSecretWithLogical(c.logical, mount, key, version) {
-					resp, _ := c.logical.Read(secret)
-
-					js, _ := json.Marshal(resp.Data)
-					vars[secret] = string(js)
-					flatten(secret, resp.Data, mount, vars)
+				for _, secretPath := range secrets {
+					secretResp, err := c.logical.Read(secretPath)
+					if err != nil {
+						log.Warning("failed to read secret %s: %v", secretPath, err)
+						continue
+					}
+					if secretResp == nil || secretResp.Data == nil {
+						continue
+					}
+					js, err := json.Marshal(secretResp.Data)
+					if err != nil {
+						log.Warning("failed to marshal secret %s: %v", secretPath, err)
+						continue
+					}
+					vars[secretPath] = string(js)
+					flatten(secretPath, secretResp.Data, mount, vars)
 				}
 			case "2":
-				for _, secret := range recursiveListSecretWithLogical(c.logical, mount, key, version) {
-					resp, _ := c.logical.Read(secret)
-
-					js, _ := json.Marshal(resp.Data["data"])
-					vars[secret] = string(js)
-					flatten(secret, resp.Data["data"], mount, vars)
+				for _, secretPath := range secrets {
+					secretResp, err := c.logical.Read(secretPath)
+					if err != nil {
+						log.Warning("failed to read secret %s: %v", secretPath, err)
+						continue
+					}
+					if secretResp == nil || secretResp.Data == nil {
+						continue
+					}
+					data := secretResp.Data["data"]
+					js, err := json.Marshal(data)
+					if err != nil {
+						log.Warning("failed to marshal secret %s: %v", secretPath, err)
+						continue
+					}
+					vars[secretPath] = string(js)
+					flatten(secretPath, data, mount, vars)
 				}
 			}
 		} else {
@@ -273,6 +303,20 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 		}
 	}
 	return vars, nil
+}
+
+// getKVVersion safely extracts the KV version from secret data
+func getKVVersion(data map[string]interface{}) (string, error) {
+	options, ok := data["options"].(map[string]interface{})
+	if !ok {
+		// Default to version 1 if options not present
+		return "1", nil
+	}
+	version, ok := options["version"].(string)
+	if !ok {
+		return "1", nil
+	}
+	return version, nil
 }
 
 // recursively walks on all the keys of a specific secret and set them in the variables map
@@ -292,21 +336,19 @@ func flatten(key string, value interface{}, mount string, vars map[string]string
 	}
 }
 
-var secretListPath []string
-
 // listSecretWithLogical returns a list of secrets from Vault using the vaultLogical interface
 func listSecretWithLogical(logical vaultLogical, path string, key string, version string) (*vaultapi.Secret, error) {
 	switch version {
 	case "", "1":
 		secret, err := logical.List(path + key)
 		if err != nil {
-			log.Warning("Couldn't list from the Vault.")
+			log.Warning("Couldn't list from the Vault: %v", err)
 		}
 		return secret, err
 	case "2":
 		secret, err := logical.List(path + "/metadata/" + key)
 		if err != nil {
-			log.Warning("Couldn't list from the Vault.")
+			log.Warning("Couldn't list from the Vault: %v", err)
 		}
 		return secret, err
 	}
@@ -314,42 +356,40 @@ func listSecretWithLogical(logical vaultLogical, path string, key string, versio
 }
 
 // recursiveListSecretWithLogical returns a list of secrets paths from Vault using the vaultLogical interface
-func recursiveListSecretWithLogical(logical vaultLogical, path string, key string, version string) []string {
-	switch version {
-	case "", "1":
-		secretList, err := listSecretWithLogical(logical, path, key, version)
-		if err == nil && secretList != nil {
-			for _, secret := range secretList.Data["keys"].([]interface{}) {
-				if strings.HasSuffix(secret.(string), "/") {
-					key := key + "/" + strings.TrimSuffix(secret.(string), "/")
-					recursiveListSecretWithLogical(logical, path, key, version)
-				} else {
-					key := key + "/" + strings.TrimSuffix(secret.(string), "/")
-					secretListPath = append([]string{path + key}, secretListPath...)
-				}
-			}
-		} else {
-			secretListPath = append([]string{path}, secretListPath...)
-		}
-		return secretListPath
-	case "2":
-		secretList, err := listSecretWithLogical(logical, path, key, version)
-		if err == nil && secretList != nil {
-			for _, secret := range secretList.Data["keys"].([]interface{}) {
-				if strings.HasSuffix(secret.(string), "/") {
-					key := key + "/" + strings.TrimSuffix(secret.(string), "/")
-					recursiveListSecretWithLogical(logical, path, key, version)
-				} else {
-					key := key + "/" + strings.TrimSuffix(secret.(string), "/")
-					secretListPath = append([]string{path + "/data" + key}, secretListPath...)
-				}
-			}
-		} else {
-			secretListPath = append([]string{path + "data/"}, secretListPath...)
-		}
-		return secretListPath
+func recursiveListSecretWithLogical(logical vaultLogical, basePath string, key string, version string) []string {
+	var results []string
+	secretList, err := listSecretWithLogical(logical, basePath, key, version)
+	if err != nil || secretList == nil || secretList.Data == nil {
+		return results
 	}
-	return nil
+
+	keys, ok := secretList.Data["keys"].([]interface{})
+	if !ok {
+		return results
+	}
+
+	for _, secret := range keys {
+		secretStr, ok := secret.(string)
+		if !ok {
+			continue
+		}
+		if strings.HasSuffix(secretStr, "/") {
+			// It's a directory, recurse
+			newKey := key + "/" + strings.TrimSuffix(secretStr, "/")
+			subResults := recursiveListSecretWithLogical(logical, basePath, newKey, version)
+			results = append(results, subResults...)
+		} else {
+			// It's a secret
+			newKey := key + "/" + secretStr
+			switch version {
+			case "", "1":
+				results = append(results, basePath+newKey)
+			case "2":
+				results = append(results, basePath+"/data"+newKey)
+			}
+		}
+	}
+	return results
 }
 
 // ListSecret returns a list of secrets from Vault
@@ -358,13 +398,13 @@ func ListSecret(vault *vaultapi.Client, path string, key string, version string)
 	case "1":
 		secret, err := vault.Logical().List(path + key)
 		if err != nil {
-			log.Warning("Couldn't list from the Vault.")
+			log.Warning("Couldn't list from the Vault: %v", err)
 		}
 		return secret, err
 	case "2":
 		secret, err := vault.Logical().List(path + "/metadata/" + key)
 		if err != nil {
-			log.Warning("Couldn't list from the Vault.")
+			log.Warning("Couldn't list from the Vault: %v", err)
 		}
 		return secret, err
 	}
@@ -372,42 +412,40 @@ func ListSecret(vault *vaultapi.Client, path string, key string, version string)
 }
 
 // RecursiveListSecret returns a list of secrets paths from Vault
-func RecursiveListSecret(vault *vaultapi.Client, path string, key string, version string) []string {
-	switch version {
-	case "1":
-		secretList, err := ListSecret(vault, path, key, version)
-		if err == nil && secretList != nil {
-			for _, secret := range secretList.Data["keys"].([]interface{}) {
-				if strings.HasSuffix(secret.(string), "/") {
-					key := key + "/" + strings.TrimSuffix(secret.(string), "/")
-					RecursiveListSecret(vault, path, key, version)
-				} else {
-					key := key + "/" + strings.TrimSuffix(secret.(string), "/")
-					secretListPath = append([]string{path + key}, secretListPath...)
-				}
-			}
-		} else {
-			secretListPath = append([]string{path}, secretListPath...)
-		}
-		return secretListPath
-	case "2":
-		secretList, err := ListSecret(vault, path, key, version)
-		if err == nil && secretList != nil {
-			for _, secret := range secretList.Data["keys"].([]interface{}) {
-				if strings.HasSuffix(secret.(string), "/") {
-					key := key + "/" + strings.TrimSuffix(secret.(string), "/")
-					RecursiveListSecret(vault, path, key, version)
-				} else {
-					key := key + "/" + strings.TrimSuffix(secret.(string), "/")
-					secretListPath = append([]string{path + "/data" + key}, secretListPath...)
-				}
-			}
-		} else {
-			secretListPath = append([]string{path + "data/"}, secretListPath...)
-		}
-		return secretListPath
+func RecursiveListSecret(vault *vaultapi.Client, basePath string, key string, version string) []string {
+	var results []string
+	secretList, err := ListSecret(vault, basePath, key, version)
+	if err != nil || secretList == nil || secretList.Data == nil {
+		return results
 	}
-	return nil
+
+	keys, ok := secretList.Data["keys"].([]interface{})
+	if !ok {
+		return results
+	}
+
+	for _, secret := range keys {
+		secretStr, ok := secret.(string)
+		if !ok {
+			continue
+		}
+		if strings.HasSuffix(secretStr, "/") {
+			// It's a directory, recurse
+			newKey := key + "/" + strings.TrimSuffix(secretStr, "/")
+			subResults := RecursiveListSecret(vault, basePath, newKey, version)
+			results = append(results, subResults...)
+		} else {
+			// It's a secret
+			newKey := key + "/" + secretStr
+			switch version {
+			case "1":
+				results = append(results, basePath+newKey)
+			case "2":
+				results = append(results, basePath+"/data"+newKey)
+			}
+		}
+	}
+	return results
 }
 
 func getMount(path string) string {
