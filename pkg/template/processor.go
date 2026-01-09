@@ -49,6 +49,10 @@ func IntervalProcessor(config Config, stopChan, doneChan chan bool, errChan chan
 
 func (p *intervalProcessor) Process() {
 	defer close(p.doneChan)
+	ctx := p.config.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	for {
 		ts, err := getTemplateResources(p.config)
 		if err != nil {
@@ -57,6 +61,9 @@ func (p *intervalProcessor) Process() {
 		}
 		process(ts)
 		select {
+		case <-ctx.Done():
+			log.Debug("Context cancelled, stopping interval processor")
+			return
 		case <-p.stopChan:
 			return
 		case <-time.After(time.Duration(p.interval) * time.Second):
@@ -98,13 +105,23 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 	defer p.wg.Done()
 	keys := util.AppendPrefix(t.Prefix, t.Keys)
 
+	ctx := p.config.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Debounce timer management
 	var debounceTimer *time.Timer
 	var debounceChan <-chan time.Time
 
 	for {
-		index, err := t.storeClient.WatchPrefix(context.Background(), t.Prefix, keys, t.lastIndex, p.stopChan)
+		index, err := t.storeClient.WatchPrefix(ctx, t.Prefix, keys, t.lastIndex, p.stopChan)
 		if err != nil {
+			// Check if context was cancelled
+			if ctx.Err() != nil {
+				log.Debug("Context cancelled, stopping watch for %s", t.Dest)
+				return
+			}
 			p.errChan <- err
 			// Prevent backend errors from consuming all resources.
 			time.Sleep(time.Second * 2)
@@ -125,6 +142,12 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 
 			// Wait for either debounce timer to fire or more changes
 			select {
+			case <-ctx.Done():
+				if debounceTimer != nil {
+					debounceTimer.Stop()
+				}
+				log.Debug("Context cancelled, stopping watch for %s", t.Dest)
+				return
 			case <-debounceChan:
 				// Debounce period elapsed, process the template
 				log.Debug("Debounce period elapsed for %s, processing", t.Dest)
@@ -190,9 +213,19 @@ func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
 	defer p.wg.Done()
 	keys := util.AppendPrefix(t.Prefix, t.Keys)
 
+	ctx := p.config.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	for {
-		index, err := t.storeClient.WatchPrefix(context.Background(), t.Prefix, keys, t.lastIndex, p.stopChan)
+		index, err := t.storeClient.WatchPrefix(ctx, t.Prefix, keys, t.lastIndex, p.stopChan)
 		if err != nil {
+			// Check if context was cancelled
+			if ctx.Err() != nil {
+				log.Debug("Context cancelled, stopping batch watch for %s", t.Dest)
+				return
+			}
 			p.errChan <- err
 			time.Sleep(time.Second * 2)
 			continue
@@ -203,6 +236,9 @@ func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
 		select {
 		case p.changeChan <- t:
 			log.Debug("Queued change for batch processing: %s", t.Dest)
+		case <-ctx.Done():
+			log.Debug("Context cancelled, stopping batch watch for %s", t.Dest)
+			return
 		case <-p.stopChan:
 			return
 		}
@@ -211,6 +247,11 @@ func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
 
 func (p *batchWatchProcessor) processBatch() {
 	defer p.wg.Done()
+
+	ctx := p.config.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	pending := make(map[string]*TemplateResource)
 	timer := time.NewTimer(p.config.BatchInterval)
@@ -242,6 +283,19 @@ func (p *batchWatchProcessor) processBatch() {
 					delete(pending, dest)
 				}
 			}
+
+		case <-ctx.Done():
+			timer.Stop()
+			// Process any remaining pending changes before shutdown
+			if len(pending) > 0 {
+				log.Info("Processing %d pending template changes before shutdown", len(pending))
+				for _, t := range pending {
+					if err := t.process(); err != nil {
+						p.errChan <- err
+					}
+				}
+			}
+			return
 
 		case <-p.stopChan:
 			timer.Stop()

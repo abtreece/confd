@@ -54,9 +54,11 @@ func New(nodes []string, scheme, cert, key, caCert string, basicAuth bool, usern
 // GetValues queries Consul for keys
 func (c *ConsulClient) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	vars := make(map[string]string)
+	opts := &api.QueryOptions{}
+	opts = opts.WithContext(ctx)
 	for _, key := range keys {
 		key := strings.TrimPrefix(key, "/")
-		pairs, _, err := c.client.List(key, nil)
+		pairs, _, err := c.client.List(key, opts)
 		if err != nil {
 			return vars, err
 		}
@@ -75,10 +77,11 @@ type watchResponse struct {
 func (c *ConsulClient) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	respChan := make(chan watchResponse)
 	go func() {
-		opts := api.QueryOptions{
+		opts := &api.QueryOptions{
 			WaitIndex: waitIndex,
 		}
-		_, meta, err := c.client.List(prefix, &opts)
+		opts = opts.WithContext(ctx)
+		_, meta, err := c.client.List(prefix, opts)
 		if err != nil {
 			respChan <- watchResponse{waitIndex, err}
 			return
@@ -87,6 +90,8 @@ func (c *ConsulClient) WatchPrefix(ctx context.Context, prefix string, keys []st
 	}()
 
 	select {
+	case <-ctx.Done():
+		return waitIndex, ctx.Err()
 	case <-stopChan:
 		return waitIndex, nil
 	case r := <-respChan:
@@ -97,6 +102,8 @@ func (c *ConsulClient) WatchPrefix(ctx context.Context, prefix string, keys []st
 // HealthCheck verifies the backend connection is healthy.
 // It attempts a simple list operation to verify connectivity.
 func (c *ConsulClient) HealthCheck(ctx context.Context) error {
-	_, _, err := c.client.List("", nil)
+	opts := &api.QueryOptions{}
+	opts = opts.WithContext(ctx)
+	_, _, err := c.client.List("", opts)
 	return err
 }
