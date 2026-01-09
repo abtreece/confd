@@ -16,7 +16,6 @@ require (
 	github.com/hashicorp/vault/api v1.22.0
 	github.com/sirupsen/logrus v1.9.3
 	go.etcd.io/etcd/client/v3 v3.6.7
-	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -29,6 +28,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.7
 	go.etcd.io/etcd/api/v3 v3.6.7
+	go.yaml.in/yaml/v3 v3.0.4
 )
 
 require (
