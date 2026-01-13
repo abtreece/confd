@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/acm v1.37.18
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.53.5
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.7
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.8
 	github.com/redis/go-redis/v9 v9.17.2
 	go.etcd.io/etcd/api/v3 v3.6.7
 	go.yaml.in/yaml/v3 v3.0.4
