@@ -91,7 +91,7 @@ github.com/aws/aws-sdk-go-v2/service/secretsmanager/types
 github.com/aws/aws-sdk-go-v2/service/signin
 github.com/aws/aws-sdk-go-v2/service/signin/internal/endpoints
 github.com/aws/aws-sdk-go-v2/service/signin/types
-# github.com/aws/aws-sdk-go-v2/service/ssm v1.67.7
+# github.com/aws/aws-sdk-go-v2/service/ssm v1.67.8
 ## explicit; go 1.23
 github.com/aws/aws-sdk-go-v2/service/ssm
 github.com/aws/aws-sdk-go-v2/service/ssm/internal/endpoints
