@@ -4,9 +4,10 @@ set -e
 export HOSTNAME="localhost"
 
 # Wait for Zookeeper to be ready
+# Note: Use 'srvr' instead of 'ruok' as newer Zookeeper versions disable 'ruok' by default
 wait_for_zookeeper() {
     local retries=30
-    while ! echo ruok | nc -w 1 "$ZOOKEEPER_NODE" 2181 2>/dev/null | grep -q imok; do
+    while ! echo srvr | nc -w 1 "$ZOOKEEPER_NODE" 2181 2>/dev/null | grep -q "Zookeeper version"; do
         retries=$((retries - 1))
         if [[ $retries -eq 0 ]]; then
             echo "ERROR: Zookeeper not ready after 30 seconds" >&2
