@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
 	util "github.com/abtreece/confd/pkg/util"
 )
 
@@ -69,15 +70,23 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 
 	// Write content to temp file
 	if _, err = temp.Write(content); err != nil {
-		temp.Close()
-		os.Remove(temp.Name())
+		if closeErr := temp.Close(); closeErr != nil {
+			log.Error("Failed to close temp file during cleanup: %v", closeErr)
+		}
+		if removeErr := os.Remove(temp.Name()); removeErr != nil {
+			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
+		}
 		return nil, err
 	}
 
 	// Apply permissions to stage file
 	if err := s.applyPermissions(temp.Name()); err != nil {
-		temp.Close()
-		os.Remove(temp.Name())
+		if closeErr := temp.Close(); closeErr != nil {
+			log.Error("Failed to close temp file during cleanup: %v", closeErr)
+		}
+		if removeErr := os.Remove(temp.Name()); removeErr != nil {
+			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
+		}
 		return nil, err
 	}
 
@@ -109,6 +118,12 @@ func (s *fileStager) isConfigChanged(stagePath, destPath string) (bool, error) {
 // and handled noop mode. It only performs the actual file sync operation.
 func (s *fileStager) syncFiles(stagePath, destPath string) error {
 	log.Debug("Overwriting target config %s", destPath)
+
+	// Record file sync metrics
+	if metrics.Enabled() {
+		metrics.FileSyncTotal.WithLabelValues(destPath).Inc()
+		metrics.FileChangedTotal.Inc()
+	}
 
 	// If keepStageFile is true, we must copy instead of move
 	if s.keepStageFile {

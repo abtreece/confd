@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
 )
 
 // cachedTemplate stores a compiled template with its modification time
@@ -48,15 +49,24 @@ func GetCachedTemplate(path string) (*template.Template, bool) {
 	globalTemplateCache.mu.RUnlock()
 
 	if !ok {
+		if metrics.Enabled() {
+			metrics.TemplateCacheMisses.Inc()
+		}
 		return nil, false
 	}
 
 	// Check if file mtime changed
 	stat, err := os.Stat(path)
 	if err != nil || !stat.ModTime().Equal(cached.mtime) {
+		if metrics.Enabled() {
+			metrics.TemplateCacheMisses.Inc()
+		}
 		return nil, false
 	}
 
+	if metrics.Enabled() {
+		metrics.TemplateCacheHits.Inc()
+	}
 	return cached.tmpl, true
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -12,8 +13,10 @@ import (
 
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
 	"github.com/abtreece/confd/pkg/template"
 	"github.com/alecthomas/kong"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // CLI is the root command structure
@@ -54,6 +57,9 @@ type CLI struct {
 	BackendTimeout   time.Duration `name:"backend-timeout" help:"timeout for backend operations (e.g., 30s, 1m)" default:"30s"`
 	CheckCmdTimeout  time.Duration `name:"check-cmd-timeout" help:"default timeout for check commands (e.g., 30s)" default:"30s"`
 	ReloadCmdTimeout time.Duration `name:"reload-cmd-timeout" help:"default timeout for reload commands (e.g., 60s)" default:"60s"`
+
+	// Metrics and observability
+	MetricsAddr string `name:"metrics-addr" help:"Address for metrics endpoint (e.g., :9100). Disabled if empty." env:"CONFD_METRICS_ADDR"`
 
 	Version VersionFlag `help:"print version and exit"`
 
@@ -368,6 +374,27 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	storeClient, err := backends.New(backendCfg)
 	if err != nil {
 		return err
+	}
+
+	// Start metrics server if configured
+	if cli.MetricsAddr != "" {
+		metrics.Initialize()
+		storeClient = metrics.WrapStoreClient(storeClient, backendCfg.Backend)
+		go func() {
+			mux := http.NewServeMux()
+			mux.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{}))
+			mux.HandleFunc("/health", metrics.HealthHandler(storeClient))
+			mux.HandleFunc("/ready", metrics.ReadyHandler(storeClient))
+			server := &http.Server{
+				Addr:              cli.MetricsAddr,
+				Handler:           mux,
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			log.Info("Starting metrics server on %s", cli.MetricsAddr)
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Error("Metrics server error: %v", err)
+			}
+		}()
 	}
 
 	// Create root context for cancellation
