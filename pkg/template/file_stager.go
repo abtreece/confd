@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
 	util "github.com/abtreece/confd/pkg/util"
 )
 
@@ -109,6 +110,12 @@ func (s *fileStager) isConfigChanged(stagePath, destPath string) (bool, error) {
 // and handled noop mode. It only performs the actual file sync operation.
 func (s *fileStager) syncFiles(stagePath, destPath string) error {
 	log.Debug("Overwriting target config %s", destPath)
+
+	// Record file sync metrics
+	if metrics.Enabled() {
+		metrics.FileSyncTotal.WithLabelValues(destPath).Inc()
+		metrics.FileChangedTotal.Inc()
+	}
 
 	// If keepStageFile is true, we must copy instead of move
 	if s.keepStageFile {
