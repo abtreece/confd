@@ -90,6 +90,8 @@ type TemplateResource struct {
 	bkndFetcher *backendFetcher
 	// Template rendering
 	tmplRenderer *templateRenderer
+	// File staging and syncing
+	fileStgr *fileStager
 }
 
 var ErrEmptySrc = errors.New("empty src template")
@@ -233,6 +235,18 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		Store:       tr.store,
 	})
 
+	// Initialize file stager
+	tr.fileStgr = newFileStager(fileStagingConfig{
+		Uid:           tr.Uid,
+		Gid:           tr.Gid,
+		FileMode:      tr.FileMode,
+		KeepStageFile: tr.keepStageFile,
+		Noop:          tr.noop,
+		ShowDiff:      tr.showDiff,
+		DiffContext:   tr.diffContext,
+		ColorDiff:     tr.colorDiff,
+	})
+
 	return &tr, nil
 }
 
@@ -246,22 +260,23 @@ func (t *TemplateResource) setVars() error {
 // StageFile for the template resource.
 // It returns an error if any.
 func (t *TemplateResource) createStageFile() error {
+	// Ensure FileMode is set and fileStager is updated
+	// This is needed for tests that bypass process() and set FileMode directly
+	if t.FileMode == 0 || (t.fileStgr != nil && t.fileStgr.fileMode != t.FileMode) {
+		if err := t.setFileMode(); err != nil {
+			return err
+		}
+	}
+
 	// Render the template to bytes
 	rendered, err := t.tmplRenderer.render(t.Src)
 	if err != nil {
 		return err
 	}
 
-	// create TempFile in Dest directory to avoid cross-filesystem issues
-	temp, err := os.CreateTemp(filepath.Dir(t.Dest), "."+filepath.Base(t.Dest))
+	// Create stage file with rendered content
+	temp, err := t.fileStgr.createStageFile(t.Dest, rendered)
 	if err != nil {
-		return err
-	}
-
-	// Write rendered content to temp file
-	if _, err = temp.Write(rendered); err != nil {
-		temp.Close()
-		os.Remove(temp.Name())
 		return err
 	}
 
@@ -272,16 +287,6 @@ func (t *TemplateResource) createStageFile() error {
 		return err
 	}
 
-	defer temp.Close()
-
-	// Set the owner, group, and mode on the stage file now to make it easier to
-	// compare against the destination configuration file later.
-	if err := os.Chmod(temp.Name(), t.FileMode); err != nil {
-		return fmt.Errorf("failed to chmod stage file: %w", err)
-	}
-	if err := os.Chown(temp.Name(), t.Uid, t.Gid); err != nil {
-		return fmt.Errorf("failed to chown stage file: %w", err)
-	}
 	t.StageFile = temp
 	return nil
 }
@@ -293,71 +298,75 @@ func (t *TemplateResource) createStageFile() error {
 // It returns an error if any.
 func (t *TemplateResource) sync() error {
 	staged := t.StageFile.Name()
-	if t.keepStageFile {
-		log.Info("Keeping staged file: %s", staged)
-	} else {
-		defer os.Remove(staged)
+
+	// Initialize fileStager if not already set (for backward compatibility with tests)
+	if t.fileStgr == nil {
+		t.fileStgr = newFileStager(fileStagingConfig{
+			Uid:           t.Uid,
+			Gid:           t.Gid,
+			FileMode:      t.FileMode,
+			KeepStageFile: t.keepStageFile,
+			Noop:          t.noop,
+			ShowDiff:      t.showDiff,
+			DiffContext:   t.diffContext,
+			ColorDiff:     t.colorDiff,
+		})
 	}
 
-	log.Debug("Comparing candidate config to %s", t.Dest)
-	ok, err := util.IsConfigChanged(staged, t.Dest)
+	// Check if config has changed
+	changed, err := t.fileStgr.isConfigChanged(staged, t.Dest)
 	if err != nil {
 		log.Error("%s", err.Error())
 	}
+
+	// Handle noop mode - just show diff and return
 	if t.noop {
 		log.Warning("Noop mode enabled. %s will not be modified", t.Dest)
-		if ok && t.showDiff {
-			diff, diffErr := util.GenerateDiff(staged, t.Dest, t.diffContext)
-			if diffErr != nil {
-				log.Error("Failed to generate diff: %s", diffErr.Error())
-			} else if diff != "" {
-				if t.colorDiff {
-					diff = util.ColorizeDiff(diff)
-				}
-				fmt.Print(diff)
+		if changed && t.showDiff {
+			if err := t.fileStgr.showDiffOutput(staged, t.Dest); err != nil {
+				log.Error("Failed to generate diff: %s", err.Error())
 			}
+		}
+		// Clean up stage file in noop mode
+		if !t.keepStageFile {
+			os.Remove(staged)
 		}
 		return nil
 	}
-	if ok {
-		log.Info("Target config %s out of sync", t.Dest)
-		if !t.syncOnly && t.CheckCmd != "" {
-			if err := t.check(); err != nil {
-				return errors.New("Config check failed: " + err.Error())
-			}
-		}
-		log.Debug("Overwriting target config %s", t.Dest)
-		err := os.Rename(staged, t.Dest)
-		if err != nil {
-			if strings.Contains(err.Error(), "device or resource busy") {
-				log.Debug("Rename failed - target is likely a mount. Trying to write instead")
-				// try to open the file and write to it
-				var contents []byte
-				var rerr error
-				contents, rerr = os.ReadFile(staged)
-				if rerr != nil {
-					return rerr
-				}
-				if err := os.WriteFile(t.Dest, contents, t.FileMode); err != nil {
-					return fmt.Errorf("failed to write to destination file: %w", err)
-				}
-				// make sure owner and group match the temp file, in case the file was created with WriteFile
-				if err := os.Chown(t.Dest, t.Uid, t.Gid); err != nil {
-					return fmt.Errorf("failed to chown destination file: %w", err)
-				}
-			} else {
-				return err
-			}
-		}
-		if !t.syncOnly && t.ReloadCmd != "" {
-			if err := t.reload(); err != nil {
-				return err
-			}
-		}
-		log.Info("Target config %s has been updated", t.Dest)
-	} else {
+
+	// If no changes, clean up and return
+	if !changed {
 		log.Debug("Target config %s in sync", t.Dest)
+		if !t.keepStageFile {
+			os.Remove(staged)
+		}
+		return nil
 	}
+
+	// Config has changed - run check command before syncing
+	log.Info("Target config %s out of sync", t.Dest)
+	if !t.syncOnly && t.CheckCmd != "" {
+		if err := t.check(); err != nil {
+			if !t.keepStageFile {
+				os.Remove(staged)
+			}
+			return errors.New("Config check failed: " + err.Error())
+		}
+	}
+
+	// Sync the files
+	if err := t.fileStgr.syncFiles(staged, t.Dest); err != nil {
+		return err
+	}
+
+	// Run reload command after successful sync
+	if !t.syncOnly && t.ReloadCmd != "" {
+		if err := t.reload(); err != nil {
+			return err
+		}
+	}
+
+	log.Info("Target config %s has been updated", t.Dest)
 	return nil
 }
 
@@ -444,5 +453,11 @@ func (t *TemplateResource) setFileMode() error {
 		}
 		t.FileMode = os.FileMode(mode)
 	}
+
+	// Update fileStager with the determined file mode
+	if t.fileStgr != nil {
+		t.fileStgr.updateFileMode(t.FileMode)
+	}
+
 	return nil
 }
