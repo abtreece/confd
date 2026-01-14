@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -89,6 +88,8 @@ type TemplateResource struct {
 	fmtValidator *formatValidator
 	// Backend data fetching
 	bkndFetcher *backendFetcher
+	// Template rendering
+	tmplRenderer *templateRenderer
 }
 
 var ErrEmptySrc = errors.New("empty src template")
@@ -225,6 +226,13 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		BackendTimeout: tr.backendTimeout,
 	})
 
+	// Initialize template renderer
+	tr.tmplRenderer = newTemplateRenderer(templateRendererConfig{
+		TemplateDir: tr.templateDir,
+		FuncMap:     tr.funcMap,
+		Store:       tr.store,
+	})
+
 	return &tr, nil
 }
 
@@ -238,37 +246,10 @@ func (t *TemplateResource) setVars() error {
 // StageFile for the template resource.
 // It returns an error if any.
 func (t *TemplateResource) createStageFile() error {
-	log.Debug("Using source template %s", t.Src)
-
-	if !util.IsFileExist(t.Src) {
-		return errors.New("Missing template: " + t.Src)
-	}
-
-	log.Debug("Compiling source template %s", t.Src)
-
-	// Add include function to funcMap for this template
-	includeCtx := NewIncludeContext()
-	t.funcMap["include"] = NewIncludeFunc(t.templateDir, t.funcMap, includeCtx)
-
-	// Try to get template from cache
-	var tmpl *template.Template
-	var err error
-	tmpl, cacheHit := GetCachedTemplate(t.Src)
-	if !cacheHit {
-		log.Debug("Template cache miss for %s", t.Src)
-		stat, statErr := os.Stat(t.Src)
-		if statErr != nil {
-			return fmt.Errorf("Unable to stat template %s: %w", t.Src, statErr)
-		}
-		tmpl, err = template.New(filepath.Base(t.Src)).Funcs(t.funcMap).ParseFiles(t.Src)
-		if err != nil {
-			return fmt.Errorf("Unable to process template %s, %s", t.Src, err)
-		}
-		PutCachedTemplate(t.Src, tmpl, stat.ModTime())
-	} else {
-		log.Debug("Template cache hit for %s", t.Src)
-		// Update funcMap with fresh include function (functions resolved at execution time)
-		tmpl = tmpl.Funcs(t.funcMap)
+	// Render the template to bytes
+	rendered, err := t.tmplRenderer.render(t.Src)
+	if err != nil {
+		return err
 	}
 
 	// create TempFile in Dest directory to avoid cross-filesystem issues
@@ -277,7 +258,8 @@ func (t *TemplateResource) createStageFile() error {
 		return err
 	}
 
-	if err = tmpl.Execute(temp, nil); err != nil {
+	// Write rendered content to temp file
+	if _, err = temp.Write(rendered); err != nil {
 		temp.Close()
 		os.Remove(temp.Name())
 		return err
