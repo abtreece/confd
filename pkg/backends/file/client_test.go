@@ -491,6 +491,80 @@ func TestHealthCheck_PartialMissingFiles(t *testing.T) {
 	}
 }
 
+func TestMatchesAnyPrefix(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		prefixes []string
+		want     bool
+	}{
+		{
+			name:     "empty prefixes returns false",
+			path:     "/database/host",
+			prefixes: []string{},
+			want:     false,
+		},
+		{
+			name:     "single prefix match",
+			path:     "/database/host",
+			prefixes: []string{"/database"},
+			want:     true,
+		},
+		{
+			name:     "single prefix no match",
+			path:     "/database/host",
+			prefixes: []string{"/cache"},
+			want:     false,
+		},
+		{
+			name:     "multiple prefixes first matches",
+			path:     "/database/host",
+			prefixes: []string{"/database", "/cache", "/app"},
+			want:     true,
+		},
+		{
+			name:     "multiple prefixes last matches",
+			path:     "/app/config",
+			prefixes: []string{"/database", "/cache", "/app"},
+			want:     true,
+		},
+		{
+			name:     "multiple prefixes none match",
+			path:     "/other/key",
+			prefixes: []string{"/database", "/cache", "/app"},
+			want:     false,
+		},
+		{
+			name:     "prefix substring matches (HasPrefix behavior)",
+			path:     "/database-backup/host",
+			prefixes: []string{"/database"},
+			want:     true,
+		},
+		{
+			name:     "exact path match",
+			path:     "/database",
+			prefixes: []string{"/database"},
+			want:     true,
+		},
+		{
+			name:     "root prefix matches all",
+			path:     "/database/host",
+			prefixes: []string{"/"},
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchesAnyPrefix(tt.path, tt.prefixes)
+			if got != tt.want {
+				t.Errorf("matchesAnyPrefix(%q, %v) = %v, want %v",
+					tt.path, tt.prefixes, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNodeWalk(t *testing.T) {
 	tests := []struct {
 		name     string
