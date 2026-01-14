@@ -1,4 +1,5 @@
-#!/bin/bash -x
+#!/bin/bash
+set -e
 
 export HOSTNAME="localhost"
 export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-test}"
@@ -7,6 +8,21 @@ export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 export AWS_REGION="${AWS_REGION:-us-east-1}"
 export ACM_LOCAL="true"
 export ACM_ENDPOINT_URL="${ACM_ENDPOINT_URL:-http://localhost:4566}"
+
+# Wait for LocalStack/ACM to be ready
+wait_for_acm() {
+    local retries=30
+    while ! aws acm list-certificates --endpoint-url "$ACM_ENDPOINT_URL" > /dev/null 2>&1; do
+        retries=$((retries - 1))
+        if [[ $retries -eq 0 ]]; then
+            echo "ERROR: ACM not ready after 30 seconds" >&2
+            exit 1
+        fi
+        sleep 1
+    done
+}
+
+wait_for_acm
 
 # Create a temporary directory for certificates
 CERT_DIR=$(mktemp -d)
@@ -24,12 +40,16 @@ CERTIFICATE_ARN=$(aws acm import-certificate \
     --query 'CertificateArn' \
     --output text)
 
-if [ -z "$CERTIFICATE_ARN" ]; then
-    echo "Failed to import certificate"
+if [[ -z "$CERTIFICATE_ARN" ]]; then
+    echo "ERROR: Failed to import certificate"
     exit 1
 fi
 
 echo "Imported certificate with ARN: $CERTIFICATE_ARN"
+
+# Clean up any existing test directories
+rm -rf ./test/integration/acm/confdir
+rm -rf ./test/integration/acm/confdir-export
 
 # Create the confd configuration directory
 mkdir -p ./test/integration/acm/confdir/conf.d
@@ -53,19 +73,15 @@ EOF
 
 # Run confd, expect it to work
 confd acm --onetime --log-level debug --confdir ./test/integration/acm/confdir
-if [ $? -ne 0 ]; then
-    echo "confd failed"
-    exit 1
-fi
 
 # Verify the output file was created and contains the certificate
-if [ ! -f /tmp/acm-test-certificate.pem ]; then
-    echo "Output file was not created"
+if [[ ! -f /tmp/acm-test-certificate.pem ]]; then
+    echo "ERROR: Output file was not created"
     exit 1
 fi
 
 if ! grep -q "BEGIN CERTIFICATE" /tmp/acm-test-certificate.pem; then
-    echo "Output file does not contain certificate"
+    echo "ERROR: Output file does not contain certificate"
     cat /tmp/acm-test-certificate.pem
     exit 1
 fi
@@ -107,12 +123,9 @@ EOF
 
 # Run confd with private key export enabled
 # This may fail with localstack due to ExportCertificate limitations
-confd acm --onetime --log-level debug --confdir ./test/integration/acm/confdir-export --acm-export-private-key
-EXPORT_EXIT_CODE=$?
-
-if [ $EXPORT_EXIT_CODE -eq 0 ]; then
+if confd acm --onetime --log-level debug --confdir ./test/integration/acm/confdir-export --acm-export-private-key; then
     echo "Private key export succeeded"
-    if [ -f /tmp/acm-test-export.pem ]; then
+    if [[ -f /tmp/acm-test-export.pem ]]; then
         if grep -q "PRIVATE KEY" /tmp/acm-test-export.pem; then
             echo "Private key found in output"
         else
@@ -131,14 +144,15 @@ unset ACM_PASSPHRASE
 rm -rf ./test/integration/acm/confdir-export
 
 # Run confd with --watch, expecting it to fail (watch not supported for ACM)
-confd acm --onetime --log-level debug --confdir ./test/integration/acm/confdir --watch
-if [ $? -eq 0 ]; then
-    echo "confd with --watch should have failed for ACM backend"
+if confd acm --onetime --log-level debug --confdir ./test/integration/acm/confdir --watch 2>/dev/null; then
+    echo "ERROR: confd with --watch should have failed for ACM backend"
     exit 1
 fi
+echo "OK: --watch correctly rejected for ACM"
 
 echo "ACM integration test passed"
 
 # Cleanup
 rm -f /tmp/acm-test-certificate.pem
 rm -f /tmp/acm-test-export.pem
+rm -rf ./test/integration/acm/confdir

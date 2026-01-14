@@ -10,55 +10,86 @@ import (
 	zk "github.com/go-zookeeper/zk"
 )
 
-func check(e error) {
-	if e != nil {
-		panic(e)
+func fatal(context string, err error) {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %s: %v\n", context, err)
+		os.Exit(1)
 	}
 }
 
-func zk_write(k string, v string, c *zk.Conn) {
-	e, stat, err := c.Exists(k)
-	check(err)
-	if e {
-		stat, err = c.Set(k, []byte(v), stat.Version)
-		check(err)
+func zkWrite(key string, value string, conn *zk.Conn) error {
+	exists, stat, err := conn.Exists(key)
+	if err != nil {
+		return fmt.Errorf("checking existence of %s: %w", key, err)
+	}
+
+	if exists {
+		_, err = conn.Set(key, []byte(value), stat.Version)
+		if err != nil {
+			return fmt.Errorf("updating %s: %w", key, err)
+		}
 	} else {
-		string, err := c.Create(k, []byte(v), int32(0), zk.WorldACL(zk.PermAll))
-		if string == "" {
-			check(err)
+		_, err = conn.Create(key, []byte(value), int32(0), zk.WorldACL(zk.PermAll))
+		if err != nil {
+			return fmt.Errorf("creating %s: %w", key, err)
 		}
 	}
+	return nil
 }
 
-func parsejson(prefix string, x interface{}, c *zk.Conn) {
-
-	switch t := x.(type) {
+func parseJSON(prefix string, data interface{}, conn *zk.Conn) error {
+	switch t := data.(type) {
 	case map[string]interface{}:
 		for k, v := range t {
 			if prefix != "" {
-				zk_write(prefix, "", c)
+				if err := zkWrite(prefix, "", conn); err != nil {
+					return err
+				}
 			}
-			parsejson(prefix+"/"+k, v, c)
+			if err := parseJSON(prefix+"/"+k, v, conn); err != nil {
+				return err
+			}
 		}
 	case []interface{}:
 		for i, v := range t {
-			parsejson(prefix+"["+strconv.Itoa(i)+"]", v, c)
+			if err := parseJSON(prefix+"["+strconv.Itoa(i)+"]", v, conn); err != nil {
+				return err
+			}
 		}
 	case string:
-		zk_write(prefix, t, c)
+		if err := zkWrite(prefix, t, conn); err != nil {
+			return err
+		}
 		fmt.Printf("%s = %q\n", prefix, t)
 	default:
-		fmt.Printf("Unhandled: %T\n", t)
+		fmt.Printf("Unhandled type: %T\n", t)
 	}
+	return nil
 }
 
 func main() {
-	var pj interface{}
-	dat, err := os.ReadFile("test.json")
-	check(err)
-	err = json.Unmarshal(dat, &pj)
-	check(err)
-	c, _, err := zk.Connect([]string{os.Getenv("ZOOKEEPER_NODE")}, time.Second) //*10)
-	check(err)
-	parsejson("", pj, c)
+	zkNode := os.Getenv("ZOOKEEPER_NODE")
+	if zkNode == "" {
+		fmt.Fprintln(os.Stderr, "ERROR: ZOOKEEPER_NODE environment variable not set")
+		os.Exit(1)
+	}
+
+	// Read and parse the test data JSON
+	data, err := os.ReadFile("test.json")
+	fatal("reading test.json", err)
+
+	var jsonData interface{}
+	err = json.Unmarshal(data, &jsonData)
+	fatal("parsing JSON", err)
+
+	// Connect to Zookeeper (node should be hostname, port is added separately)
+	conn, _, err := zk.Connect([]string{zkNode}, time.Second*10)
+	fatal("connecting to Zookeeper", err)
+	defer conn.Close()
+
+	// Load the test data into Zookeeper
+	err = parseJSON("", jsonData, conn)
+	fatal("loading data into Zookeeper", err)
+
+	fmt.Println("Zookeeper data loaded successfully")
 }

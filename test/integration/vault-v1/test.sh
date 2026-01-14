@@ -1,10 +1,29 @@
 #!/bin/bash
+set -e
 
 export HOSTNAME="localhost"
 
+# Wait for Vault to be ready
+wait_for_vault() {
+    local retries=30
+    while ! vault status > /dev/null 2>&1; do
+        retries=$((retries - 1))
+        if [[ $retries -eq 0 ]]; then
+            echo "ERROR: Vault not ready after 30 seconds" >&2
+            exit 1
+        fi
+        sleep 1
+    done
+}
+
+wait_for_vault
+
+# Clean up any existing secrets engine (ignore errors if doesn't exist)
+vault secrets disable kv-v1 2>/dev/null || true
+
 vault secrets enable -version 1 -path kv-v1 kv
 
-#vault write kv-v1/key key=foobar
+# Populate test data
 vault write kv-v1/database host=127.0.0.1 port=3306 username=confd password=p@sSw0rd
 vault write kv-v1/upstream app1=10.0.1.10:8080 app2=10.0.1.11:8080
 vault write kv-v1/nested/production app1=10.0.1.10:8080 app2=10.0.1.11:8080
@@ -14,9 +33,9 @@ vault write kv-v1/nested/staging app1=172.16.1.10:8080 app2=172.16.1.11:8080
 confd vault --onetime --log-level debug \
       --confdir ./test/integration/confdir \
       --auth-type token \
-      --auth-token $VAULT_TOKEN \
+      --auth-token "$VAULT_TOKEN" \
       --prefix "kv-v1" \
-      --node $VAULT_ADDR
+      --node "$VAULT_ADDR"
 
 # Disable kv-v1 secrets for next tests
 vault secrets disable kv-v1

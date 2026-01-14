@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 export HOSTNAME="localhost"
 export KEY="foobar"

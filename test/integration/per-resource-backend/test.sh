@@ -15,6 +15,10 @@ export APP_CONFIG_VERSION="1.0.0"
 # Ensure we use the built binary
 export PATH="./bin:$PATH"
 
+# Clean up before test
+rm -rf backends/per-resource
+rm -f /tmp/confd-per-resource-*.conf
+
 # Create file backend data
 mkdir -p backends/per-resource
 cat <<EOT > backends/per-resource/secrets.yaml
@@ -30,8 +34,25 @@ EOT
 confd env --onetime --log-level debug --confdir ./test/integration/per-resource-backend/confdir
 
 # Check results
-diff /tmp/confd-per-resource-app.conf test/integration/per-resource-backend/expect/app.conf
-diff /tmp/confd-per-resource-secrets.conf test/integration/per-resource-backend/expect/secrets.conf
+if ! diff -q /tmp/confd-per-resource-app.conf test/integration/per-resource-backend/expect/app.conf > /dev/null 2>&1; then
+    echo "ERROR: app.conf output mismatch"
+    echo "=== Expected ==="
+    cat test/integration/per-resource-backend/expect/app.conf
+    echo "=== Actual ==="
+    cat /tmp/confd-per-resource-app.conf
+    exit 1
+fi
+echo "OK: app.conf"
+
+if ! diff -q /tmp/confd-per-resource-secrets.conf test/integration/per-resource-backend/expect/secrets.conf > /dev/null 2>&1; then
+    echo "ERROR: secrets.conf output mismatch"
+    echo "=== Expected ==="
+    cat test/integration/per-resource-backend/expect/secrets.conf
+    echo "=== Actual ==="
+    cat /tmp/confd-per-resource-secrets.conf
+    exit 1
+fi
+echo "OK: secrets.conf"
 
 echo "Per-resource backend test passed!"
 
