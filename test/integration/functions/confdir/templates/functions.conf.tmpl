@@ -10,8 +10,10 @@ lower_key: {{ getv "/key" | toLower }}
 base_path: {{ "/database/host" | base }}
 # dir (directory)
 dir_path: {{ "/database/host" | dir }}
-# split and join
-split_host: {{ getv "/upstream/app1" | split ":" | join "-" }}
+# split (store in variable, then access)
+{{- $hostParts := split (getv "/upstream/app1") ":" }}
+split_host: {{ index $hostParts 0 }}
+split_port: {{ index $hostParts 1 }}
 # replace
 replaced: {{ getv "/key" | replace "bar" "baz" }}
 # trimSuffix
@@ -40,8 +42,8 @@ mod_result: {{ mod 17 5 }}
 # ===== Utility Functions =====
 # atoi (string to int)
 port_plus_one: {{ add (atoi (getv "/database/port")) 1 }}
-# seq
-seq_result: {{ seq 1 5 | join "," }}
+# seq (generate sequence and iterate)
+seq_result: {{- range $i, $v := seq 1 5 }}{{ if $i }},{{ end }}{{ $v }}{{ end }}
 # parseBool
 bool_true: {{ if parseBool "true" }}yes{{ else }}no{{ end }}
 bool_false: {{ if parseBool "false" }}yes{{ else }}no{{ end }}
@@ -56,7 +58,8 @@ map_key1: {{ index $mymap "key1" }}
 # ===== Sorting Functions =====
 # reverse (reverse a list)
 {{- $items := split (getv "/upstream/app1") ":" }}
-reversed: {{ reverse $items | join ":" }}
+{{- $reversed := reverse $items }}
+reversed: {{ index $reversed 0 }}:{{ index $reversed 1 }}
 
 # ===== Conditional Logic =====
 # exists check
