@@ -35,8 +35,10 @@ type Config struct {
 	Debounce      time.Duration // Global debounce for all templates
 	BatchInterval time.Duration // Batch processing interval
 	// Context for cancellation and timeouts
-	Ctx            context.Context
-	BackendTimeout time.Duration // Timeout for backend operations
+	Ctx              context.Context
+	BackendTimeout   time.Duration // Timeout for backend operations
+	CheckCmdTimeout  time.Duration // Default timeout for check commands
+	ReloadCmdTimeout time.Duration // Default timeout for reload commands
 }
 
 // TemplateResourceConfig holds the parsed template resource.
@@ -57,6 +59,8 @@ type TemplateResource struct {
 	OutputFormat      string `toml:"output_format"`       // json, yaml, toml, xml
 	MinReloadInterval string `toml:"min_reload_interval"` // e.g., "30s", "1m"
 	Debounce          string `toml:"debounce"`            // e.g., "2s", "500ms"
+	CheckCmdTimeout   string `toml:"check_cmd_timeout"`   // e.g., "30s", "1m"
+	ReloadCmdTimeout  string `toml:"reload_cmd_timeout"`  // e.g., "60s", "2m"
 	Owner             string
 	Prefix            string
 	ReloadCmd         string `toml:"reload_cmd"`
@@ -75,6 +79,8 @@ type TemplateResource struct {
 	minReloadIntervalDur time.Duration
 	debounceDur          time.Duration
 	lastReloadTime       time.Time
+	checkCmdTimeoutDur   time.Duration
+	reloadCmdTimeoutDur  time.Duration
 	// Diff settings
 	showDiff    bool
 	diffContext int
@@ -175,6 +181,37 @@ func parseDurations(minReloadInterval, debounce string, globalDebounce time.Dura
 	return minReloadDur, debounceDur, nil
 }
 
+// parseTimeoutDurations parses command timeout strings with fallback to global defaults.
+// If a per-resource timeout is specified (non-empty string), it takes precedence.
+// Otherwise, the global default is used.
+func parseTimeoutDurations(checkCmdTimeout, reloadCmdTimeout string,
+	globalCheckTimeout, globalReloadTimeout time.Duration) (time.Duration, time.Duration, error) {
+
+	var checkDur, reloadDur time.Duration
+
+	if checkCmdTimeout != "" {
+		d, err := time.ParseDuration(checkCmdTimeout)
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid check_cmd_timeout %q: %w", checkCmdTimeout, err)
+		}
+		checkDur = d
+	} else {
+		checkDur = globalCheckTimeout
+	}
+
+	if reloadCmdTimeout != "" {
+		d, err := time.ParseDuration(reloadCmdTimeout)
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid reload_cmd_timeout %q: %w", reloadCmdTimeout, err)
+		}
+		reloadDur = d
+	} else {
+		reloadDur = globalReloadTimeout
+	}
+
+	return checkDur, reloadDur, nil
+}
+
 // NewTemplateResource creates a TemplateResource.
 func NewTemplateResource(path string, config Config) (*TemplateResource, error) {
 	// Set the default uid and gid so we can determine if it was
@@ -236,6 +273,15 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		return nil, err
 	}
 
+	// Parse command timeout settings
+	tr.checkCmdTimeoutDur, tr.reloadCmdTimeoutDur, err = parseTimeoutDurations(
+		tr.CheckCmdTimeout, tr.ReloadCmdTimeout,
+		config.CheckCmdTimeout, config.ReloadCmdTimeout,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	tr.templateDir = config.TemplateDir
 	tr.Src = filepath.Join(config.TemplateDir, tr.Src)
 
@@ -246,6 +292,9 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		MinReloadInterval: tr.minReloadIntervalDur,
 		LastReloadTime:    &tr.lastReloadTime,
 		SyncOnly:          tr.syncOnly,
+		Ctx:               tr.ctx,
+		CheckCmdTimeout:   tr.checkCmdTimeoutDur,
+		ReloadCmdTimeout:  tr.reloadCmdTimeoutDur,
 	})
 
 	// Initialize format validator
@@ -420,6 +469,9 @@ func (t *TemplateResource) check() error {
 			MinReloadInterval: t.minReloadIntervalDur,
 			LastReloadTime:    &t.lastReloadTime,
 			SyncOnly:          t.syncOnly,
+			Ctx:               t.ctx,
+			CheckCmdTimeout:   t.checkCmdTimeoutDur,
+			ReloadCmdTimeout:  t.reloadCmdTimeoutDur,
 		})
 	}
 	return t.cmdExecutor.executeCheck(t.StageFile.Name())
@@ -442,6 +494,9 @@ func (t *TemplateResource) reload() error {
 			MinReloadInterval: t.minReloadIntervalDur,
 			LastReloadTime:    &t.lastReloadTime,
 			SyncOnly:          t.syncOnly,
+			Ctx:               t.ctx,
+			CheckCmdTimeout:   t.checkCmdTimeoutDur,
+			ReloadCmdTimeout:  t.reloadCmdTimeoutDur,
 		})
 	}
 	return t.cmdExecutor.executeReload(t.StageFile.Name(), t.Dest)

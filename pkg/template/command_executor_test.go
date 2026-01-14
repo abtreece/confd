@@ -1,8 +1,10 @@
 package template
 
 import (
+	"context"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -314,5 +316,175 @@ func TestExecuteReload_TemplateSubstitution(t *testing.T) {
 	err = executor.executeReload(tmpFile.Name(), "/tmp/test.conf")
 	if err != nil {
 		t.Errorf("executeReload() unexpected error: %v", err)
+	}
+}
+
+func TestExecuteCheck_Timeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	executor := newCommandExecutor(commandExecutorConfig{
+		CheckCmd:        "sleep 5",
+		CheckCmdTimeout: 100 * time.Millisecond,
+		Ctx:             context.Background(),
+	})
+
+	err = executor.executeCheck(tmpFile.Name())
+	if err == nil {
+		t.Error("executeCheck() expected timeout error, got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "timed out") {
+		t.Errorf("executeCheck() expected timeout error message, got: %v", err)
+	}
+}
+
+func TestExecuteReload_Timeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	executor := newCommandExecutor(commandExecutorConfig{
+		ReloadCmd:        "sleep 5",
+		ReloadCmdTimeout: 100 * time.Millisecond,
+		Ctx:              context.Background(),
+	})
+
+	err = executor.executeReload(tmpFile.Name(), "/tmp/test.conf")
+	if err == nil {
+		t.Error("executeReload() expected timeout error, got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "timed out") {
+		t.Errorf("executeReload() expected timeout error message, got: %v", err)
+	}
+}
+
+func TestExecuteCheck_NoTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	// Test with zero timeout (no limit)
+	executor := newCommandExecutor(commandExecutorConfig{
+		CheckCmd:        "echo test",
+		CheckCmdTimeout: 0,
+		Ctx:             context.Background(),
+	})
+
+	err = executor.executeCheck(tmpFile.Name())
+	if err != nil {
+		t.Errorf("executeCheck() unexpected error: %v", err)
+	}
+}
+
+func TestExecuteCheck_ContextCancellation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	executor := newCommandExecutor(commandExecutorConfig{
+		CheckCmd:        "sleep 1",
+		CheckCmdTimeout: 10 * time.Second,
+		Ctx:             ctx,
+	})
+
+	err = executor.executeCheck(tmpFile.Name())
+	if err == nil {
+		t.Error("executeCheck() expected context cancellation error, got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "cancelled") {
+		t.Errorf("executeCheck() expected cancellation error message, got: %v", err)
+	}
+}
+
+func TestExecuteReload_ContextCancellation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	executor := newCommandExecutor(commandExecutorConfig{
+		ReloadCmd:        "sleep 1",
+		ReloadCmdTimeout: 10 * time.Second,
+		Ctx:              ctx,
+	})
+
+	err = executor.executeReload(tmpFile.Name(), "/tmp/test.conf")
+	if err == nil {
+		t.Error("executeReload() expected context cancellation error, got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "cancelled") {
+		t.Errorf("executeReload() expected cancellation error message, got: %v", err)
+	}
+}
+
+func TestExecuteCheck_LongCommandWithTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+
+	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	start := time.Now()
+	executor := newCommandExecutor(commandExecutorConfig{
+		CheckCmd:        "sleep 10",
+		CheckCmdTimeout: 200 * time.Millisecond,
+		Ctx:             context.Background(),
+	})
+
+	err = executor.executeCheck(tmpFile.Name())
+	elapsed := time.Since(start)
+
+	// Verify the command was killed after timeout, not after 10 seconds
+	if elapsed > 2*time.Second {
+		t.Errorf("executeCheck() took %v, expected to timeout around 200ms", elapsed)
+	}
+	if err == nil {
+		t.Error("executeCheck() expected timeout error, got nil")
 	}
 }
