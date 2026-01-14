@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -88,6 +87,8 @@ type TemplateResource struct {
 	cmdExecutor *commandExecutor
 	// Format validation
 	fmtValidator *formatValidator
+	// Backend data fetching
+	bkndFetcher *backendFetcher
 }
 
 var ErrEmptySrc = errors.New("empty src template")
@@ -215,38 +216,21 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	// Initialize format validator
 	tr.fmtValidator = newFormatValidator(tr.OutputFormat)
 
+	// Initialize backend fetcher
+	tr.bkndFetcher = newBackendFetcher(backendFetcherConfig{
+		StoreClient:    tr.storeClient,
+		Store:          tr.store,
+		Prefix:         tr.Prefix,
+		Ctx:            tr.ctx,
+		BackendTimeout: tr.backendTimeout,
+	})
+
 	return &tr, nil
 }
 
 // setVars sets the Vars for template resource.
 func (t *TemplateResource) setVars() error {
-	var err error
-	log.Debug("Retrieving keys from store")
-	log.Debug("Key prefix set to %s", t.Prefix)
-
-	// Use context with timeout if configured
-	ctx := t.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if t.backendTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.backendTimeout)
-		defer cancel()
-	}
-
-	result, err := t.storeClient.GetValues(ctx, util.AppendPrefix(t.Prefix, t.Keys))
-	if err != nil {
-		return err
-	}
-	log.Debug("Got the following map from store: %v", result)
-
-	t.store.Purge()
-
-	for k, v := range result {
-		t.store.Set(path.Join("/", strings.TrimPrefix(k, t.Prefix)), v)
-	}
-	return nil
+	return t.bkndFetcher.fetchValues(t.Keys)
 }
 
 // createStageFile stages the src configuration file by processing the src
