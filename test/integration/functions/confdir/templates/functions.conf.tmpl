@@ -14,8 +14,8 @@ dir_path: {{ "/database/host" | dir }}
 {{- $hostParts := split (getv "/upstream/app1") ":" }}
 split_host: {{ index $hostParts 0 }}
 split_port: {{ index $hostParts 1 }}
-# replace
-replaced: {{ getv "/key" | replace "bar" "baz" }}
+# replace (requires 4 args: string, old, new, count)
+replaced: {{ replace (getv "/key") "bar" "baz" -1 }}
 # trimSuffix
 trimmed: {{ "hello.txt" | trimSuffix ".txt" }}
 # contains
