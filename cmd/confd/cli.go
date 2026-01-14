@@ -385,7 +385,11 @@ func run(cli *CLI, backendCfg backends.Config) error {
 			mux.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{}))
 			mux.HandleFunc("/health", metrics.HealthHandler(storeClient))
 			mux.HandleFunc("/ready", metrics.ReadyHandler(storeClient))
-			server := &http.Server{Addr: cli.MetricsAddr, Handler: mux}
+			server := &http.Server{
+				Addr:              cli.MetricsAddr,
+				Handler:           mux,
+				ReadHeaderTimeout: 10 * time.Second,
+			}
 			log.Info("Starting metrics server on %s", cli.MetricsAddr)
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Error("Metrics server error: %v", err)
