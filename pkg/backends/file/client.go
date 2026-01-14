@@ -120,10 +120,12 @@ func nodeWalk(node interface{}, key string, vars map[string]string) error {
 	return nil
 }
 
-func (c *Client) watchChanges(watcher *fsnotify.Watcher, stopChan chan bool) ResultError {
+func (c *Client) watchChanges(ctx context.Context, watcher *fsnotify.Watcher, stopChan chan bool) ResultError {
 	// No goroutine needed - just select directly since we only need one result
 	for {
 		select {
+		case <-ctx.Done():
+			return ResultError{response: 1, err: nil}
 		case event := <-watcher.Events:
 			log.Debug("Event: %s", event)
 			if event.Op&fsnotify.Write == fsnotify.Write ||
@@ -184,7 +186,7 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 			}
 		}
 	}
-	output := c.watchChanges(watcher, stopChan)
+	output := c.watchChanges(ctx, watcher, stopChan)
 	if output.response != 2 {
 		return output.response, output.err
 	}

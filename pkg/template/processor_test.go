@@ -90,13 +90,11 @@ func TestGetTemplateResources_EmptyConfigDir(t *testing.T) {
 	}
 }
 
-// Note: Full processor tests require setting up template resources with
-// actual backend connections. These are covered by integration tests.
+// Note: Full processor tests are in processor_integration_test.go which tests:
+// - WatchProcessor with file change detection, debouncing, and graceful shutdown
+// - BatchWatchProcessor with batching, deduplication, and graceful shutdown
+// - IntervalProcessor with polling and shutdown behavior
 //
-// The intervalProcessor and watchProcessor Process() methods are difficult
-// to unit test because they:
-// 1. Call getTemplateResources which reads from disk
-// 2. Create actual connections to backends
-// 3. Run in infinite loops until stopped
-//
-// Consider using dependency injection for more comprehensive unit testing.
+// These unit tests cover factory creation and edge cases. The integration tests
+// use the file backend for real filesystem event detection without requiring
+// external services.
