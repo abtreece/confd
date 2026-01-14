@@ -15,7 +15,7 @@
 
 ## Building
 
-Go 1.24+ is required to build confd.
+Go 1.25+ is required to build confd.
 
 ```
 $ git clone https://github.com/abtreece/confd.git
