@@ -657,6 +657,20 @@ func TestBuildListPath(t *testing.T) {
 			version:  "2",
 			want:     "/secret/metadata//app/config/db",
 		},
+		{
+			name:     "empty key v1",
+			basePath: "/secret",
+			key:      "",
+			version:  "1",
+			want:     "/secret",
+		},
+		{
+			name:     "empty key v2",
+			basePath: "/secret",
+			key:      "",
+			version:  "2",
+			want:     "/secret/metadata/",
+		},
 	}
 
 	for _, tt := range tests {
@@ -718,6 +732,20 @@ func TestBuildSecretPath(t *testing.T) {
 			key:      "/app/config/db",
 			version:  "2",
 			want:     "/secret/data/app/config/db",
+		},
+		{
+			name:     "empty key v1",
+			basePath: "/secret",
+			key:      "",
+			version:  "1",
+			want:     "/secret",
+		},
+		{
+			name:     "empty key v2",
+			basePath: "/secret",
+			key:      "",
+			version:  "2",
+			want:     "/secret/data",
 		},
 	}
 

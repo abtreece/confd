@@ -336,7 +336,9 @@ func flatten(key string, value interface{}, mount string, vars map[string]string
 	}
 }
 
-// buildListPath returns the correct path for listing secrets based on KV version
+// buildListPath returns the correct path for listing secrets based on KV version.
+// Note: key parameter may contain a leading slash (e.g., "/mykey") which will
+// result in paths like "/secret/metadata//mykey" - this is expected behavior.
 func buildListPath(basePath, key, version string) string {
 	switch version {
 	case "2":
@@ -346,7 +348,9 @@ func buildListPath(basePath, key, version string) string {
 	}
 }
 
-// buildSecretPath returns the correct path for reading secrets based on KV version
+// buildSecretPath returns the correct path for reading secrets based on KV version.
+// Note: key parameter may contain a leading slash (e.g., "/mykey") which will
+// result in paths like "/secret/data//mykey" - this is expected behavior.
 func buildSecretPath(basePath, key, version string) string {
 	switch version {
 	case "2":
