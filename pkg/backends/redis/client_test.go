@@ -373,5 +373,6 @@ func TestCalculateBackoffMaxDelay(t *testing.T) {
 // - Hash field retrieval (HSCAN)
 // - Pattern matching (SCAN)
 // - PubSub watch mode with keyspace notifications
+// - PubSub automatic reconnection with exponential backoff
 // - Database selection via /db suffix
 // - Custom separator configurations

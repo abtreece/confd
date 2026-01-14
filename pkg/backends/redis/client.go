@@ -329,60 +329,7 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 
 	go func() {
 		if c.pubsub == nil {
-			// Create a new client for PubSub (without read timeout for blocking)
-			rClient, db, err := createClient(c.machines, c.password, false, c.retryConfig)
-			if err != nil {
-				c.pubsub = nil
-				select {
-				case c.pscChan <- watchResponse{0, err}:
-				case <-ctx.Done():
-				}
-				return
-			}
-
-			pattern := "__keyspace@" + strconv.Itoa(db) + "__:" + c.transform(prefix) + "*"
-			c.pubsub = rClient.PSubscribe(ctx, pattern)
-
-			go func() {
-				defer func() {
-					if c.pubsub != nil {
-						c.pubsub.Close()
-						c.pubsub = nil
-					}
-					rClient.Close()
-				}()
-
-				ch := c.pubsub.Channel()
-				commands := map[string]bool{
-					"del": true, "append": true, "rename_from": true, "rename_to": true,
-					"expire": true, "set": true, "incrby": true, "incrbyfloat": true,
-					"hset": true, "hincrby": true, "hincrbyfloat": true, "hdel": true,
-				}
-
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case msg, ok := <-ch:
-						if !ok {
-							// Channel closed - subscription ended
-							select {
-							case c.pscChan <- watchResponse{0, nil}:
-							case <-ctx.Done():
-							}
-							return
-						}
-						log.Debug("Redis Message: %s %s", msg.Channel, msg.Payload)
-						if commands[msg.Payload] {
-							select {
-							case c.pscChan <- watchResponse{1, nil}:
-							case <-ctx.Done():
-								return
-							}
-						}
-					}
-				}
-			}()
+			go c.watchWithReconnect(ctx, prefix)
 		}
 	}()
 
@@ -400,6 +347,112 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 		return waitIndex, nil
 	case r := <-c.pscChan:
 		return r.waitIndex, r.err
+	}
+}
+
+// watchWithReconnect manages the PubSub connection lifecycle with automatic reconnection.
+// It attempts to maintain a persistent watch on Redis keyspace notifications, reconnecting
+// with exponential backoff if the connection is lost.
+func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
+	var rClient *redis.Client
+	var db int
+	attempt := 0
+
+	commands := map[string]bool{
+		"del": true, "append": true, "rename_from": true, "rename_to": true,
+		"expire": true, "set": true, "incrby": true, "incrbyfloat": true,
+		"hset": true, "hincrby": true, "hincrbyfloat": true, "hdel": true,
+	}
+
+	defer func() {
+		if c.pubsub != nil {
+			c.pubsub.Close()
+			c.pubsub = nil
+		}
+		if rClient != nil {
+			rClient.Close()
+		}
+	}()
+
+	for {
+		// Check if context is cancelled before attempting connection
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		// Apply backoff delay for reconnection attempts
+		if attempt > 0 {
+			backoff := calculateBackoff(attempt-1, c.retryConfig)
+			log.Info("Redis PubSub reconnection attempt %d/%d after %v", attempt, c.retryConfig.MaxRetries, backoff)
+			time.Sleep(backoff)
+		}
+
+		// Create a new client for PubSub (without read timeout for blocking)
+		var err error
+		rClient, db, err = createClient(c.machines, c.password, false, c.retryConfig)
+		if err != nil {
+			attempt++
+			if attempt > c.retryConfig.MaxRetries {
+				log.Error("Redis PubSub connection failed after %d attempts: %v", attempt, err)
+				select {
+				case c.pscChan <- watchResponse{0, fmt.Errorf("pubsub connection failed after %d attempts: %w", attempt, err)}:
+				case <-ctx.Done():
+				}
+				return
+			}
+			log.Warning("Redis PubSub connection attempt %d failed: %v", attempt, err)
+			continue
+		}
+
+		// Successful connection - reset attempt counter
+		if attempt > 0 {
+			log.Info("Redis PubSub reconnected successfully after %d attempts", attempt)
+		}
+		attempt = 0
+
+		// Subscribe to keyspace notifications pattern
+		pattern := "__keyspace@" + strconv.Itoa(db) + "__:" + c.transform(prefix) + "*"
+		c.pubsub = rClient.PSubscribe(ctx, pattern)
+		ch := c.pubsub.Channel()
+		log.Debug("Redis PubSub subscribed to pattern: %s", pattern)
+
+		// Process messages until channel closes or context is cancelled
+		channelClosed := false
+		for !channelClosed {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-ch:
+				if !ok {
+					// Channel closed - connection lost, will reconnect
+					log.Warning("Redis PubSub channel closed, attempting reconnection")
+					channelClosed = true
+
+					// Clean up current connection before reconnecting
+					if c.pubsub != nil {
+						c.pubsub.Close()
+						c.pubsub = nil
+					}
+					if rClient != nil {
+						rClient.Close()
+						rClient = nil
+					}
+
+					attempt = 1 // Start reconnection attempts
+					break
+				}
+				log.Debug("Redis Message: %s %s", msg.Channel, msg.Payload)
+				if commands[msg.Payload] {
+					select {
+					case c.pscChan <- watchResponse{1, nil}:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}
 	}
 }
 
