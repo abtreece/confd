@@ -402,7 +402,7 @@ func (t *TemplateResource) sync() error {
 	// Check if config has changed
 	changed, err := t.fileStgr.isConfigChanged(staged, t.Dest)
 	if err != nil {
-		return fmt.Errorf("checking config changes: %w", err)
+		return fmt.Errorf("failed to check config changes: %w", err)
 	}
 
 	// Handle noop mode - just show diff and return

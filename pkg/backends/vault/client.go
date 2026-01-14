@@ -314,6 +314,7 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 
 	if len(errs) > 0 {
 		log.Error("encountered %d error(s) processing Vault mounts", len(errs))
+		return vars, errors.Join(errs...)
 	}
 
 	return vars, nil
