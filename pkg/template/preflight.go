@@ -3,7 +3,6 @@ package template
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/abtreece/confd/pkg/util"
@@ -19,7 +18,7 @@ func Preflight(config Config) error {
 
 	// Check backend connectivity
 	log.Info("Checking backend connectivity...")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), config.PreflightTimeout)
 	defer cancel()
 
 	if err := config.StoreClient.HealthCheck(ctx); err != nil {

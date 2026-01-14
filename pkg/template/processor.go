@@ -136,7 +136,7 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 			}
 			p.errChan <- err
 			// Prevent backend errors from consuming all resources.
-			time.Sleep(time.Second * 2)
+			time.Sleep(p.config.WatchErrorBackoff)
 			continue
 		}
 		t.lastIndex = index
@@ -258,7 +258,7 @@ func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
 				return
 			}
 			p.errChan <- err
-			time.Sleep(time.Second * 2)
+			time.Sleep(p.config.WatchErrorBackoff)
 			continue
 		}
 		t.lastIndex = index

@@ -28,16 +28,17 @@ type Client struct {
 }
 
 // New initializes the AWS ACM backend for confd
-func New(exportPrivateKey bool) (*Client, error) {
+func New(exportPrivateKey bool, dialTimeout time.Duration) (*Client, error) {
 	ctx := context.Background()
 
+	// Defaults already applied via ApplyTimeoutDefaults in the factory
 	// Attempt to get AWS Region from environment first, then EC2 metadata
 	var region string
 	if os.Getenv("AWS_REGION") != "" {
 		region = os.Getenv("AWS_REGION")
 	} else {
 		// Try to get region from EC2 metadata with a timeout
-		imdsCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		imdsCtx, cancel := context.WithTimeout(ctx, dialTimeout)
 		defer cancel()
 
 		imdsClient := imds.New(imds.Options{})

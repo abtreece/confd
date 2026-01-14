@@ -19,6 +19,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Default timeout and retry values
+const (
+	DefaultDialTimeout        = 5 * time.Second
+	DefaultReadTimeout        = 1 * time.Second
+	DefaultWriteTimeout       = 1 * time.Second
+	DefaultRetryMaxAttempts   = 3
+	DefaultRetryBaseDelay     = 100 * time.Millisecond
+	DefaultRetryMaxDelay      = 5 * time.Second
+	DefaultWatchErrorBackoff  = 2 * time.Second
+	DefaultPreflightTimeout   = 10 * time.Second
+)
+
 // CLI is the root command structure
 type CLI struct {
 	// Global flags
@@ -57,6 +69,22 @@ type CLI struct {
 	BackendTimeout   time.Duration `name:"backend-timeout" help:"timeout for backend operations (e.g., 30s, 1m)" default:"30s"`
 	CheckCmdTimeout  time.Duration `name:"check-cmd-timeout" help:"default timeout for check commands (e.g., 30s)" default:"30s"`
 	ReloadCmdTimeout time.Duration `name:"reload-cmd-timeout" help:"default timeout for reload commands (e.g., 60s)" default:"60s"`
+
+	// Connection timeouts
+	DialTimeout  time.Duration `name:"dial-timeout" help:"connection timeout for backends" default:"5s"`
+	ReadTimeout  time.Duration `name:"read-timeout" help:"read timeout for backend operations" default:"1s"`
+	WriteTimeout time.Duration `name:"write-timeout" help:"write timeout for backend operations" default:"1s"`
+
+	// Retry configuration
+	RetryMaxAttempts int           `name:"retry-max-attempts" help:"max retry attempts for connections" default:"3"`
+	RetryBaseDelay   time.Duration `name:"retry-base-delay" help:"initial backoff delay" default:"100ms"`
+	RetryMaxDelay    time.Duration `name:"retry-max-delay" help:"maximum backoff delay" default:"5s"`
+
+	// Watch mode timeouts
+	WatchErrorBackoff time.Duration `name:"watch-error-backoff" help:"backoff after watch errors" default:"2s"`
+
+	// Preflight timeout
+	PreflightTimeout time.Duration `name:"preflight-timeout" help:"preflight check timeout" default:"10s"`
 
 	// Metrics and observability
 	MetricsAddr string `name:"metrics-addr" help:"Address for metrics endpoint (e.g., :9100). Disabled if empty." env:"CONFD_METRICS_ADDR"`
@@ -328,6 +356,14 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	// Process environment variables
 	processEnv(&backendCfg)
 
+	// Apply CLI timeout/retry config to backend config
+	backendCfg.DialTimeout = cli.DialTimeout
+	backendCfg.ReadTimeout = cli.ReadTimeout
+	backendCfg.WriteTimeout = cli.WriteTimeout
+	backendCfg.RetryMaxAttempts = cli.RetryMaxAttempts
+	backendCfg.RetryBaseDelay = cli.RetryBaseDelay
+	backendCfg.RetryMaxDelay = cli.RetryMaxDelay
+
 	// Set up logging
 	if cli.LogLevel != "" {
 		log.SetLevel(cli.LogLevel)
@@ -403,21 +439,23 @@ func run(cli *CLI, backendCfg backends.Config) error {
 
 	// Build template config
 	tmplCfg := template.Config{
-		ConfDir:          cli.ConfDir,
-		ConfigDir:        filepath.Join(cli.ConfDir, "conf.d"),
-		TemplateDir:      filepath.Join(cli.ConfDir, "templates"),
-		StoreClient:      storeClient,
-		Noop:             cli.Noop,
-		Prefix:           cli.Prefix,
-		SyncOnly:         cli.SyncOnly,
-		KeepStageFile:    cli.KeepStageFile,
-		ShowDiff:         cli.Diff,
-		DiffContext:      cli.DiffContext,
-		ColorDiff:        cli.Color,
-		Ctx:              ctx,
-		BackendTimeout:   cli.BackendTimeout,
-		CheckCmdTimeout:  cli.CheckCmdTimeout,
-		ReloadCmdTimeout: cli.ReloadCmdTimeout,
+		ConfDir:           cli.ConfDir,
+		ConfigDir:         filepath.Join(cli.ConfDir, "conf.d"),
+		TemplateDir:       filepath.Join(cli.ConfDir, "templates"),
+		StoreClient:       storeClient,
+		Noop:              cli.Noop,
+		Prefix:            cli.Prefix,
+		SyncOnly:          cli.SyncOnly,
+		KeepStageFile:     cli.KeepStageFile,
+		ShowDiff:          cli.Diff,
+		DiffContext:       cli.DiffContext,
+		ColorDiff:         cli.Color,
+		Ctx:               ctx,
+		BackendTimeout:    cli.BackendTimeout,
+		CheckCmdTimeout:   cli.CheckCmdTimeout,
+		ReloadCmdTimeout:  cli.ReloadCmdTimeout,
+		WatchErrorBackoff: cli.WatchErrorBackoff,
+		PreflightTimeout:  cli.PreflightTimeout,
 	}
 
 	// Parse watch mode duration flags

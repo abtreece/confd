@@ -25,8 +25,9 @@ type Client struct {
 	client zkConn
 }
 
-func NewZookeeperClient(machines []string) (*Client, error) {
-	c, _, err := zk.Connect(machines, time.Second)
+func NewZookeeperClient(machines []string, dialTimeout time.Duration) (*Client, error) {
+	// Defaults already applied via ApplyTimeoutDefaults in the factory
+	c, _, err := zk.Connect(machines, dialTimeout)
 	if err != nil {
 		return nil, err
 	}

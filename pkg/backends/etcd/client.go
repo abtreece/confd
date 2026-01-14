@@ -127,10 +127,11 @@ type Client struct {
 }
 
 // NewEtcdClient returns an *etcd.Client with a connection to named machines.
-func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure bool, basicAuth bool, username string, password string) (*Client, error) {
+func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure bool, basicAuth bool, username string, password string, dialTimeout time.Duration) (*Client, error) {
+	// Defaults already applied via ApplyTimeoutDefaults in the factory
 	cfg := clientv3.Config{
 		Endpoints:            machines,
-		DialTimeout:          5 * time.Second,
+		DialTimeout:          dialTimeout,
 		DialKeepAliveTime:    10 * time.Second,
 		DialKeepAliveTimeout: 3 * time.Second,
 	}

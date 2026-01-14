@@ -32,7 +32,7 @@ type Client struct {
 }
 
 // New creates a new Secrets Manager client with automatic region detection.
-func New(versionStage string, noFlatten bool) (*Client, error) {
+func New(versionStage string, noFlatten bool, dialTimeout time.Duration) (*Client, error) {
 	ctx := context.Background()
 
 	// Default version stage to AWSCURRENT
@@ -40,13 +40,14 @@ func New(versionStage string, noFlatten bool) (*Client, error) {
 		versionStage = "AWSCURRENT"
 	}
 
+	// Defaults already applied via ApplyTimeoutDefaults in the factory
 	// Attempt to get AWS Region from environment first, then EC2 metadata
 	var region string
 	if os.Getenv("AWS_REGION") != "" {
 		region = os.Getenv("AWS_REGION")
 	} else {
 		// Try to get region from EC2 metadata with a timeout
-		imdsCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		imdsCtx, cancel := context.WithTimeout(ctx, dialTimeout)
 		defer cancel()
 
 		imdsClient := imds.New(imds.Options{})

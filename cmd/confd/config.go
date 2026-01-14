@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/backends"
@@ -53,6 +54,22 @@ type TOMLConfig struct {
 
 	// Performance settings
 	TemplateCache *bool `toml:"template_cache"` // Pointer to distinguish unset from false
+
+	// Connection timeouts
+	DialTimeout  string `toml:"dial_timeout"`
+	ReadTimeout  string `toml:"read_timeout"`
+	WriteTimeout string `toml:"write_timeout"`
+
+	// Retry configuration
+	RetryMaxAttempts int    `toml:"retry_max_attempts"`
+	RetryBaseDelay   string `toml:"retry_base_delay"`
+	RetryMaxDelay    string `toml:"retry_max_delay"`
+
+	// Watch mode timeouts
+	WatchErrorBackoff string `toml:"watch_error_backoff"`
+
+	// Preflight timeout
+	PreflightTimeout string `toml:"preflight_timeout"`
 
 	// Metrics and observability
 	MetricsAddr string `toml:"metrics_addr"`
@@ -189,6 +206,66 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if !backendCfg.SecretsManagerNoFlatten && tomlCfg.SecretsManagerNoFlatten {
 		backendCfg.SecretsManagerNoFlatten = true
+	}
+
+	// Connection timeout settings (apply to CLI if default, then to backend config)
+	if tomlCfg.DialTimeout != "" {
+		if d, err := time.ParseDuration(tomlCfg.DialTimeout); err == nil {
+			if cli.DialTimeout == DefaultDialTimeout {
+				cli.DialTimeout = d
+			}
+		}
+	}
+	if tomlCfg.ReadTimeout != "" {
+		if d, err := time.ParseDuration(tomlCfg.ReadTimeout); err == nil {
+			if cli.ReadTimeout == DefaultReadTimeout {
+				cli.ReadTimeout = d
+			}
+		}
+	}
+	if tomlCfg.WriteTimeout != "" {
+		if d, err := time.ParseDuration(tomlCfg.WriteTimeout); err == nil {
+			if cli.WriteTimeout == DefaultWriteTimeout {
+				cli.WriteTimeout = d
+			}
+		}
+	}
+
+	// Retry configuration (apply to CLI if default, then to backend config)
+	if tomlCfg.RetryMaxAttempts != 0 && cli.RetryMaxAttempts == DefaultRetryMaxAttempts {
+		cli.RetryMaxAttempts = tomlCfg.RetryMaxAttempts
+	}
+	if tomlCfg.RetryBaseDelay != "" {
+		if d, err := time.ParseDuration(tomlCfg.RetryBaseDelay); err == nil {
+			if cli.RetryBaseDelay == DefaultRetryBaseDelay {
+				cli.RetryBaseDelay = d
+			}
+		}
+	}
+	if tomlCfg.RetryMaxDelay != "" {
+		if d, err := time.ParseDuration(tomlCfg.RetryMaxDelay); err == nil {
+			if cli.RetryMaxDelay == DefaultRetryMaxDelay {
+				cli.RetryMaxDelay = d
+			}
+		}
+	}
+
+	// Watch mode timeouts
+	if tomlCfg.WatchErrorBackoff != "" {
+		if d, err := time.ParseDuration(tomlCfg.WatchErrorBackoff); err == nil {
+			if cli.WatchErrorBackoff == DefaultWatchErrorBackoff {
+				cli.WatchErrorBackoff = d
+			}
+		}
+	}
+
+	// Preflight timeout
+	if tomlCfg.PreflightTimeout != "" {
+		if d, err := time.ParseDuration(tomlCfg.PreflightTimeout); err == nil {
+			if cli.PreflightTimeout == DefaultPreflightTimeout {
+				cli.PreflightTimeout = d
+			}
+		}
 	}
 
 	return nil
