@@ -43,6 +43,8 @@ type Config struct {
 	// Watch mode and preflight timeouts
 	WatchErrorBackoff time.Duration // Backoff after watch errors
 	PreflightTimeout  time.Duration // Preflight check timeout
+	// Error handling mode
+	FailureMode FailureMode // Error handling mode
 }
 
 // TemplateResourceConfig holds the parsed template resource.

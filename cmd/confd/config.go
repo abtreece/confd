@@ -22,6 +22,7 @@ type TOMLConfig struct {
 	LogLevel      string   `toml:"log-level"`
 	LogFormat     string   `toml:"log-format"`
 	Watch         bool     `toml:"watch"`
+	FailureMode   string   `toml:"failure_mode"`
 	KeepStageFile bool     `toml:"keep_stage_file"`
 	SRVDomain     string   `toml:"srv_domain"`
 	SRVRecord     string   `toml:"srv_record"`
@@ -119,6 +120,9 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if !cli.Watch && tomlCfg.Watch {
 		cli.Watch = true
+	}
+	if cli.FailureMode == "best-effort" && tomlCfg.FailureMode != "" {
+		cli.FailureMode = tomlCfg.FailureMode
 	}
 	if !cli.KeepStageFile && tomlCfg.KeepStageFile {
 		cli.KeepStageFile = true

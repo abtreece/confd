@@ -30,6 +30,14 @@ var (
 	WatchedKeys             prometheus.Gauge
 )
 
+// Batch processing metrics
+var (
+	BatchProcessTotal             prometheus.Counter
+	BatchProcessFailed            prometheus.Counter
+	BatchProcessTemplatesSucceeded prometheus.Counter
+	BatchProcessTemplatesFailed    prometheus.Counter
+)
+
 // Command metrics
 var (
 	CommandDuration  *prometheus.HistogramVec
@@ -151,6 +159,43 @@ func Initialize() {
 		},
 	)
 	Registry.MustRegister(WatchedKeys)
+
+	// Batch processing metrics
+	BatchProcessTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "batch_process_total",
+			Help:      "Total number of batch processing cycles.",
+		},
+	)
+	Registry.MustRegister(BatchProcessTotal)
+
+	BatchProcessFailed = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "batch_process_failed_total",
+			Help:      "Number of batch processing cycles with at least one failure.",
+		},
+	)
+	Registry.MustRegister(BatchProcessFailed)
+
+	BatchProcessTemplatesSucceeded = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "batch_templates_succeeded_total",
+			Help:      "Total number of templates succeeded across all batches.",
+		},
+	)
+	Registry.MustRegister(BatchProcessTemplatesSucceeded)
+
+	BatchProcessTemplatesFailed = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "batch_templates_failed_total",
+			Help:      "Total number of templates failed across all batches.",
+		},
+	)
+	Registry.MustRegister(BatchProcessTemplatesFailed)
 
 	// Command metrics
 	CommandDuration = prometheus.NewHistogramVec(
