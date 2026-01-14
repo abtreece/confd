@@ -1,0 +1,8 @@
+[template]
+mode = "0644"
+src = "check.conf.tmpl"
+dest = "/tmp/confd-check-cmd-test.conf"
+check_cmd = "/bin/sh -c 'test -f /tmp/confd-check-cmd-test.conf'"
+keys = [
+  "/key",
+]

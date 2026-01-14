@@ -10,16 +10,70 @@ on:
     - cron: '0 0 * * 0' # weekly
 
 jobs:
-  # Label of the container job
-  container-job:
-    # Containers must run in Linux based operating systems
+  # Standalone tests that don't need external services
+  standalone-tests:
     runs-on: ubuntu-latest
-    # Docker Hub image that `container-job` executes in
     container: ubuntu:22.04
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get -q update
+          DEBIAN_FRONTEND="noninteractive" apt-get install -y git curl make sudo jq
 
-    # Service containers to run with `container-job`
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.7"
+
+      - name: Build and Install
+        run: |
+          git config --global --add safe.directory /__w/confd/confd
+          make build
+          sudo make install
+
+      - name: Test Env Backend
+        run: |
+          test/integration/env/test.sh
+          test/integration/expect/check.sh
+
+      - name: Test Per-Resource Backend
+        run: |
+          test/integration/per-resource-backend/test.sh
+
+      - name: Test File Backend (YAML)
+        run: |
+          test/integration/file/test_yaml.sh
+          test/integration/expect/check.sh
+
+      - name: Test File Backend (JSON)
+        run: |
+          test/integration/file/test_json.sh
+          test/integration/expect/check.sh
+
+      - name: Test Template Functions
+        run: |
+          test/integration/functions/test.sh
+
+      - name: Test check_cmd and reload_cmd
+        run: |
+          test/integration/commands/test.sh
+
+      - name: Test File Permissions
+        run: |
+          test/integration/permissions/test.sh
+
+      - name: Test Negative/Error Conditions
+        run: |
+          test/integration/negative/test.sh
+
+  # Tests requiring Consul, etcd, Redis, and Zookeeper
+  backend-tests:
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
     services:
-      # Label used to access the service container
       consul:
         image: hashicorp/consul
         ports:
@@ -31,27 +85,13 @@ jobs:
         env:
           ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
           ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
-      localstack:
-        image: localstack/localstack-pro
-        ports:
-          - 4566:4566
-        env:
-          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
-          SERVICES: dynamodb,ssm,acm,secretsmanager
       redis:
-          image: redis
-          # Set health checks to wait until redis has started
-          options: >-
-            --health-cmd "redis-cli ping"
-            --health-interval 10s
-            --health-timeout 5s
-            --health-retries 5
-      vault:
-        image: hashicorp/vault
-        ports:
-          - 8200:8200
-        env:
-          VAULT_DEV_ROOT_TOKEN_ID: "super-secret-token"
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       zookeeper:
         image: zookeeper
         ports:
@@ -63,42 +103,21 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get -q update
-          DEBIAN_FRONTEND="noninteractive" apt-get install -y git curl make redis-tools sudo awscli gnupg2 lsb-release etcd-client
-          echo "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main" >> /etc/apt/sources.list
-          curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
-          apt-get -q update
-          DEBIAN_FRONTEND="noninteractive" apt-get install -y vault
+          DEBIAN_FRONTEND="noninteractive" apt-get install -y git curl make redis-tools sudo jq etcd-client netcat-openbsd
 
-      # Downloads a copy of the code in your repository before running CI tests
       - name: Check out repository code
         uses: actions/checkout@v6
 
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25.5"
+          go-version: "1.24.7"
 
       - name: Build and Install
         run: |
           git config --global --add safe.directory /__w/confd/confd
           make build
           sudo make install
-
-      - name: Test Env
-        run: |
-          test/integration/env/test.sh
-          test/integration/expect/check.sh
-
-      - name: Test Per-Resource Backend
-        run: |
-          test/integration/per-resource-backend/test.sh
-
-      - name: Test File
-        run: |
-          test/integration/file/test_yaml.sh
-          test/integration/expect/check.sh
-          test/integration/file/test_json.sh
-          test/integration/expect/check.sh
 
       - name: Test Consul
         run: |
@@ -115,6 +134,114 @@ jobs:
         env:
           ETCD_ENDPOINT: "http://etcd:2379"
 
+      - name: Test Redis
+        run: |
+          test/integration/redis/test.sh
+          test/integration/expect/check.sh
+        env:
+          REDIS_HOST: redis
+          REDIS_PORT: 6379
+
+      - name: Test Zookeeper
+        run: |
+          test/integration/zookeeper/test.sh
+          test/integration/expect/check.sh
+        env:
+          ZOOKEEPER_NODE: zookeeper
+
+  # Tests requiring Vault
+  vault-tests:
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    services:
+      vault:
+        image: hashicorp/vault
+        ports:
+          - 8200:8200
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: "super-secret-token"
+
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get -q update
+          DEBIAN_FRONTEND="noninteractive" apt-get install -y git curl make sudo gnupg2 lsb-release
+          echo "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main" >> /etc/apt/sources.list
+          curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
+          apt-get -q update
+          DEBIAN_FRONTEND="noninteractive" apt-get install -y vault
+
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.7"
+
+      - name: Build and Install
+        run: |
+          git config --global --add safe.directory /__w/confd/confd
+          make build
+          sudo make install
+
+      - name: Test Vault KV v1
+        run: |
+          test/integration/vault-v1/test.sh
+          test/integration/expect/check.sh
+        env:
+          VAULT_ADDR: http://vault:8200
+          VAULT_TOKEN: "super-secret-token"
+
+      - name: Test Vault KV v2
+        run: |
+          test/integration/vault-v2/test.sh
+          test/integration/expect/check.sh
+        env:
+          VAULT_ADDR: http://vault:8200
+          VAULT_TOKEN: "super-secret-token"
+
+      - name: Test Vault AppRole
+        run: |
+          test/integration/vault-approle/test.sh
+          test/integration/expect/check.sh
+        env:
+          VAULT_ADDR: http://vault:8200
+          VAULT_TOKEN: "super-secret-token"
+
+  # Tests requiring AWS services (LocalStack)
+  aws-tests:
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    services:
+      localstack:
+        image: localstack/localstack-pro
+        ports:
+          - 4566:4566
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          SERVICES: dynamodb,ssm,acm,secretsmanager
+
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get -q update
+          DEBIAN_FRONTEND="noninteractive" apt-get install -y git curl make sudo awscli openssl
+
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.7"
+
+      - name: Build and Install
+        run: |
+          git config --global --add safe.directory /__w/confd/confd
+          make build
+          sudo make install
+
       - name: Test DynamoDB
         run: |
           test/integration/dynamodb/test.sh
@@ -127,14 +254,6 @@ jobs:
           DYNAMODB_LOCAL: 1
           DYNAMODB_ENDPOINT_URL: http://localstack:4566
 
-      - name: Test Redis
-        run: |
-          test/integration/redis/test.sh
-          test/integration/expect/check.sh
-        env:
-          REDIS_HOST: redis
-          REDIS_PORT: 6379
-
       - name: Test SSM Parameter Store
         run: |
           test/integration/ssm/test.sh
@@ -146,25 +265,6 @@ jobs:
           AWS_DEFAULT_REGION: "us-east-1"
           SSM_LOCAL: "1"
           SSM_ENDPOINT_URL: "http://localstack:4566"
-
-      - name: Test Vault
-        run: |
-          test/integration/vault-v1/test.sh
-          test/integration/expect/check.sh
-          test/integration/vault-v2/test.sh
-          test/integration/expect/check.sh
-          test/integration/vault-approle/test.sh
-          test/integration/expect/check.sh
-        env:
-          VAULT_ADDR: http://vault:8200
-          VAULT_TOKEN: "super-secret-token"
-
-      - name: Test Zookeeper
-        run: |
-          test/integration/zookeeper/test.sh
-          test/integration/expect/check.sh
-        env:
-          ZOOKEEPER_NODE: zookeeper
 
       - name: Test ACM
         run: |

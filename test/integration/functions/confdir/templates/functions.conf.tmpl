@@ -1,0 +1,70 @@
+# Template Functions Test
+# Tests various template functions provided by confd
+
+# ===== String Functions =====
+# toUpper
+upper_key: {{ getv "/key" | toUpper }}
+# toLower
+lower_key: {{ getv "/key" | toLower }}
+# base (basename)
+base_path: {{ "/database/host" | base }}
+# dir (directory)
+dir_path: {{ "/database/host" | dir }}
+# split and join
+split_host: {{ getv "/upstream/app1" | split ":" | join "-" }}
+# replace
+replaced: {{ getv "/key" | replace "bar" "baz" }}
+# trimSuffix
+trimmed: {{ "hello.txt" | trimSuffix ".txt" }}
+# contains
+contains_bar: {{ if contains (getv "/key") "bar" }}yes{{ else }}no{{ end }}
+
+# ===== Encoding Functions =====
+# base64Encode
+encoded: {{ getv "/key" | base64Encode }}
+# base64Decode
+decoded: {{ "Zm9vYmFy" | base64Decode }}
+
+# ===== Math Functions =====
+# add
+add_result: {{ add 5 3 }}
+# sub
+sub_result: {{ sub 10 4 }}
+# mul
+mul_result: {{ mul 6 7 }}
+# div
+div_result: {{ div 20 4 }}
+# mod
+mod_result: {{ mod 17 5 }}
+
+# ===== Utility Functions =====
+# atoi (string to int)
+port_plus_one: {{ add (atoi (getv "/database/port")) 1 }}
+# seq
+seq_result: {{ seq 1 5 | join "," }}
+# parseBool
+bool_true: {{ if parseBool "true" }}yes{{ else }}no{{ end }}
+bool_false: {{ if parseBool "false" }}yes{{ else }}no{{ end }}
+
+# ===== Data Functions =====
+# getenv
+hostname: {{ getenv "HOSTNAME" }}
+# map (create a map and access it)
+{{- $mymap := map "key1" "value1" "key2" "value2" }}
+map_key1: {{ index $mymap "key1" }}
+
+# ===== Sorting Functions =====
+# reverse (reverse a list)
+{{- $items := split (getv "/upstream/app1") ":" }}
+reversed: {{ reverse $items | join ":" }}
+
+# ===== Conditional Logic =====
+# exists check
+exists_key: {{ if exists "/key" }}found{{ else }}missing{{ end }}
+exists_fake: {{ if exists "/nonexistent" }}found{{ else }}missing{{ end }}
+
+# ===== Multiple getv/gets =====
+all_upstream:
+{{- range gets "/upstream/*" }}
+  - {{ .Key }}: {{ .Value }}
+{{- end }}

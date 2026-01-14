@@ -1,0 +1,7 @@
+[template]
+mode = "0755"
+src = "script.sh.tmpl"
+dest = "/tmp/confd-perm-755.sh"
+keys = [
+  "/key",
+]
