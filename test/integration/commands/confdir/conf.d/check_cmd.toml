@@ -2,7 +2,8 @@
 mode = "0644"
 src = "check.conf.tmpl"
 dest = "/tmp/confd-check-cmd-test.conf"
-check_cmd = "/bin/sh -c 'test -f /tmp/confd-check-cmd-test.conf'"
+# check_cmd that validates the staged file ({{.src}} is the temp file before it's moved to dest)
+check_cmd = "/bin/sh -c 'test -f {{.src}} && grep -q \"key:\" {{.src}}'"
 keys = [
   "/key",
 ]
