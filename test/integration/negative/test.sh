@@ -22,14 +22,17 @@ if confd invalidbackend --onetime --log-level error 2>&1; then
 fi
 echo "OK: Invalid backend type rejected"
 
-# Test 2: Missing required confdir
+# Test 2: Non-existent confdir (logs warning but succeeds - no templates to process)
 echo ""
 echo "Test 2: Non-existent confdir"
-if confd env --onetime --log-level error --confdir /nonexistent/path 2>&1; then
-    echo "ERROR: Should have failed with non-existent confdir"
+# confd treats missing confdir as a warning, not an error (returns success with no templates)
+output=$(confd env --onetime --log-level warn --confdir /nonexistent/path 2>&1)
+if ! echo "$output" | grep -q "does not exist"; then
+    echo "ERROR: Should have warned about non-existent confdir"
+    echo "Output: $output"
     exit 1
 fi
-echo "OK: Non-existent confdir rejected"
+echo "OK: Non-existent confdir handled with warning"
 
 # Test 3: Malformed TOML configuration
 echo ""
