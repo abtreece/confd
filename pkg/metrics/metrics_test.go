@@ -108,6 +108,12 @@ func TestTemplateMetrics_Initialized(t *testing.T) {
 	if TemplateCacheMisses == nil {
 		t.Error("TemplateCacheMisses should not be nil")
 	}
+	if TemplatesLoaded == nil {
+		t.Error("TemplatesLoaded should not be nil")
+	}
+	if WatchedKeys == nil {
+		t.Error("WatchedKeys should not be nil")
+	}
 
 	// Cleanup
 	Registry = nil
@@ -168,6 +174,8 @@ func TestMetrics_CanBeRecorded(t *testing.T) {
 	TemplateProcessTotal.WithLabelValues("/etc/nginx/nginx.conf", "success").Inc()
 	TemplateCacheHits.Inc()
 	TemplateCacheMisses.Inc()
+	TemplatesLoaded.Set(5)
+	WatchedKeys.Set(10)
 
 	CommandDuration.WithLabelValues("check", "/etc/nginx/nginx.conf").Observe(0.05)
 	CommandTotal.WithLabelValues("check", "/etc/nginx/nginx.conf").Inc()

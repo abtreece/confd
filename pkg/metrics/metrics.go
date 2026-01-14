@@ -26,6 +26,8 @@ var (
 	TemplateProcessTotal    *prometheus.CounterVec
 	TemplateCacheHits       prometheus.Counter
 	TemplateCacheMisses     prometheus.Counter
+	TemplatesLoaded         prometheus.Gauge
+	WatchedKeys             prometheus.Gauge
 )
 
 // Command metrics
@@ -131,6 +133,24 @@ func Initialize() {
 		},
 	)
 	Registry.MustRegister(TemplateCacheMisses)
+
+	TemplatesLoaded = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "templates_loaded",
+			Help:      "Number of template resources currently loaded.",
+		},
+	)
+	Registry.MustRegister(TemplatesLoaded)
+
+	WatchedKeys = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "watched_keys",
+			Help:      "Number of backend keys being watched.",
+		},
+	)
+	Registry.MustRegister(WatchedKeys)
 
 	// Command metrics
 	CommandDuration = prometheus.NewHistogramVec(
