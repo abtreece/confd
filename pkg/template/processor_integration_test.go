@@ -75,7 +75,9 @@ func (e *processorTestEnv) writeData(name, content string) string {
 	}
 	// Sync to ensure fsnotify picks up the write
 	f, err := os.Open(path)
-	if err == nil {
+	if err != nil {
+		e.t.Logf("Warning: failed to open file for sync: %v (write succeeded, but fsnotify may be delayed)", err)
+	} else {
 		f.Sync()
 		f.Close()
 	}
@@ -91,7 +93,9 @@ func (e *processorTestEnv) updateData(name, content string) {
 	}
 	// Sync to ensure fsnotify picks up the write
 	f, err := os.Open(path)
-	if err == nil {
+	if err != nil {
+		e.t.Logf("Warning: failed to open file for sync: %v (write succeeded, but fsnotify may be delayed)", err)
+	} else {
 		f.Sync()
 		f.Close()
 	}
