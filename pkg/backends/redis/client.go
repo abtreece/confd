@@ -385,7 +385,7 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 		// Apply backoff delay for reconnection attempts
 		if attempt > 0 {
 			backoff := calculateBackoff(attempt-1, c.retryConfig)
-			log.Info("Redis PubSub reconnection attempt %d/%d after %v", attempt, c.retryConfig.MaxRetries, backoff)
+			log.Info("Redis PubSub reconnection attempt %d/%d after %v", attempt, c.retryConfig.MaxRetries+1, backoff)
 			time.Sleep(backoff)
 		}
 
@@ -397,7 +397,7 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 			if attempt > c.retryConfig.MaxRetries {
 				log.Error("Redis PubSub connection failed after %d attempts: %v", attempt, err)
 				select {
-				case c.pscChan <- watchResponse{0, fmt.Errorf("pubsub connection failed after %d attempts: %w", attempt, err)}:
+				case c.pscChan <- watchResponse{0, fmt.Errorf("PubSub connection failed after %d attempts: %w", attempt, err)}:
 				case <-ctx.Done():
 				}
 				return
