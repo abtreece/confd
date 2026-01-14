@@ -1,19 +1,14 @@
 package template
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
-	"path"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -87,9 +82,98 @@ type TemplateResource struct {
 	// Context for cancellation and timeouts
 	ctx            context.Context
 	backendTimeout time.Duration
+	// Command execution
+	cmdExecutor *commandExecutor
+	// Format validation
+	fmtValidator *formatValidator
+	// Backend data fetching
+	bkndFetcher *backendFetcher
+	// Template rendering
+	tmplRenderer *templateRenderer
+	// File staging and syncing
+	fileStgr *fileStager
 }
 
 var ErrEmptySrc = errors.New("empty src template")
+
+// resolveOwnership resolves the UID and GID for the template resource.
+// If Owner/Group are specified, it looks them up. Otherwise uses effective UID/GID.
+func resolveOwnership(owner, group string, uid, gid int) (int, int, error) {
+	// Resolve UID
+	if uid == -1 {
+		if owner != "" {
+			u, err := user.Lookup(owner)
+			if err != nil {
+				return 0, 0, fmt.Errorf("Cannot find owner's UID - %s", err.Error())
+			}
+			uid, err = strconv.Atoi(u.Uid)
+			if err != nil {
+				return 0, 0, fmt.Errorf("Cannot convert string to int - %s", err.Error())
+			}
+		} else {
+			uid = os.Geteuid()
+		}
+	}
+
+	// Resolve GID
+	if gid == -1 {
+		if group != "" {
+			g, err := user.LookupGroup(group)
+			if err != nil {
+				return 0, 0, fmt.Errorf("Cannot find group's GID - %s", err.Error())
+			}
+			gid, err = strconv.Atoi(g.Gid)
+			if err != nil {
+				return 0, 0, fmt.Errorf("Cannot convert string to int - %s", err.Error())
+			}
+		} else {
+			gid = os.Getegid()
+		}
+	}
+
+	return uid, gid, nil
+}
+
+// normalizePrefix concatenates global config prefix with resource prefix.
+// This allows hierarchical prefixes like /production/myapp where
+// "production" comes from confd.toml and "myapp" from the resource.
+func normalizePrefix(globalPrefix, resourcePrefix string) string {
+	if globalPrefix != "" && resourcePrefix != "" {
+		return "/" + strings.Trim(globalPrefix, "/") + "/" + strings.Trim(resourcePrefix, "/")
+	} else if globalPrefix != "" {
+		return "/" + strings.Trim(globalPrefix, "/")
+	} else if resourcePrefix != "" {
+		return "/" + strings.Trim(resourcePrefix, "/")
+	}
+	return "/"
+}
+
+// parseDurations parses the MinReloadInterval and Debounce duration strings.
+// Returns parsed durations or error if parsing fails.
+func parseDurations(minReloadInterval, debounce string, globalDebounce time.Duration) (time.Duration, time.Duration, error) {
+	var minReloadDur, debounceDur time.Duration
+
+	if minReloadInterval != "" {
+		d, err := time.ParseDuration(minReloadInterval)
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid min_reload_interval %q: %w", minReloadInterval, err)
+		}
+		minReloadDur = d
+	}
+
+	if debounce != "" {
+		d, err := time.ParseDuration(debounce)
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid debounce %q: %w", debounce, err)
+		}
+		debounceDur = d
+	} else if globalDebounce > 0 {
+		// Use global debounce if per-resource not set
+		debounceDur = globalDebounce
+	}
+
+	return minReloadDur, debounceDur, nil
+}
 
 // NewTemplateResource creates a TemplateResource.
 func NewTemplateResource(path string, config Config) (*TemplateResource, error) {
@@ -133,106 +217,74 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		return nil, errors.New("A valid StoreClient is required. Either configure a global backend or specify a [backend] section in the template resource.")
 	}
 
-	// Concatenate global config prefix with resource prefix.
-	// This allows hierarchical prefixes like /production/myapp where
-	// "production" comes from confd.toml and "myapp" from the resource.
-	if config.Prefix != "" && tr.Prefix != "" {
-		tr.Prefix = "/" + strings.Trim(config.Prefix, "/") + "/" + strings.Trim(tr.Prefix, "/")
-	} else if config.Prefix != "" {
-		tr.Prefix = "/" + strings.Trim(config.Prefix, "/")
-	} else if tr.Prefix != "" {
-		tr.Prefix = "/" + strings.Trim(tr.Prefix, "/")
-	} else {
-		tr.Prefix = "/"
-	}
+	// Normalize prefix (hierarchical: global + resource)
+	tr.Prefix = normalizePrefix(config.Prefix, tr.Prefix)
 
 	if tr.Src == "" {
 		return nil, ErrEmptySrc
 	}
 
-	if tr.Uid == -1 {
-		if tr.Owner != "" {
-			u, err := user.Lookup(tr.Owner)
-			if err != nil {
-				return nil, fmt.Errorf("Cannot find owner's UID - %s", err.Error())
-			}
-			tr.Uid, err = strconv.Atoi(u.Uid)
-			if err != nil {
-				return nil, fmt.Errorf("Cannot convert string to int - %s", err.Error())
-			}
-		} else {
-			tr.Uid = os.Geteuid()
-		}
-	}
-
-	if tr.Gid == -1 {
-		if tr.Group != "" {
-			g, err := user.LookupGroup(tr.Group)
-			if err != nil {
-				return nil, fmt.Errorf("Cannot find group's GID - %s", err.Error())
-			}
-			tr.Gid, err = strconv.Atoi(g.Gid)
-			if err != nil {
-				return nil, fmt.Errorf("Cannot convert string to int - %s", err.Error())
-			}
-		} else {
-			tr.Gid = os.Getegid()
-		}
+	// Resolve UID/GID from owner/group or use effective IDs
+	tr.Uid, tr.Gid, err = resolveOwnership(tr.Owner, tr.Group, tr.Uid, tr.Gid)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse duration settings
-	if tr.MinReloadInterval != "" {
-		d, err := time.ParseDuration(tr.MinReloadInterval)
-		if err != nil {
-			return nil, fmt.Errorf("invalid min_reload_interval %q: %w", tr.MinReloadInterval, err)
-		}
-		tr.minReloadIntervalDur = d
-	}
-	if tr.Debounce != "" {
-		d, err := time.ParseDuration(tr.Debounce)
-		if err != nil {
-			return nil, fmt.Errorf("invalid debounce %q: %w", tr.Debounce, err)
-		}
-		tr.debounceDur = d
-	} else if config.Debounce > 0 {
-		// Use global debounce if per-resource not set
-		tr.debounceDur = config.Debounce
+	tr.minReloadIntervalDur, tr.debounceDur, err = parseDurations(tr.MinReloadInterval, tr.Debounce, config.Debounce)
+	if err != nil {
+		return nil, err
 	}
 
 	tr.templateDir = config.TemplateDir
 	tr.Src = filepath.Join(config.TemplateDir, tr.Src)
+
+	// Initialize command executor
+	tr.cmdExecutor = newCommandExecutor(commandExecutorConfig{
+		CheckCmd:          tr.CheckCmd,
+		ReloadCmd:         tr.ReloadCmd,
+		MinReloadInterval: tr.minReloadIntervalDur,
+		LastReloadTime:    &tr.lastReloadTime,
+		SyncOnly:          tr.syncOnly,
+	})
+
+	// Initialize format validator
+	tr.fmtValidator = newFormatValidator(tr.OutputFormat)
+
+	// Initialize backend fetcher
+	tr.bkndFetcher = newBackendFetcher(backendFetcherConfig{
+		StoreClient:    tr.storeClient,
+		Store:          tr.store,
+		Prefix:         tr.Prefix,
+		Ctx:            tr.ctx,
+		BackendTimeout: tr.backendTimeout,
+	})
+
+	// Initialize template renderer
+	tr.tmplRenderer = newTemplateRenderer(templateRendererConfig{
+		TemplateDir: tr.templateDir,
+		FuncMap:     tr.funcMap,
+		Store:       tr.store,
+	})
+
+	// Initialize file stager
+	tr.fileStgr = newFileStager(fileStagingConfig{
+		Uid:           tr.Uid,
+		Gid:           tr.Gid,
+		FileMode:      tr.FileMode,
+		KeepStageFile: tr.keepStageFile,
+		Noop:          tr.noop,
+		ShowDiff:      tr.showDiff,
+		DiffContext:   tr.diffContext,
+		ColorDiff:     tr.colorDiff,
+	})
+
 	return &tr, nil
 }
 
 // setVars sets the Vars for template resource.
 func (t *TemplateResource) setVars() error {
-	var err error
-	log.Debug("Retrieving keys from store")
-	log.Debug("Key prefix set to %s", t.Prefix)
-
-	// Use context with timeout if configured
-	ctx := t.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if t.backendTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.backendTimeout)
-		defer cancel()
-	}
-
-	result, err := t.storeClient.GetValues(ctx, util.AppendPrefix(t.Prefix, t.Keys))
-	if err != nil {
-		return err
-	}
-	log.Debug("Got the following map from store: %v", result)
-
-	t.store.Purge()
-
-	for k, v := range result {
-		t.store.Set(path.Join("/", strings.TrimPrefix(k, t.Prefix)), v)
-	}
-	return nil
+	return t.bkndFetcher.fetchValues(t.Keys)
 }
 
 // createStageFile stages the src configuration file by processing the src
@@ -240,83 +292,36 @@ func (t *TemplateResource) setVars() error {
 // StageFile for the template resource.
 // It returns an error if any.
 func (t *TemplateResource) createStageFile() error {
-	log.Debug("Using source template %s", t.Src)
-
-	if !util.IsFileExist(t.Src) {
-		return errors.New("Missing template: " + t.Src)
+	// Ensure FileMode is set and fileStager is updated.
+	// This defensive check is needed for backward compatibility with tests that:
+	// 1. Call createStageFile() directly without going through process()
+	// 2. Set FileMode directly on TemplateResource after construction
+	// TODO: Refactor tests to use process() or a test helper to avoid this check
+	if t.FileMode == 0 || (t.fileStgr != nil && t.fileStgr.fileMode != t.FileMode) {
+		if err := t.setFileMode(); err != nil {
+			return err
+		}
 	}
 
-	log.Debug("Compiling source template %s", t.Src)
-
-	// Add include function to funcMap for this template
-	includeCtx := NewIncludeContext()
-	t.funcMap["include"] = NewIncludeFunc(t.templateDir, t.funcMap, includeCtx)
-
-	// Try to get template from cache
-	var tmpl *template.Template
-	var err error
-	tmpl, cacheHit := GetCachedTemplate(t.Src)
-	if !cacheHit {
-		log.Debug("Template cache miss for %s", t.Src)
-		stat, statErr := os.Stat(t.Src)
-		if statErr != nil {
-			return fmt.Errorf("Unable to stat template %s: %w", t.Src, statErr)
-		}
-		tmpl, err = template.New(filepath.Base(t.Src)).Funcs(t.funcMap).ParseFiles(t.Src)
-		if err != nil {
-			return fmt.Errorf("Unable to process template %s, %s", t.Src, err)
-		}
-		PutCachedTemplate(t.Src, tmpl, stat.ModTime())
-	} else {
-		log.Debug("Template cache hit for %s", t.Src)
-		// Update funcMap with fresh include function (functions resolved at execution time)
-		tmpl = tmpl.Funcs(t.funcMap)
-	}
-
-	// create TempFile in Dest directory to avoid cross-filesystem issues
-	temp, err := os.CreateTemp(filepath.Dir(t.Dest), "."+filepath.Base(t.Dest))
+	// Render the template to bytes
+	rendered, err := t.tmplRenderer.render(t.Src)
 	if err != nil {
 		return err
 	}
 
-	if err = tmpl.Execute(temp, nil); err != nil {
+	// Create stage file with rendered content
+	temp, err := t.fileStgr.createStageFile(t.Dest, rendered)
+	if err != nil {
+		return err
+	}
+
+	// Validate output format if specified
+	if err := t.fmtValidator.validate(temp.Name()); err != nil {
 		temp.Close()
 		os.Remove(temp.Name())
 		return err
 	}
 
-	// Validate output format if specified
-	if t.OutputFormat != "" {
-		// Read the rendered content for validation
-		if _, err := temp.Seek(0, 0); err != nil {
-			temp.Close()
-			os.Remove(temp.Name())
-			return fmt.Errorf("failed to seek staged file: %w", err)
-		}
-		content, err := os.ReadFile(temp.Name())
-		if err != nil {
-			temp.Close()
-			os.Remove(temp.Name())
-			return fmt.Errorf("failed to read staged file for validation: %w", err)
-		}
-		if err := util.ValidateFormat(content, t.OutputFormat); err != nil {
-			temp.Close()
-			os.Remove(temp.Name())
-			return fmt.Errorf("output format validation failed (%s): %w", t.OutputFormat, err)
-		}
-		log.Debug("Output format validation passed (%s)", t.OutputFormat)
-	}
-
-	defer temp.Close()
-
-	// Set the owner, group, and mode on the stage file now to make it easier to
-	// compare against the destination configuration file later.
-	if err := os.Chmod(temp.Name(), t.FileMode); err != nil {
-		return fmt.Errorf("failed to chmod stage file: %w", err)
-	}
-	if err := os.Chown(temp.Name(), t.Uid, t.Gid); err != nil {
-		return fmt.Errorf("failed to chown stage file: %w", err)
-	}
 	t.StageFile = temp
 	return nil
 }
@@ -328,71 +333,75 @@ func (t *TemplateResource) createStageFile() error {
 // It returns an error if any.
 func (t *TemplateResource) sync() error {
 	staged := t.StageFile.Name()
-	if t.keepStageFile {
-		log.Info("Keeping staged file: %s", staged)
-	} else {
-		defer os.Remove(staged)
+
+	// Initialize fileStager if not already set (for backward compatibility with tests)
+	if t.fileStgr == nil {
+		t.fileStgr = newFileStager(fileStagingConfig{
+			Uid:           t.Uid,
+			Gid:           t.Gid,
+			FileMode:      t.FileMode,
+			KeepStageFile: t.keepStageFile,
+			Noop:          t.noop,
+			ShowDiff:      t.showDiff,
+			DiffContext:   t.diffContext,
+			ColorDiff:     t.colorDiff,
+		})
 	}
 
-	log.Debug("Comparing candidate config to %s", t.Dest)
-	ok, err := util.IsConfigChanged(staged, t.Dest)
+	// Check if config has changed
+	changed, err := t.fileStgr.isConfigChanged(staged, t.Dest)
 	if err != nil {
 		log.Error("%s", err.Error())
 	}
+
+	// Handle noop mode - just show diff and return
 	if t.noop {
 		log.Warning("Noop mode enabled. %s will not be modified", t.Dest)
-		if ok && t.showDiff {
-			diff, diffErr := util.GenerateDiff(staged, t.Dest, t.diffContext)
-			if diffErr != nil {
-				log.Error("Failed to generate diff: %s", diffErr.Error())
-			} else if diff != "" {
-				if t.colorDiff {
-					diff = util.ColorizeDiff(diff)
-				}
-				fmt.Print(diff)
+		if changed && t.showDiff {
+			if err := t.fileStgr.showDiffOutput(staged, t.Dest); err != nil {
+				log.Error("Failed to generate diff: %s", err.Error())
 			}
+		}
+		// Clean up stage file in noop mode
+		if !t.keepStageFile {
+			os.Remove(staged)
 		}
 		return nil
 	}
-	if ok {
-		log.Info("Target config %s out of sync", t.Dest)
-		if !t.syncOnly && t.CheckCmd != "" {
-			if err := t.check(); err != nil {
-				return errors.New("Config check failed: " + err.Error())
-			}
-		}
-		log.Debug("Overwriting target config %s", t.Dest)
-		err := os.Rename(staged, t.Dest)
-		if err != nil {
-			if strings.Contains(err.Error(), "device or resource busy") {
-				log.Debug("Rename failed - target is likely a mount. Trying to write instead")
-				// try to open the file and write to it
-				var contents []byte
-				var rerr error
-				contents, rerr = os.ReadFile(staged)
-				if rerr != nil {
-					return rerr
-				}
-				if err := os.WriteFile(t.Dest, contents, t.FileMode); err != nil {
-					return fmt.Errorf("failed to write to destination file: %w", err)
-				}
-				// make sure owner and group match the temp file, in case the file was created with WriteFile
-				if err := os.Chown(t.Dest, t.Uid, t.Gid); err != nil {
-					return fmt.Errorf("failed to chown destination file: %w", err)
-				}
-			} else {
-				return err
-			}
-		}
-		if !t.syncOnly && t.ReloadCmd != "" {
-			if err := t.reload(); err != nil {
-				return err
-			}
-		}
-		log.Info("Target config %s has been updated", t.Dest)
-	} else {
+
+	// If no changes, clean up and return
+	if !changed {
 		log.Debug("Target config %s in sync", t.Dest)
+		if !t.keepStageFile {
+			os.Remove(staged)
+		}
+		return nil
 	}
+
+	// Config has changed - run check command before syncing
+	log.Info("Target config %s out of sync", t.Dest)
+	if !t.syncOnly && t.CheckCmd != "" {
+		if err := t.check(); err != nil {
+			if !t.keepStageFile {
+				os.Remove(staged)
+			}
+			return errors.New("Config check failed: " + err.Error())
+		}
+	}
+
+	// Sync the files
+	if err := t.fileStgr.syncFiles(staged, t.Dest); err != nil {
+		return err
+	}
+
+	// Run reload command after successful sync
+	if !t.syncOnly && t.ReloadCmd != "" {
+		if err := t.reload(); err != nil {
+			return err
+		}
+	}
+
+	log.Info("Target config %s has been updated", t.Dest)
 	return nil
 }
 
@@ -403,17 +412,17 @@ func (t *TemplateResource) sync() error {
 // file.
 // It returns nil if the check command returns 0 and there are no other errors.
 func (t *TemplateResource) check() error {
-	var cmdBuffer bytes.Buffer
-	data := make(map[string]string)
-	data["src"] = t.StageFile.Name()
-	tmpl, err := template.New("checkcmd").Parse(t.CheckCmd)
-	if err != nil {
-		return err
+	// Initialize cmdExecutor if not already set (for backward compatibility with tests)
+	if t.cmdExecutor == nil {
+		t.cmdExecutor = newCommandExecutor(commandExecutorConfig{
+			CheckCmd:          t.CheckCmd,
+			ReloadCmd:         t.ReloadCmd,
+			MinReloadInterval: t.minReloadIntervalDur,
+			LastReloadTime:    &t.lastReloadTime,
+			SyncOnly:          t.syncOnly,
+		})
 	}
-	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
-		return err
-	}
-	return runCommand(cmdBuffer.String())
+	return t.cmdExecutor.executeCheck(t.StageFile.Name())
 }
 
 // reload executes the reload command. The command is modified so that any
@@ -425,58 +434,19 @@ func (t *TemplateResource) check() error {
 // If min_reload_interval is set and not enough time has passed since the last
 // reload, the reload is skipped and a warning is logged.
 func (t *TemplateResource) reload() error {
-	// Check rate limiting
-	if t.minReloadIntervalDur > 0 && !t.lastReloadTime.IsZero() {
-		elapsed := time.Since(t.lastReloadTime)
-		if elapsed < t.minReloadIntervalDur {
-			remaining := t.minReloadIntervalDur - elapsed
-			log.Warning("Reload throttled for %s (next allowed in %v)", t.Dest, remaining.Round(time.Second))
-			return nil
-		}
+	// Initialize cmdExecutor if not already set (for backward compatibility with tests)
+	if t.cmdExecutor == nil {
+		t.cmdExecutor = newCommandExecutor(commandExecutorConfig{
+			CheckCmd:          t.CheckCmd,
+			ReloadCmd:         t.ReloadCmd,
+			MinReloadInterval: t.minReloadIntervalDur,
+			LastReloadTime:    &t.lastReloadTime,
+			SyncOnly:          t.syncOnly,
+		})
 	}
-
-	var cmdBuffer bytes.Buffer
-	data := make(map[string]string)
-	data["src"] = t.StageFile.Name()
-	data["dest"] = t.Dest
-	tmpl, err := template.New("reloadcmd").Parse(t.ReloadCmd)
-	if err != nil {
-		return err
-	}
-	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
-		return err
-	}
-
-	if err := runCommand(cmdBuffer.String()); err != nil {
-		return err
-	}
-
-	// Update last reload time on success
-	t.lastReloadTime = time.Now()
-	return nil
+	return t.cmdExecutor.executeReload(t.StageFile.Name(), t.Dest)
 }
 
-// runCommand is a shared function used by check and reload
-// to run the given command and log its output.
-// It returns nil if the given cmd returns 0.
-// The command can be run on unix and windows.
-func runCommand(cmd string) error {
-	log.Debug("Running %s", cmd)
-	var c *exec.Cmd
-	if runtime.GOOS == "windows" {
-		c = exec.Command("cmd", "/C", cmd)
-	} else {
-		c = exec.Command("/bin/sh", "-c", cmd)
-	}
-
-	output, err := c.CombinedOutput()
-	if err != nil {
-		log.Error("%q", string(output))
-		return err
-	}
-	log.Debug("%q", string(output))
-	return nil
-}
 
 // process is a convenience function that wraps calls to the three main tasks
 // required to keep local configuration files in sync. First we gather vars
@@ -518,5 +488,11 @@ func (t *TemplateResource) setFileMode() error {
 		}
 		t.FileMode = os.FileMode(mode)
 	}
+
+	// Update fileStager with the determined file mode
+	if t.fileStgr != nil {
+		t.fileStgr.updateFileMode(t.FileMode)
+	}
+
 	return nil
 }
