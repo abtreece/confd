@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -196,22 +197,24 @@ func TestRedisNilError(t *testing.T) {
 }
 
 func TestCreateClient_EmptyMachines(t *testing.T) {
-	client, db, err := createClient([]string{}, "password", true)
+	config := RetryConfig{MaxRetries: 0, BaseDelay: 0, MaxDelay: 0, JitterFactor: 0}
+	client, db, err := createClient([]string{}, "password", true, config)
 	if client != nil {
 		t.Error("createClient with empty machines should return nil client")
 	}
 	if db != 0 {
 		t.Errorf("createClient with empty machines should return db=0, got %d", db)
 	}
-	if err != nil {
-		// With empty machines, lastErr is never set, so err is nil
-		t.Errorf("createClient with empty machines should return nil error, got %v", err)
+	if err == nil {
+		t.Error("createClient with empty machines should return error")
 	}
 }
 
 func TestCreateClient_InvalidAddress(t *testing.T) {
 	// Try to connect to an invalid address - should fail
-	client, _, err := createClient([]string{"invalid-host-that-does-not-exist:6379"}, "", true)
+	// Use zero retries for fast test
+	config := RetryConfig{MaxRetries: 0, BaseDelay: 0, MaxDelay: 0, JitterFactor: 0}
+	client, _, err := createClient([]string{"invalid-host-that-does-not-exist:6379"}, "", true, config)
 	if err == nil {
 		// Connection might not fail immediately in all environments
 		// but the client should still be nil or fail on ping
@@ -241,6 +244,120 @@ func TestAddressParsing_WithDatabase(t *testing.T) {
 	result = client.clean("app:db:0")
 	if result != "/app/db/0" {
 		t.Errorf("clean(app:db:0) = %s, want /app/db/0", result)
+	}
+}
+
+func TestDefaultRetryConfig(t *testing.T) {
+	config := DefaultRetryConfig()
+
+	if config.MaxRetries != 3 {
+		t.Errorf("DefaultRetryConfig().MaxRetries = %d, want 3", config.MaxRetries)
+	}
+	if config.BaseDelay != 100*time.Millisecond {
+		t.Errorf("DefaultRetryConfig().BaseDelay = %v, want 100ms", config.BaseDelay)
+	}
+	if config.MaxDelay != 5*time.Second {
+		t.Errorf("DefaultRetryConfig().MaxDelay = %v, want 5s", config.MaxDelay)
+	}
+	if config.JitterFactor != 0.3 {
+		t.Errorf("DefaultRetryConfig().JitterFactor = %f, want 0.3", config.JitterFactor)
+	}
+}
+
+func TestCalculateBackoff(t *testing.T) {
+	config := RetryConfig{
+		BaseDelay:    100 * time.Millisecond,
+		MaxDelay:     1 * time.Second,
+		JitterFactor: 0.0, // No jitter for predictable testing
+	}
+
+	tests := []struct {
+		name     string
+		attempt  int
+		expected time.Duration
+	}{
+		{
+			name:     "first retry (attempt 0)",
+			attempt:  0,
+			expected: 100 * time.Millisecond, // baseDelay * 2^0 = 100ms
+		},
+		{
+			name:     "second retry (attempt 1)",
+			attempt:  1,
+			expected: 200 * time.Millisecond, // baseDelay * 2^1 = 200ms
+		},
+		{
+			name:     "third retry (attempt 2)",
+			attempt:  2,
+			expected: 400 * time.Millisecond, // baseDelay * 2^2 = 400ms
+		},
+		{
+			name:     "fourth retry (attempt 3)",
+			attempt:  3,
+			expected: 800 * time.Millisecond, // baseDelay * 2^3 = 800ms
+		},
+		{
+			name:     "fifth retry (attempt 4) - capped",
+			attempt:  4,
+			expected: 1 * time.Second, // baseDelay * 2^4 = 1600ms, but capped at 1s
+		},
+		{
+			name:     "sixth retry (attempt 5) - capped",
+			attempt:  5,
+			expected: 1 * time.Second, // baseDelay * 2^5 = 3200ms, but capped at 1s
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calculateBackoff(tt.attempt, config)
+			if result != tt.expected {
+				t.Errorf("calculateBackoff(%d) = %v, want %v", tt.attempt, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCalculateBackoffWithJitter(t *testing.T) {
+	config := RetryConfig{
+		BaseDelay:    100 * time.Millisecond,
+		MaxDelay:     5 * time.Second,
+		JitterFactor: 0.3, // 30% jitter
+	}
+
+	// Test that jitter produces values within expected range
+	attempt := 1
+	expectedBase := 200 * time.Millisecond // baseDelay * 2^1
+
+	// Run multiple times to check jitter range
+	for i := 0; i < 100; i++ {
+		result := calculateBackoff(attempt, config)
+
+		// With 30% jitter, result should be between 140ms (200 - 60) and 260ms (200 + 60)
+		minExpected := time.Duration(float64(expectedBase) * 0.7)  // 140ms
+		maxExpected := time.Duration(float64(expectedBase) * 1.3)  // 260ms
+
+		if result < minExpected || result > maxExpected {
+			t.Errorf("calculateBackoff(%d) with jitter = %v, want between %v and %v",
+				attempt, result, minExpected, maxExpected)
+		}
+	}
+}
+
+func TestCalculateBackoffMaxDelay(t *testing.T) {
+	config := RetryConfig{
+		BaseDelay:    1 * time.Second,
+		MaxDelay:     2 * time.Second,
+		JitterFactor: 0.0,
+	}
+
+	// After several attempts, backoff should be capped at MaxDelay
+	for attempt := 0; attempt < 10; attempt++ {
+		result := calculateBackoff(attempt, config)
+		if result > config.MaxDelay {
+			t.Errorf("calculateBackoff(%d) = %v, exceeds MaxDelay %v",
+				attempt, result, config.MaxDelay)
+		}
 	}
 }
 
