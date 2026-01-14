@@ -1,16 +1,13 @@
 package template
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"text/template"
@@ -87,6 +84,8 @@ type TemplateResource struct {
 	// Context for cancellation and timeouts
 	ctx            context.Context
 	backendTimeout time.Duration
+	// Command execution
+	cmdExecutor *commandExecutor
 }
 
 var ErrEmptySrc = errors.New("empty src template")
@@ -201,6 +200,16 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 
 	tr.templateDir = config.TemplateDir
 	tr.Src = filepath.Join(config.TemplateDir, tr.Src)
+
+	// Initialize command executor
+	tr.cmdExecutor = newCommandExecutor(commandExecutorConfig{
+		CheckCmd:          tr.CheckCmd,
+		ReloadCmd:         tr.ReloadCmd,
+		MinReloadInterval: tr.minReloadIntervalDur,
+		LastReloadTime:    &tr.lastReloadTime,
+		SyncOnly:          tr.syncOnly,
+	})
+
 	return &tr, nil
 }
 
@@ -403,17 +412,17 @@ func (t *TemplateResource) sync() error {
 // file.
 // It returns nil if the check command returns 0 and there are no other errors.
 func (t *TemplateResource) check() error {
-	var cmdBuffer bytes.Buffer
-	data := make(map[string]string)
-	data["src"] = t.StageFile.Name()
-	tmpl, err := template.New("checkcmd").Parse(t.CheckCmd)
-	if err != nil {
-		return err
+	// Initialize cmdExecutor if not already set (for backward compatibility with tests)
+	if t.cmdExecutor == nil {
+		t.cmdExecutor = newCommandExecutor(commandExecutorConfig{
+			CheckCmd:          t.CheckCmd,
+			ReloadCmd:         t.ReloadCmd,
+			MinReloadInterval: t.minReloadIntervalDur,
+			LastReloadTime:    &t.lastReloadTime,
+			SyncOnly:          t.syncOnly,
+		})
 	}
-	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
-		return err
-	}
-	return runCommand(cmdBuffer.String())
+	return t.cmdExecutor.executeCheck(t.StageFile.Name())
 }
 
 // reload executes the reload command. The command is modified so that any
@@ -425,58 +434,19 @@ func (t *TemplateResource) check() error {
 // If min_reload_interval is set and not enough time has passed since the last
 // reload, the reload is skipped and a warning is logged.
 func (t *TemplateResource) reload() error {
-	// Check rate limiting
-	if t.minReloadIntervalDur > 0 && !t.lastReloadTime.IsZero() {
-		elapsed := time.Since(t.lastReloadTime)
-		if elapsed < t.minReloadIntervalDur {
-			remaining := t.minReloadIntervalDur - elapsed
-			log.Warning("Reload throttled for %s (next allowed in %v)", t.Dest, remaining.Round(time.Second))
-			return nil
-		}
+	// Initialize cmdExecutor if not already set (for backward compatibility with tests)
+	if t.cmdExecutor == nil {
+		t.cmdExecutor = newCommandExecutor(commandExecutorConfig{
+			CheckCmd:          t.CheckCmd,
+			ReloadCmd:         t.ReloadCmd,
+			MinReloadInterval: t.minReloadIntervalDur,
+			LastReloadTime:    &t.lastReloadTime,
+			SyncOnly:          t.syncOnly,
+		})
 	}
-
-	var cmdBuffer bytes.Buffer
-	data := make(map[string]string)
-	data["src"] = t.StageFile.Name()
-	data["dest"] = t.Dest
-	tmpl, err := template.New("reloadcmd").Parse(t.ReloadCmd)
-	if err != nil {
-		return err
-	}
-	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
-		return err
-	}
-
-	if err := runCommand(cmdBuffer.String()); err != nil {
-		return err
-	}
-
-	// Update last reload time on success
-	t.lastReloadTime = time.Now()
-	return nil
+	return t.cmdExecutor.executeReload(t.StageFile.Name(), t.Dest)
 }
 
-// runCommand is a shared function used by check and reload
-// to run the given command and log its output.
-// It returns nil if the given cmd returns 0.
-// The command can be run on unix and windows.
-func runCommand(cmd string) error {
-	log.Debug("Running %s", cmd)
-	var c *exec.Cmd
-	if runtime.GOOS == "windows" {
-		c = exec.Command("cmd", "/C", cmd)
-	} else {
-		c = exec.Command("/bin/sh", "-c", cmd)
-	}
-
-	output, err := c.CombinedOutput()
-	if err != nil {
-		log.Error("%q", string(output))
-		return err
-	}
-	log.Debug("%q", string(output))
-	return nil
-}
 
 // process is a convenience function that wraps calls to the three main tasks
 // required to keep local configuration files in sync. First we gather vars
