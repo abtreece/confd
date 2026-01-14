@@ -3,6 +3,8 @@ package redis
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -17,21 +19,62 @@ type watchResponse struct {
 	err       error
 }
 
-// Client is a wrapper around the redis client
-type Client struct {
-	client    *redis.Client
-	machines  []string
-	password  string
-	separator string
-	db        int
-	pubsub    *redis.PubSub
-	pscChan   chan watchResponse
+// RetryConfig contains configuration for connection retry behavior
+type RetryConfig struct {
+	MaxRetries   int           // Maximum number of retry attempts (0 = no retries)
+	BaseDelay    time.Duration // Initial backoff delay
+	MaxDelay     time.Duration // Maximum backoff delay
+	JitterFactor float64       // Jitter factor (0.0-1.0) to prevent thundering herd
 }
 
-// createClient attempts to connect to each machine in order.
+// DefaultRetryConfig returns sensible default retry configuration
+func DefaultRetryConfig() RetryConfig {
+	return RetryConfig{
+		MaxRetries:   3,
+		BaseDelay:    100 * time.Millisecond,
+		MaxDelay:     5 * time.Second,
+		JitterFactor: 0.3, // 30% jitter
+	}
+}
+
+// calculateBackoff calculates the backoff duration for a given attempt with exponential backoff and jitter.
+// Implements: backoff = min(baseDelay * 2^attempt, maxDelay) * (1 ± jitter)
+func calculateBackoff(attempt int, config RetryConfig) time.Duration {
+	// Exponential backoff: baseDelay * 2^attempt
+	backoff := float64(config.BaseDelay) * math.Pow(2, float64(attempt))
+
+	// Cap at maxDelay
+	if backoff > float64(config.MaxDelay) {
+		backoff = float64(config.MaxDelay)
+	}
+
+	// Add jitter: backoff * (1 ± jitterFactor)
+	if config.JitterFactor > 0 {
+		jitter := backoff * config.JitterFactor
+		// Random value between (backoff - jitter) and (backoff + jitter)
+		backoff = backoff - jitter + (rand.Float64() * 2 * jitter)
+	}
+
+	return time.Duration(backoff)
+}
+
+// Client is a wrapper around the redis client
+type Client struct {
+	client      *redis.Client
+	machines    []string
+	password    string
+	separator   string
+	db          int
+	pubsub      *redis.PubSub
+	pscChan     chan watchResponse
+	retryConfig RetryConfig
+}
+
+// createClient attempts to connect to each machine in order with exponential backoff retry logic.
 // Returns the first successful connection or the last error encountered.
-func createClient(machines []string, password string, withReadTimeout bool) (*redis.Client, int, error) {
+func createClient(machines []string, password string, withReadTimeout bool, retryConfig RetryConfig) (*redis.Client, int, error) {
 	var lastErr error
+
 	for _, address := range machines {
 		db := 0
 
@@ -50,38 +93,57 @@ func createClient(machines []string, password string, withReadTimeout bool) (*re
 		if _, err := os.Stat(address); err == nil {
 			network = "unix"
 		}
-		log.Debug("Trying to connect to redis node %s", address)
 
-		opts := &redis.Options{
-			Network:      network,
-			Addr:         address,
-			Password:     password,
-			DB:           db,
-			DialTimeout:  time.Second,
-			WriteTimeout: time.Second,
-		}
+		// Try connecting to this machine with retries
+		for attempt := 0; attempt <= retryConfig.MaxRetries; attempt++ {
+			if attempt > 0 {
+				backoff := calculateBackoff(attempt-1, retryConfig)
+				log.Debug("Redis connection attempt %d/%d to %s failed, retrying in %v",
+					attempt, retryConfig.MaxRetries, address, backoff)
+				time.Sleep(backoff)
+			} else {
+				log.Debug("Trying to connect to redis node %s", address)
+			}
 
-		if withReadTimeout {
-			opts.ReadTimeout = time.Second
-		}
+			opts := &redis.Options{
+				Network:      network,
+				Addr:         address,
+				Password:     password,
+				DB:           db,
+				DialTimeout:  time.Second,
+				WriteTimeout: time.Second,
+			}
 
-		client := redis.NewClient(opts)
+			if withReadTimeout {
+				opts.ReadTimeout = time.Second
+			}
 
-		// Test connection
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		err := client.Ping(ctx).Err()
-		cancel()
+			client := redis.NewClient(opts)
 
-		if err != nil {
+			// Test connection
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			err := client.Ping(ctx).Err()
+			cancel()
+
+			if err == nil {
+				// Connection successful
+				if attempt > 0 {
+					log.Info("Successfully connected to redis node %s after %d attempts", address, attempt+1)
+				}
+				return client, db, nil
+			}
+
+			// Connection failed
 			client.Close()
 			lastErr = err
-			continue
-		}
 
-		return client, db, nil
+			if attempt == retryConfig.MaxRetries {
+				log.Debug("Failed to connect to redis node %s after %d attempts: %v", address, attempt+1, err)
+			}
+		}
 	}
 
-	return nil, 0, lastErr
+	return nil, 0, fmt.Errorf("failed to connect to any redis node after retries: %w", lastErr)
 }
 
 // connectedClient returns the redis client, reconnecting if necessary.
@@ -99,7 +161,7 @@ func (c *Client) connectedClient(ctx context.Context) (*redis.Client, error) {
 
 	// Existing client could have been deleted by previous block
 	if c.client == nil {
-		client, db, err := createClient(c.machines, c.password, true)
+		client, db, err := createClient(c.machines, c.password, true, c.retryConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -118,18 +180,20 @@ func NewRedisClient(machines []string, password string, separator string) (*Clie
 	}
 	log.Debug("Redis Separator: %#v", separator)
 
-	client, db, err := createClient(machines, password, true)
+	retryConfig := DefaultRetryConfig()
+	client, db, err := createClient(machines, password, true, retryConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{
-		client:    client,
-		machines:  machines,
-		password:  password,
-		separator: separator,
-		db:        db,
-		pscChan:   make(chan watchResponse),
+		client:      client,
+		machines:    machines,
+		password:    password,
+		separator:   separator,
+		db:          db,
+		pscChan:     make(chan watchResponse),
+		retryConfig: retryConfig,
 	}, nil
 }
 
@@ -256,7 +320,7 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	go func() {
 		if c.pubsub == nil {
 			// Create a new client for PubSub (without read timeout for blocking)
-			rClient, db, err := createClient(c.machines, c.password, false)
+			rClient, db, err := createClient(c.machines, c.password, false, c.retryConfig)
 			if err != nil {
 				c.pubsub = nil
 				select {
