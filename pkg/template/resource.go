@@ -86,6 +86,8 @@ type TemplateResource struct {
 	backendTimeout time.Duration
 	// Command execution
 	cmdExecutor *commandExecutor
+	// Format validation
+	fmtValidator *formatValidator
 }
 
 var ErrEmptySrc = errors.New("empty src template")
@@ -210,6 +212,9 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		SyncOnly:          tr.syncOnly,
 	})
 
+	// Initialize format validator
+	tr.fmtValidator = newFormatValidator(tr.OutputFormat)
+
 	return &tr, nil
 }
 
@@ -295,25 +300,10 @@ func (t *TemplateResource) createStageFile() error {
 	}
 
 	// Validate output format if specified
-	if t.OutputFormat != "" {
-		// Read the rendered content for validation
-		if _, err := temp.Seek(0, 0); err != nil {
-			temp.Close()
-			os.Remove(temp.Name())
-			return fmt.Errorf("failed to seek staged file: %w", err)
-		}
-		content, err := os.ReadFile(temp.Name())
-		if err != nil {
-			temp.Close()
-			os.Remove(temp.Name())
-			return fmt.Errorf("failed to read staged file for validation: %w", err)
-		}
-		if err := util.ValidateFormat(content, t.OutputFormat); err != nil {
-			temp.Close()
-			os.Remove(temp.Name())
-			return fmt.Errorf("output format validation failed (%s): %w", t.OutputFormat, err)
-		}
-		log.Debug("Output format validation passed (%s)", t.OutputFormat)
+	if err := t.fmtValidator.validate(temp.Name()); err != nil {
+		temp.Close()
+		os.Remove(temp.Name())
+		return err
 	}
 
 	defer temp.Close()
