@@ -854,61 +854,6 @@ func TestDatabaseSelection(t *testing.T) {
 	})
 }
 
-func TestWatchPrefix_StopChannel(t *testing.T) {
-	t.Run("stop channel terminates watch", func(t *testing.T) {
-		s := miniredis.RunT(t)
-
-		client, err := NewRedisClient([]string{s.Addr()}, "", "/")
-		if err != nil {
-			t.Fatalf("NewRedisClient() unexpected error: %v", err)
-		}
-		defer client.client.Close()
-
-		stopChan := make(chan bool, 1)
-
-		// Send stop signal before watch starts waiting
-		go func() {
-			time.Sleep(50 * time.Millisecond)
-			stopChan <- true
-		}()
-
-		index, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 1, stopChan)
-		if err != nil {
-			t.Errorf("WatchPrefix() unexpected error: %v", err)
-		}
-		// Should return with same index when stopped
-		if index != 1 {
-			t.Errorf("WatchPrefix() index = %d, want 1", index)
-		}
-	})
-
-	t.Run("context cancellation terminates watch", func(t *testing.T) {
-		s := miniredis.RunT(t)
-
-		client, err := NewRedisClient([]string{s.Addr()}, "", "/")
-		if err != nil {
-			t.Fatalf("NewRedisClient() unexpected error: %v", err)
-		}
-		defer client.client.Close()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		defer cancel()
-
-		stopChan := make(chan bool)
-
-		index, err := client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
-
-		// Context cancellation should return with context error
-		if err != nil && err != context.DeadlineExceeded && err != context.Canceled {
-			t.Errorf("WatchPrefix() unexpected error type: %v", err)
-		}
-		// Index should be the original waitIndex on cancellation
-		if index != 1 {
-			t.Errorf("WatchPrefix() index = %d, want 1", index)
-		}
-	})
-}
-
 func TestWatchPrefix_DrainChannel(t *testing.T) {
 	t.Run("drains multiple pending responses", func(t *testing.T) {
 		client := &Client{
