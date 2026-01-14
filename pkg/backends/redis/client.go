@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -13,6 +14,10 @@ import (
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/redis/go-redis/v9"
 )
+
+// rng is a package-level seeded random number generator for jitter calculation.
+// Using a local source ensures thread-safety and proper randomization.
+var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 type watchResponse struct {
 	waitIndex uint64
@@ -52,7 +57,7 @@ func calculateBackoff(attempt int, config RetryConfig) time.Duration {
 	if config.JitterFactor > 0 {
 		jitter := backoff * config.JitterFactor
 		// Random value between (backoff - jitter) and (backoff + jitter)
-		backoff = backoff - jitter + (rand.Float64() * 2 * jitter)
+		backoff = backoff - jitter + (rng.Float64() * 2 * jitter)
 	}
 
 	return time.Duration(backoff)
@@ -71,9 +76,9 @@ type Client struct {
 }
 
 // createClient attempts to connect to each machine in order with exponential backoff retry logic.
-// Returns the first successful connection or the last error encountered.
+// Returns the first successful connection or an aggregated error from all attempts.
 func createClient(machines []string, password string, withReadTimeout bool, retryConfig RetryConfig) (*redis.Client, int, error) {
-	var lastErr error
+	var allErrors []error
 
 	for _, address := range machines {
 		db := 0
@@ -98,7 +103,7 @@ func createClient(machines []string, password string, withReadTimeout bool, retr
 		for attempt := 0; attempt <= retryConfig.MaxRetries; attempt++ {
 			if attempt > 0 {
 				backoff := calculateBackoff(attempt-1, retryConfig)
-				log.Debug("Redis connection attempt %d/%d to %s failed, retrying in %v",
+				log.Debug("Redis connection retry %d/%d to %s after backoff %v",
 					attempt, retryConfig.MaxRetries, address, backoff)
 				time.Sleep(backoff)
 			} else {
@@ -128,22 +133,27 @@ func createClient(machines []string, password string, withReadTimeout bool, retr
 			if err == nil {
 				// Connection successful
 				if attempt > 0 {
-					log.Info("Successfully connected to redis node %s after %d attempts", address, attempt+1)
+					log.Info("Successfully connected to redis node %s after %d retries", address, attempt)
 				}
 				return client, db, nil
 			}
 
 			// Connection failed
 			client.Close()
-			lastErr = err
 
 			if attempt == retryConfig.MaxRetries {
+				// Only add error after all retries exhausted for this machine
+				allErrors = append(allErrors, fmt.Errorf("%s: %w", address, err))
 				log.Debug("Failed to connect to redis node %s after %d attempts: %v", address, attempt+1, err)
 			}
 		}
 	}
 
-	return nil, 0, fmt.Errorf("failed to connect to any redis node after retries: %w", lastErr)
+	// Return aggregated error with context from all machines
+	if len(allErrors) > 0 {
+		return nil, 0, fmt.Errorf("failed to connect to any redis node after retries: %w", errors.Join(allErrors...))
+	}
+	return nil, 0, fmt.Errorf("failed to connect to any redis node: no machines provided")
 }
 
 // connectedClient returns the redis client, reconnecting if necessary.
