@@ -51,8 +51,7 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 	}
 
 	var cmdBuffer bytes.Buffer
-	data := make(map[string]string)
-	data["src"] = stagePath
+	data := map[string]string{"src": stagePath}
 	tmpl, err := template.New("checkcmd").Parse(e.checkCmd)
 	if err != nil {
 		return err
@@ -86,9 +85,7 @@ func (e *commandExecutor) executeReload(stagePath, destPath string) error {
 	}
 
 	var cmdBuffer bytes.Buffer
-	data := make(map[string]string)
-	data["src"] = stagePath
-	data["dest"] = destPath
+	data := map[string]string{"src": stagePath, "dest": destPath}
 	tmpl, err := template.New("reloadcmd").Parse(e.reloadCmd)
 	if err != nil {
 		return err

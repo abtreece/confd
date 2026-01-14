@@ -1,10 +1,12 @@
 package template
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/abtreece/confd/pkg/log"
 	util "github.com/abtreece/confd/pkg/util"
@@ -119,9 +121,10 @@ func (s *fileStager) syncFiles(stagePath, destPath string) error {
 
 	err := os.Rename(stagePath, destPath)
 	if err != nil {
-		// If rename fails due to mount point, fall back to write
-		if strings.Contains(err.Error(), "device or resource busy") {
-			log.Debug("Rename failed - target is likely a mount. Trying to write instead")
+		// If rename fails due to cross-filesystem or mount point, fall back to write
+		// EXDEV: cross-device link (more reliable cross-platform detection)
+		if errors.Is(err, syscall.EXDEV) || strings.Contains(err.Error(), "device or resource busy") {
+			log.Debug("Rename failed - target is on different filesystem or mount point. Trying to write instead")
 			if err := s.writeToDestination(stagePath, destPath); err != nil {
 				return err
 			}

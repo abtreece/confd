@@ -292,8 +292,11 @@ func (t *TemplateResource) setVars() error {
 // StageFile for the template resource.
 // It returns an error if any.
 func (t *TemplateResource) createStageFile() error {
-	// Ensure FileMode is set and fileStager is updated
-	// This is needed for tests that bypass process() and set FileMode directly
+	// Ensure FileMode is set and fileStager is updated.
+	// This defensive check is needed for backward compatibility with tests that:
+	// 1. Call createStageFile() directly without going through process()
+	// 2. Set FileMode directly on TemplateResource after construction
+	// TODO: Refactor tests to use process() or a test helper to avoid this check
 	if t.FileMode == 0 || (t.fileStgr != nil && t.fileStgr.fileMode != t.FileMode) {
 		if err := t.setFileMode(); err != nil {
 			return err
