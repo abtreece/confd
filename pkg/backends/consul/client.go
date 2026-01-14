@@ -2,6 +2,7 @@ package consul
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"strings"
 	"time"
@@ -69,7 +70,7 @@ func New(nodes []string, scheme, cert, key, caCert string, basicAuth bool, usern
 		logger.ErrorContext(context.Background(), "Failed to initialize Consul client",
 			"duration_ms", duration.Milliseconds(),
 			"error", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("failed to create consul client: %w", err)
 	}
 
 	logger.InfoContext(context.Background(), "Successfully initialized Consul client",

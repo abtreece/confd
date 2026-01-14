@@ -124,7 +124,7 @@ func TestRender_MissingTemplate(t *testing.T) {
 	if err == nil {
 		t.Error("render() expected error for missing template, got nil")
 	}
-	if !strings.Contains(err.Error(), "Missing template") {
+	if !strings.Contains(err.Error(), "missing template") {
 		t.Errorf("render() error should mention missing template, got: %v", err)
 	}
 }

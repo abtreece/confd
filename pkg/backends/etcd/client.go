@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -147,7 +148,7 @@ func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure b
 	if caCert != "" {
 		certBytes, err := os.ReadFile(caCert)
 		if err != nil {
-			return &Client{}, err
+			return &Client{}, fmt.Errorf("failed to read CA certificate file: %w", err)
 		}
 
 		caCertPool := x509.NewCertPool()
@@ -162,7 +163,7 @@ func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure b
 	if cert != "" && key != "" {
 		tlsCert, err := tls.LoadX509KeyPair(cert, key)
 		if err != nil {
-			return &Client{}, err
+			return &Client{}, fmt.Errorf("failed to load client certificate key pair: %w", err)
 		}
 		tlsConfig.Certificates = []tls.Certificate{tlsCert}
 		tlsEnabled = true
@@ -174,7 +175,7 @@ func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure b
 
 	client, err := clientv3.New(cfg)
 	if err != nil {
-		return &Client{}, err
+		return &Client{}, fmt.Errorf("failed to create etcd client: %w", err)
 	}
 
 	return &Client{client: client, kvClient: client, watches: make(map[string]*Watch), wm: sync.Mutex{}}, nil

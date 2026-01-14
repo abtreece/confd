@@ -2,7 +2,6 @@ package template
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -45,7 +44,7 @@ func (r *templateRenderer) render(srcPath string) ([]byte, error) {
 	log.Debug("Using source template %s", srcPath)
 
 	if !util.IsFileExist(srcPath) {
-		return nil, errors.New("Missing template: " + srcPath)
+		return nil, fmt.Errorf("missing template: %s", srcPath)
 	}
 
 	log.Debug("Compiling source template %s", srcPath)
@@ -66,7 +65,7 @@ func (r *templateRenderer) render(srcPath string) ([]byte, error) {
 		}
 		tmpl, err = template.New(filepath.Base(srcPath)).Funcs(r.funcMap).ParseFiles(srcPath)
 		if err != nil {
-			return nil, fmt.Errorf("Unable to process template %s, %s", srcPath, err)
+			return nil, fmt.Errorf("unable to process template %s: %w", srcPath, err)
 		}
 		PutCachedTemplate(srcPath, tmpl, stat.ModTime())
 	} else {

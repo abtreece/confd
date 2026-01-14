@@ -1,4 +1,4 @@
-.PHONY: build install clean test integration dep release
+.PHONY: build install clean lint test integration dep release
 VERSION=`egrep -o '[0-9]+\.[0-9a-z.\-]+' cmd/confd/version.go`
 GIT_SHA=`git rev-parse --short HEAD || echo`
 
@@ -14,7 +14,11 @@ install:
 clean:
 	@rm -f bin/*
 
-test:
+lint:
+	@echo "Running linters..."
+	@golangci-lint run ./...
+
+test: lint
 	@echo "Running tests..."
 	@go test `go list ./... | grep -v vendor/`
 

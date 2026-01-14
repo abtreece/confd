@@ -111,11 +111,11 @@ func resolveOwnership(owner, group string, uid, gid int) (int, int, error) {
 		if owner != "" {
 			u, err := user.Lookup(owner)
 			if err != nil {
-				return 0, 0, fmt.Errorf("Cannot find owner's UID - %s", err.Error())
+				return 0, 0, fmt.Errorf("cannot find owner's UID: %w", err)
 			}
 			uid, err = strconv.Atoi(u.Uid)
 			if err != nil {
-				return 0, 0, fmt.Errorf("Cannot convert string to int - %s", err.Error())
+				return 0, 0, fmt.Errorf("cannot convert string to int: %w", err)
 			}
 		} else {
 			uid = os.Geteuid()
@@ -222,7 +222,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	log.Debug("Loading template resource from %s", path)
 	_, err := toml.DecodeFile(path, &tc)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot process template resource %s - %s", path, err.Error())
+		return nil, fmt.Errorf("cannot process template resource %s: %w", path, err)
 	}
 
 	tr := tc.TemplateResource
@@ -246,7 +246,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		log.Debug("Using per-resource backend: %s", tc.BackendConfig.Backend)
 		client, err := getOrCreateClient(*tc.BackendConfig)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot create backend client for %s - %s", path, err.Error())
+			return nil, fmt.Errorf("cannot create backend client for %s: %w", path, err)
 		}
 		tr.storeClient = client
 	} else if config.StoreClient != nil {
@@ -402,7 +402,7 @@ func (t *TemplateResource) sync() error {
 	// Check if config has changed
 	changed, err := t.fileStgr.isConfigChanged(staged, t.Dest)
 	if err != nil {
-		log.Error("%s", err.Error())
+		return fmt.Errorf("checking config changes: %w", err)
 	}
 
 	// Handle noop mode - just show diff and return
@@ -436,7 +436,7 @@ func (t *TemplateResource) sync() error {
 			if !t.keepStageFile {
 				os.Remove(staged)
 			}
-			return errors.New("Config check failed: " + err.Error())
+			return fmt.Errorf("config check failed: %w", err)
 		}
 	}
 

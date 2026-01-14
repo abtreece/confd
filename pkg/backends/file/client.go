@@ -37,7 +37,7 @@ func NewFileClient(filepath []string, filter string) (*Client, error) {
 func readFile(path string, vars map[string]string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read file %s: %w", path, err)
 	}
 
 	switch filepath.Ext(path) {
@@ -45,14 +45,14 @@ func readFile(path string, vars map[string]string) error {
 		fileMap := make(map[string]interface{})
 		err = json.Unmarshal(data, &fileMap)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to unmarshal JSON file %s: %w", path, err)
 		}
 		err = nodeWalk(fileMap, "/", vars)
 	case "", ".yml", ".yaml":
 		fileMap := make(map[string]interface{})
 		err = yaml.Unmarshal(data, &fileMap)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to unmarshal YAML file %s: %w", path, err)
 		}
 		err = nodeWalk(fileMap, "/", vars)
 	default:
@@ -60,7 +60,7 @@ func readFile(path string, vars map[string]string) error {
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to process file %s: %w", path, err)
 	}
 	return nil
 }
@@ -82,7 +82,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 	for _, path := range c.filepath {
 		p, err := util.RecursiveFilesLookup(path, c.filter)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to lookup files in %s: %w", path, err)
 		}
 		filePaths = append(filePaths, p...)
 	}
@@ -90,7 +90,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 	for _, path := range filePaths {
 		err := readFile(path, vars)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read configuration file: %w", err)
 		}
 	}
 

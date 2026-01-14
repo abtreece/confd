@@ -173,7 +173,7 @@ func (c *Client) connectedClient(ctx context.Context) (*redis.Client, error) {
 	if c.client == nil {
 		client, db, err := createClient(c.machines, c.password, true, c.retryConfig)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to reconnect redis client: %w", err)
 		}
 		c.client = client
 		c.db = db
@@ -193,7 +193,7 @@ func NewRedisClient(machines []string, password string, separator string) (*Clie
 	retryConfig := DefaultRetryConfig()
 	client, db, err := createClient(machines, password, true, retryConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create redis client: %w", err)
 	}
 
 	return &Client{
@@ -228,7 +228,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 	// Ensure we have a connected redis client
 	rClient, err := c.connectedClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get connected redis client: %w", err)
 	}
 
 	vars := make(map[string]string)
@@ -239,7 +239,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		t, err := rClient.Type(ctx, k).Result()
 
 		if err != nil {
-			return vars, err
+			return vars, fmt.Errorf("failed to get redis key type for %s: %w", k, err)
 		}
 
 		switch t {

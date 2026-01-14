@@ -1,0 +1,22 @@
+linters:
+  enable:
+    - errorlint     # Enforce error wrapping and proper use of errors
+    - wrapcheck     # Check that errors are wrapped
+
+linters-settings:
+  errorlint:
+    # Check whether fmt.Errorf uses the %w verb for formatting errors
+    errorf: true
+    # Check for plain error comparisons
+    asserts: true
+    # Check for plain type assertions
+    comparison: true
+
+  wrapcheck:
+    # Allow errors from these packages to be unwrapped
+    ignoreSigs:
+      - .Errorf(
+      - errors.New(
+      - errors.Unwrap(
+      - .Wrap(
+      - .Wrapf(

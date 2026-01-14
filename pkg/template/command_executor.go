@@ -3,7 +3,6 @@ package template
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -95,7 +94,7 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 	}
 
 	if cmdErr != nil {
-		return errors.New("Config check failed: " + cmdErr.Error())
+		return fmt.Errorf("config check failed: %w", cmdErr)
 	}
 	return nil
 }
