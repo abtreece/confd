@@ -345,9 +345,7 @@ func (p *batchWatchProcessor) processBatch() {
 					p.errChan <- err
 				}
 				// Clear pending map
-				for dest := range pending {
-					delete(pending, dest)
-				}
+				clear(pending)
 			}
 
 		case <-ctx.Done():
