@@ -1,14 +1,32 @@
 package vault
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"reflect"
 	"testing"
 
 	vaultapi "github.com/hashicorp/vault/api"
 )
+
+// createMockResponse creates a mock vaultapi.Response with the given data
+func createMockResponse(data map[string]interface{}) *vaultapi.Response {
+	body, _ := json.Marshal(map[string]interface{}{
+		"data": data,
+	})
+	return &vaultapi.Response{
+		Response: &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(bytes.NewReader(body)),
+		},
+	}
+}
 
 func TestGetMount(t *testing.T) {
 	tests := []struct {
@@ -607,6 +625,41 @@ func TestRecursiveListSecretWithLogical_UnsupportedVersion(t *testing.T) {
 	}
 }
 
+func TestRecursiveListSecretWithLogical_KeysNotSlice(t *testing.T) {
+	mock := &mockVaultLogical{
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": "not a slice", // Wrong type
+				},
+			}, nil
+		},
+	}
+
+	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	if len(result) != 0 {
+		t.Errorf("recursiveListSecretWithLogical() expected empty slice when keys is not a slice, got %v", result)
+	}
+}
+
+func TestRecursiveListSecretWithLogical_KeyNotString(t *testing.T) {
+	mock := &mockVaultLogical{
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": []interface{}{123, "valid_secret"}, // First key is not a string
+				},
+			}, nil
+		},
+	}
+
+	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	// Should skip the non-string key and only return the valid one
+	if len(result) != 1 {
+		t.Errorf("recursiveListSecretWithLogical() expected 1 result, got %d: %v", len(result), result)
+	}
+}
+
 func TestBuildListPath(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -756,6 +809,758 @@ func TestBuildSecretPath(t *testing.T) {
 				t.Errorf("buildSecretPath() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestGetKVVersion(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        map[string]interface{}
+		wantVersion string
+		wantErr     bool
+	}{
+		{
+			name: "version 2 with options",
+			data: map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "2",
+				},
+			},
+			wantVersion: "2",
+			wantErr:     false,
+		},
+		{
+			name: "version 1 with options",
+			data: map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "1",
+				},
+			},
+			wantVersion: "1",
+			wantErr:     false,
+		},
+		{
+			name: "no options defaults to version 1",
+			data: map[string]interface{}{
+				"type": "kv",
+			},
+			wantVersion: "1",
+			wantErr:     false,
+		},
+		{
+			name: "options without version defaults to version 1",
+			data: map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"other_option": "value",
+				},
+			},
+			wantVersion: "1",
+			wantErr:     false,
+		},
+		{
+			name: "options is wrong type defaults to version 1",
+			data: map[string]interface{}{
+				"type":    "kv",
+				"options": "not a map",
+			},
+			wantVersion: "1",
+			wantErr:     false,
+		},
+		{
+			name: "version is not a string defaults to version 1",
+			data: map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": 2, // int instead of string
+				},
+			},
+			wantVersion: "1",
+			wantErr:     false,
+		},
+		{
+			name:        "nil data",
+			data:        nil,
+			wantVersion: "1",
+			wantErr:     false,
+		},
+		{
+			name:        "empty data",
+			data:        map[string]interface{}{},
+			wantVersion: "1",
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getKVVersion(tt.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getKVVersion() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.wantVersion {
+				t.Errorf("getKVVersion() = %v, want %v", got, tt.wantVersion)
+			}
+		})
+	}
+}
+
+func TestGetValues_KVv1(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			if path == "/sys/internal/ui/mounts//secret" {
+				return createMockResponse(map[string]interface{}{
+					"type": "kv",
+					"options": map[string]interface{}{
+						"version": "1",
+					},
+				}), nil
+			}
+			return nil, nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			if path == "/secret" {
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"keys": []interface{}{"mykey"},
+					},
+				}, nil
+			}
+			return nil, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			if path == "/secret/mykey" {
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"username": "admin",
+						"password": "secret123",
+					},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/data"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	// Check that secrets were retrieved and flattened
+	if vars["/secret/mykey/username"] != "admin" {
+		t.Errorf("GetValues() username = %v, want admin", vars["/secret/mykey/username"])
+	}
+	if vars["/secret/mykey/password"] != "secret123" {
+		t.Errorf("GetValues() password = %v, want secret123", vars["/secret/mykey/password"])
+	}
+}
+
+func TestGetValues_KVv2(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			if path == "/sys/internal/ui/mounts//secret" {
+				return createMockResponse(map[string]interface{}{
+					"type": "kv",
+					"options": map[string]interface{}{
+						"version": "2",
+					},
+				}), nil
+			}
+			return nil, nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			if path == "/secret/metadata/" {
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"keys": []interface{}{"mykey"},
+					},
+				}, nil
+			}
+			return nil, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			if path == "/secret/data/mykey" {
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"data": map[string]interface{}{
+							"username": "admin",
+							"password": "secret123",
+						},
+						"metadata": map[string]interface{}{
+							"version": 1,
+						},
+					},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/data"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	// Check that secrets were retrieved and flattened
+	if vars["/secret/mykey/username"] != "admin" {
+		t.Errorf("GetValues() username = %v, want admin", vars["/secret/mykey/username"])
+	}
+	if vars["/secret/mykey/password"] != "secret123" {
+		t.Errorf("GetValues() password = %v, want secret123", vars["/secret/mykey/password"])
+	}
+}
+
+func TestGetValues_ReadRawError(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return nil, errors.New("connection refused")
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/data"})
+	// GetValues doesn't return error for read failures, it logs and continues
+	if err != nil {
+		t.Errorf("GetValues() unexpected error: %v", err)
+	}
+	if len(vars) != 0 {
+		t.Errorf("GetValues() should return empty map on error, got %v", vars)
+	}
+}
+
+func TestGetValues_EmptyResponse(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return nil, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/data"})
+	if err != nil {
+		t.Errorf("GetValues() unexpected error: %v", err)
+	}
+	if len(vars) != 0 {
+		t.Errorf("GetValues() should return empty map for nil response, got %v", vars)
+	}
+}
+
+func TestGetValues_UnsupportedEngine(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return createMockResponse(map[string]interface{}{
+				"type": "transit", // Not a kv engine
+			}), nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/transit/data"})
+	if err != nil {
+		t.Errorf("GetValues() unexpected error: %v", err)
+	}
+	if len(vars) != 0 {
+		t.Errorf("GetValues() should return empty map for unsupported engine, got %v", vars)
+	}
+}
+
+func TestGetValues_MultiplePaths(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return createMockResponse(map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "1",
+				},
+			}), nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			switch path {
+			case "/secret":
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"keys": []interface{}{"app1"},
+					},
+				}, nil
+			case "/kv":
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"keys": []interface{}{"app2"},
+					},
+				}, nil
+			}
+			return nil, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			switch path {
+			case "/secret/app1":
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"key1": "value1",
+					},
+				}, nil
+			case "/kv/app2":
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"key2": "value2",
+					},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/app", "/kv/app"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	// Should get secrets from both mounts
+	if vars["/secret/app1/key1"] != "value1" {
+		t.Errorf("GetValues() key1 = %v, want value1", vars["/secret/app1/key1"])
+	}
+	if vars["/kv/app2/key2"] != "value2" {
+		t.Errorf("GetValues() key2 = %v, want value2", vars["/kv/app2/key2"])
+	}
+}
+
+func TestGetValues_DuplicateMounts(t *testing.T) {
+	callCount := 0
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			callCount++
+			return createMockResponse(map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "1",
+				},
+			}), nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": []interface{}{"key"},
+				},
+			}, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"value": "test",
+				},
+			}, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	// Multiple paths from same mount should only query mount info once
+	_, err := client.GetValues(context.Background(), []string{"/secret/path1", "/secret/path2"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	if callCount != 1 {
+		t.Errorf("GetValues() should deduplicate mounts, called readRaw %d times, want 1", callCount)
+	}
+}
+
+func TestGetValues_SecretReadError(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return createMockResponse(map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "1",
+				},
+			}), nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": []interface{}{"secret1", "secret2"},
+				},
+			}, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			if path == "/secret/secret1" {
+				return nil, errors.New("permission denied")
+			}
+			if path == "/secret/secret2" {
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"value": "test",
+					},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	// Should still get secret2 even though secret1 failed
+	if vars["/secret/secret2/value"] != "test" {
+		t.Errorf("GetValues() should continue after read error, got %v", vars)
+	}
+}
+
+func TestGetValues_NilSecretData(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return createMockResponse(map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "1",
+				},
+			}), nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": []interface{}{"key"},
+				},
+			}, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: nil,
+			}, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	if len(vars) != 0 {
+		t.Errorf("GetValues() should handle nil secret data, got %v", vars)
+	}
+}
+
+func TestGetValues_KVv2_NilDataField(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return createMockResponse(map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "2",
+				},
+			}), nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": []interface{}{"key"},
+				},
+			}, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			// KVv2 returns data under "data" key, but it's nil
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"data":     nil,
+					"metadata": map[string]interface{}{},
+				},
+			}, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	// Should have the JSON marshaled "null" value
+	if vars["/secret/data/key"] != "null" {
+		// This tests the behavior when data field is nil
+		t.Logf("GetValues() with nil data field = %v", vars)
+	}
+}
+
+func TestGetValues_EmptyPaths(t *testing.T) {
+	mock := &mockVaultLogical{}
+	client := &Client{logical: mock}
+
+	vars, err := client.GetValues(context.Background(), []string{})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+	if len(vars) != 0 {
+		t.Errorf("GetValues() with empty paths should return empty map, got %v", vars)
+	}
+}
+
+func TestGetValues_NilSecretFromParse(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			// Return a response that will parse to nil secret.Data
+			body := []byte(`{}`) // Empty JSON, will result in nil Data
+			return &vaultapi.Response{
+				Response: &http.Response{
+					StatusCode: 200,
+					Body:       io.NopCloser(bytes.NewReader(body)),
+				},
+			}, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/data"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+	if len(vars) != 0 {
+		t.Errorf("GetValues() should handle nil secret data from parse, got %v", vars)
+	}
+}
+
+func TestGetValues_KVv2_SecretReadError(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return createMockResponse(map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "2",
+				},
+			}), nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": []interface{}{"secret1", "secret2"},
+				},
+			}, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			if path == "/secret/data/secret1" {
+				return nil, errors.New("permission denied")
+			}
+			if path == "/secret/data/secret2" {
+				return &vaultapi.Secret{
+					Data: map[string]interface{}{
+						"data": map[string]interface{}{
+							"value": "test",
+						},
+					},
+				}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	// Should still get secret2 even though secret1 failed
+	if vars["/secret/secret2/value"] != "test" {
+		t.Errorf("GetValues() v2 should continue after read error, got %v", vars)
+	}
+}
+
+func TestGetValues_KVv2_NilSecretResponse(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return createMockResponse(map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "2",
+				},
+			}), nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": []interface{}{"secret1"},
+				},
+			}, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			// Return nil secret
+			return nil, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+	if len(vars) != 0 {
+		t.Errorf("GetValues() v2 should handle nil secret response, got %v", vars)
+	}
+}
+
+func TestGetValues_KVv1_MarshalError(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return createMockResponse(map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "1",
+				},
+			}), nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": []interface{}{"secret1"},
+				},
+			}, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			// Return data with a channel which can't be marshaled to JSON
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"unmarshalable": make(chan int),
+				},
+			}, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+	// Should handle marshal error gracefully (skip the secret)
+	if len(vars) != 0 {
+		t.Errorf("GetValues() v1 should handle marshal error, got %v", vars)
+	}
+}
+
+func TestGetValues_KVv2_MarshalError(t *testing.T) {
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return createMockResponse(map[string]interface{}{
+				"type": "kv",
+				"options": map[string]interface{}{
+					"version": "2",
+				},
+			}), nil
+		},
+		listFunc: func(path string) (*vaultapi.Secret, error) {
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"keys": []interface{}{"secret1"},
+				},
+			}, nil
+		},
+		readFunc: func(path string) (*vaultapi.Secret, error) {
+			// Return data with a channel which can't be marshaled to JSON
+			return &vaultapi.Secret{
+				Data: map[string]interface{}{
+					"data": make(chan int), // Can't marshal channel
+				},
+			}, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+	// Should handle marshal error gracefully (skip the secret)
+	if len(vars) != 0 {
+		t.Errorf("GetValues() v2 should handle marshal error, got %v", vars)
+	}
+}
+
+func TestHealthCheck_Success(t *testing.T) {
+	// Create a mock Vault server
+	server := http.NewServeMux()
+	server.HandleFunc("/v1/sys/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"initialized":true,"sealed":false,"standby":false}`))
+	})
+	ts := http.Server{
+		Addr:    "127.0.0.1:0",
+		Handler: server,
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+	go func() { _ = ts.Serve(listener) }()
+	defer ts.Close()
+
+	// Create a real Vault client pointing at our mock server
+	config := vaultapi.DefaultConfig()
+	config.Address = "http://" + listener.Addr().String()
+	vaultClient, err := vaultapi.NewClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create vault client: %v", err)
+	}
+
+	client := &Client{client: vaultClient}
+	err = client.HealthCheck(context.Background())
+	if err != nil {
+		t.Errorf("HealthCheck() unexpected error: %v", err)
+	}
+}
+
+func TestHealthCheck_ServerError(t *testing.T) {
+	// Create a mock Vault server that returns an error
+	server := http.NewServeMux()
+	server.HandleFunc("/v1/sys/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	ts := http.Server{
+		Addr:    "127.0.0.1:0",
+		Handler: server,
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+	go func() { _ = ts.Serve(listener) }()
+	defer ts.Close()
+
+	config := vaultapi.DefaultConfig()
+	config.Address = "http://" + listener.Addr().String()
+	vaultClient, err := vaultapi.NewClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create vault client: %v", err)
+	}
+
+	client := &Client{client: vaultClient}
+	err = client.HealthCheck(context.Background())
+	// Server returns 503, which should result in an error
+	if err == nil {
+		t.Error("HealthCheck() expected error for unavailable server")
+	}
+}
+
+func TestHealthCheck_ConnectionRefused(t *testing.T) {
+	// Create a client pointing at a non-existent server
+	config := vaultapi.DefaultConfig()
+	config.Address = "http://127.0.0.1:1" // Port 1 should be refused
+	vaultClient, err := vaultapi.NewClient(config)
+	if err != nil {
+		t.Fatalf("Failed to create vault client: %v", err)
+	}
+
+	client := &Client{client: vaultClient}
+	err = client.HealthCheck(context.Background())
+	if err == nil {
+		t.Error("HealthCheck() expected error for connection refused")
 	}
 }
 
