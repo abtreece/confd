@@ -96,6 +96,85 @@ type TemplateResource struct {
 
 var ErrEmptySrc = errors.New("empty src template")
 
+// resolveOwnership resolves the UID and GID for the template resource.
+// If Owner/Group are specified, it looks them up. Otherwise uses effective UID/GID.
+func resolveOwnership(owner, group string, uid, gid int) (int, int, error) {
+	// Resolve UID
+	if uid == -1 {
+		if owner != "" {
+			u, err := user.Lookup(owner)
+			if err != nil {
+				return 0, 0, fmt.Errorf("Cannot find owner's UID - %s", err.Error())
+			}
+			uid, err = strconv.Atoi(u.Uid)
+			if err != nil {
+				return 0, 0, fmt.Errorf("Cannot convert string to int - %s", err.Error())
+			}
+		} else {
+			uid = os.Geteuid()
+		}
+	}
+
+	// Resolve GID
+	if gid == -1 {
+		if group != "" {
+			g, err := user.LookupGroup(group)
+			if err != nil {
+				return 0, 0, fmt.Errorf("Cannot find group's GID - %s", err.Error())
+			}
+			gid, err = strconv.Atoi(g.Gid)
+			if err != nil {
+				return 0, 0, fmt.Errorf("Cannot convert string to int - %s", err.Error())
+			}
+		} else {
+			gid = os.Getegid()
+		}
+	}
+
+	return uid, gid, nil
+}
+
+// normalizePrefix concatenates global config prefix with resource prefix.
+// This allows hierarchical prefixes like /production/myapp where
+// "production" comes from confd.toml and "myapp" from the resource.
+func normalizePrefix(globalPrefix, resourcePrefix string) string {
+	if globalPrefix != "" && resourcePrefix != "" {
+		return "/" + strings.Trim(globalPrefix, "/") + "/" + strings.Trim(resourcePrefix, "/")
+	} else if globalPrefix != "" {
+		return "/" + strings.Trim(globalPrefix, "/")
+	} else if resourcePrefix != "" {
+		return "/" + strings.Trim(resourcePrefix, "/")
+	}
+	return "/"
+}
+
+// parseDurations parses the MinReloadInterval and Debounce duration strings.
+// Returns parsed durations or error if parsing fails.
+func parseDurations(minReloadInterval, debounce string, globalDebounce time.Duration) (time.Duration, time.Duration, error) {
+	var minReloadDur, debounceDur time.Duration
+
+	if minReloadInterval != "" {
+		d, err := time.ParseDuration(minReloadInterval)
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid min_reload_interval %q: %w", minReloadInterval, err)
+		}
+		minReloadDur = d
+	}
+
+	if debounce != "" {
+		d, err := time.ParseDuration(debounce)
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid debounce %q: %w", debounce, err)
+		}
+		debounceDur = d
+	} else if globalDebounce > 0 {
+		// Use global debounce if per-resource not set
+		debounceDur = globalDebounce
+	}
+
+	return minReloadDur, debounceDur, nil
+}
+
 // NewTemplateResource creates a TemplateResource.
 func NewTemplateResource(path string, config Config) (*TemplateResource, error) {
 	// Set the default uid and gid so we can determine if it was
@@ -138,70 +217,23 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		return nil, errors.New("A valid StoreClient is required. Either configure a global backend or specify a [backend] section in the template resource.")
 	}
 
-	// Concatenate global config prefix with resource prefix.
-	// This allows hierarchical prefixes like /production/myapp where
-	// "production" comes from confd.toml and "myapp" from the resource.
-	if config.Prefix != "" && tr.Prefix != "" {
-		tr.Prefix = "/" + strings.Trim(config.Prefix, "/") + "/" + strings.Trim(tr.Prefix, "/")
-	} else if config.Prefix != "" {
-		tr.Prefix = "/" + strings.Trim(config.Prefix, "/")
-	} else if tr.Prefix != "" {
-		tr.Prefix = "/" + strings.Trim(tr.Prefix, "/")
-	} else {
-		tr.Prefix = "/"
-	}
+	// Normalize prefix (hierarchical: global + resource)
+	tr.Prefix = normalizePrefix(config.Prefix, tr.Prefix)
 
 	if tr.Src == "" {
 		return nil, ErrEmptySrc
 	}
 
-	if tr.Uid == -1 {
-		if tr.Owner != "" {
-			u, err := user.Lookup(tr.Owner)
-			if err != nil {
-				return nil, fmt.Errorf("Cannot find owner's UID - %s", err.Error())
-			}
-			tr.Uid, err = strconv.Atoi(u.Uid)
-			if err != nil {
-				return nil, fmt.Errorf("Cannot convert string to int - %s", err.Error())
-			}
-		} else {
-			tr.Uid = os.Geteuid()
-		}
-	}
-
-	if tr.Gid == -1 {
-		if tr.Group != "" {
-			g, err := user.LookupGroup(tr.Group)
-			if err != nil {
-				return nil, fmt.Errorf("Cannot find group's GID - %s", err.Error())
-			}
-			tr.Gid, err = strconv.Atoi(g.Gid)
-			if err != nil {
-				return nil, fmt.Errorf("Cannot convert string to int - %s", err.Error())
-			}
-		} else {
-			tr.Gid = os.Getegid()
-		}
+	// Resolve UID/GID from owner/group or use effective IDs
+	tr.Uid, tr.Gid, err = resolveOwnership(tr.Owner, tr.Group, tr.Uid, tr.Gid)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse duration settings
-	if tr.MinReloadInterval != "" {
-		d, err := time.ParseDuration(tr.MinReloadInterval)
-		if err != nil {
-			return nil, fmt.Errorf("invalid min_reload_interval %q: %w", tr.MinReloadInterval, err)
-		}
-		tr.minReloadIntervalDur = d
-	}
-	if tr.Debounce != "" {
-		d, err := time.ParseDuration(tr.Debounce)
-		if err != nil {
-			return nil, fmt.Errorf("invalid debounce %q: %w", tr.Debounce, err)
-		}
-		tr.debounceDur = d
-	} else if config.Debounce > 0 {
-		// Use global debounce if per-resource not set
-		tr.debounceDur = config.Debounce
+	tr.minReloadIntervalDur, tr.debounceDur, err = parseDurations(tr.MinReloadInterval, tr.Debounce, config.Debounce)
+	if err != nil {
+		return nil, err
 	}
 
 	tr.templateDir = config.TemplateDir
