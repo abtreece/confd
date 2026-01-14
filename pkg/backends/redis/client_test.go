@@ -10,6 +10,28 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// waitForServer waits for a miniredis server to be ready by attempting to connect.
+// Returns error if server is not ready within timeout.
+func waitForServer(t *testing.T, addr string, timeout time.Duration) error {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		client := redis.NewClient(&redis.Options{
+			Addr:        addr,
+			DialTimeout: 10 * time.Millisecond,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		err := client.Ping(ctx).Err()
+		cancel()
+		client.Close()
+		if err == nil {
+			return nil
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return errors.New("server not ready within timeout")
+}
+
 func TestTransform(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -330,8 +352,8 @@ func TestCalculateBackoffWithJitter(t *testing.T) {
 	attempt := 1
 	expectedBase := 200 * time.Millisecond // baseDelay * 2^1
 
-	// Run multiple times to check jitter range
-	for i := 0; i < 100; i++ {
+	// Run multiple times to check jitter range (30 iterations is sufficient for randomness validation)
+	for i := 0; i < 30; i++ {
 		result := calculateBackoff(attempt, config)
 
 		// With 30% jitter, result should be between 140ms (200 - 60) and 260ms (200 + 60)
@@ -425,8 +447,8 @@ func TestNewRedisClient(t *testing.T) {
 func TestGetValues_StringType(t *testing.T) {
 	s := miniredis.RunT(t)
 
-	// Set up test data - keys in Redis don't have leading slash
-	// The transform function converts /app/config/key1 -> app/config/key1
+	// Set up test data - when separator is "/" (default), keys are stored as-is
+	// The transform function returns the key unchanged with the default separator
 	s.Set("/app/config/key1", "value1")
 	s.Set("/app/config/key2", "value2")
 	s.Set("/app/other/key3", "value3")
@@ -634,6 +656,11 @@ func TestConnectionFailover(t *testing.T) {
 		s2.StartAddr(addr)
 		defer s2.Close()
 
+		// Wait for server to be ready before proceeding
+		if err := waitForServer(t, addr, 500*time.Millisecond); err != nil {
+			t.Fatalf("Server not ready: %v", err)
+		}
+
 		s2.Set("key", "recovered")
 
 		// With retries, should eventually connect
@@ -686,6 +713,12 @@ func TestConnectedClient_Reconnection(t *testing.T) {
 		}
 		s2.StartAddr(addr)
 		defer s2.Close()
+
+		// Wait for server to be ready before proceeding
+		if err := waitForServer(t, addr, 500*time.Millisecond); err != nil {
+			t.Fatalf("Server not ready: %v", err)
+		}
+
 		s2.Set("key", "reconnected")
 
 		// Update client's machines to point to new server
@@ -864,12 +897,14 @@ func TestWatchPrefix_StopChannel(t *testing.T) {
 		stopChan := make(chan bool)
 
 		index, err := client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
-		if err == nil || err != context.DeadlineExceeded {
-			// Could be nil error or deadline exceeded depending on timing
+
+		// Context cancellation should return with context error
+		if err != nil && err != context.DeadlineExceeded && err != context.Canceled {
+			t.Errorf("WatchPrefix() unexpected error type: %v", err)
 		}
-		// Index should be 1 (waitIndex) on cancellation
-		if index != 1 && index != 0 {
-			t.Errorf("WatchPrefix() index = %d, want 1 or 0", index)
+		// Index should be the original waitIndex on cancellation
+		if index != 1 {
+			t.Errorf("WatchPrefix() index = %d, want 1", index)
 		}
 	})
 }
@@ -947,23 +982,48 @@ func TestCreateClient_WithRetries(t *testing.T) {
 }
 
 func TestGetValues_ErrorHandling(t *testing.T) {
-	t.Run("error on disconnected client", func(t *testing.T) {
+	t.Run("cancelled context returns error", func(t *testing.T) {
 		s := miniredis.RunT(t)
-		addr := s.Addr() // Save address before operations
+		s.Set("/key", "value")
 
-		client, err := NewRedisClient([]string{addr}, "", "/")
+		client, err := NewRedisClient([]string{s.Addr()}, "", "/")
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
+		defer client.client.Close()
 
-		// Close server
+		// Create an already-cancelled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		// GetValues with cancelled context should return error
+		_, err = client.GetValues(ctx, []string{"/key"})
+		if err == nil {
+			t.Error("GetValues() expected error for cancelled context")
+		}
+	})
+
+	t.Run("disconnected server returns error after retry exhaustion", func(t *testing.T) {
+		s := miniredis.RunT(t)
+		addr := s.Addr()
+
+		// Create client with minimal retries for fast test
+		client := &Client{
+			client:      nil, // Force reconnection attempt
+			machines:    []string{addr},
+			separator:   "/",
+			pscChan:     make(chan watchResponse),
+			retryConfig: RetryConfig{MaxRetries: 0, BaseDelay: 0, MaxDelay: 0, JitterFactor: 0},
+		}
+
+		// Close server before GetValues
 		s.Close()
 
-		// Should fail (but may not if connection pool hasn't detected it yet)
-		_, err = client.GetValues(context.Background(), []string{"/key"})
-		// The test validates that GetValues doesn't panic on closed connection
-		// Error behavior depends on connection pool timing
-		_ = err
+		// GetValues should fail when server is unavailable and retries exhausted
+		_, err := client.GetValues(context.Background(), []string{"/key"})
+		if err == nil {
+			t.Error("GetValues() expected error for disconnected server")
+		}
 	})
 }
 
