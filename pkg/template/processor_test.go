@@ -43,7 +43,7 @@ func TestWatchProcessor_Creation(t *testing.T) {
 
 func TestProcess_EmptyTemplateResources(t *testing.T) {
 	// Test that process with empty slice doesn't error
-	err := process([]*TemplateResource{})
+	err := process([]*TemplateResource{}, FailModeBestEffort)
 	if err != nil {
 		t.Errorf("process([]) unexpected error: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestProcess_EmptyTemplateResources(t *testing.T) {
 
 func TestProcess_NilTemplateResources(t *testing.T) {
 	// Test that process with nil slice doesn't error
-	err := process(nil)
+	err := process(nil, FailModeBestEffort)
 	if err != nil {
 		t.Errorf("process(nil) unexpected error: %v", err)
 	}
@@ -87,6 +87,52 @@ func TestGetTemplateResources_EmptyConfigDir(t *testing.T) {
 	}
 	if len(templates) != 0 {
 		t.Errorf("getTemplateResources() returned %d templates, want 0", len(templates))
+	}
+}
+
+func TestProcessWithResult_BestEffortMode(t *testing.T) {
+	// Test processWithResult with best-effort mode (continues on errors)
+	// Note: This is a unit test that doesn't actually process templates,
+	// but tests the structure. Real processing is tested in integration tests.
+
+	result := processWithResult([]*TemplateResource{}, FailModeBestEffort)
+	if result == nil {
+		t.Fatal("processWithResult() returned nil")
+	}
+	if result.Total != 0 {
+		t.Errorf("processWithResult().Total = %d, want 0", result.Total)
+	}
+	if result.Succeeded != 0 {
+		t.Errorf("processWithResult().Succeeded = %d, want 0", result.Succeeded)
+	}
+	if result.Failed != 0 {
+		t.Errorf("processWithResult().Failed = %d, want 0", result.Failed)
+	}
+	if err := result.Error(); err != nil {
+		t.Errorf("processWithResult().Error() = %v, want nil", err)
+	}
+}
+
+func TestProcessWithResult_FailFastMode(t *testing.T) {
+	// Test processWithResult with fail-fast mode
+	// Note: This is a unit test that doesn't actually process templates,
+	// but tests the structure. Real processing is tested in integration tests.
+
+	result := processWithResult([]*TemplateResource{}, FailModeFast)
+	if result == nil {
+		t.Fatal("processWithResult() returned nil")
+	}
+	if result.Total != 0 {
+		t.Errorf("processWithResult().Total = %d, want 0", result.Total)
+	}
+	if result.Succeeded != 0 {
+		t.Errorf("processWithResult().Succeeded = %d, want 0", result.Succeeded)
+	}
+	if result.Failed != 0 {
+		t.Errorf("processWithResult().Failed = %d, want 0", result.Failed)
+	}
+	if err := result.Error(); err != nil {
+		t.Errorf("processWithResult().Error() = %v, want nil", err)
 	}
 }
 

@@ -44,6 +44,7 @@ type CLI struct {
 	Prefix        string `help:"key path prefix"`
 	SyncOnly      bool   `name:"sync-only" help:"sync without check_cmd and reload_cmd"`
 	Watch         bool   `help:"enable watch support"`
+	FailureMode   string `name:"failure-mode" help:"error handling mode: 'best-effort' or 'fail-fast'" default:"best-effort" enum:"best-effort,fail-fast"`
 	KeepStageFile bool   `name:"keep-stage-file" help:"keep staged files"`
 	SRVDomain     string `name:"srv-domain" help:"DNS SRV domain"`
 	SRVRecord     string `name:"srv-record" help:"SRV record for backend node discovery"`
@@ -437,6 +438,12 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Parse failure mode
+	failureMode, err := template.ParseFailureMode(cli.FailureMode)
+	if err != nil {
+		return err
+	}
+
 	// Build template config
 	tmplCfg := template.Config{
 		ConfDir:           cli.ConfDir,
@@ -456,6 +463,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		ReloadCmdTimeout:  cli.ReloadCmdTimeout,
 		WatchErrorBackoff: cli.WatchErrorBackoff,
 		PreflightTimeout:  cli.PreflightTimeout,
+		FailureMode:       failureMode,
 	}
 
 	// Parse watch mode duration flags

@@ -21,18 +21,46 @@ func Process(config Config) error {
 	if err != nil {
 		return err
 	}
-	return process(ts)
+	return process(ts, config.FailureMode)
 }
 
-func process(ts []*TemplateResource) error {
-	var lastErr error
+func process(ts []*TemplateResource, failureMode FailureMode) error {
+	result := processWithResult(ts, failureMode)
+	return result.Error()
+}
+
+func processWithResult(ts []*TemplateResource, failureMode FailureMode) *BatchProcessResult {
+	result := &BatchProcessResult{Total: len(ts), Statuses: make([]TemplateStatus, 0, len(ts))}
+
 	for _, t := range ts {
+		status := TemplateStatus{Dest: t.Dest}
 		if err := t.process(); err != nil {
 			log.Error("%s", err.Error())
-			lastErr = err
+			status.Error = err
+			result.Failed++
+			result.Statuses = append(result.Statuses, status)
+
+			if failureMode == FailModeFast {
+				log.Warning("Fail-fast mode: stopping after error in %s", t.Dest)
+				break
+			}
+		} else {
+			status.Success = true
+			result.Succeeded++
+			result.Statuses = append(result.Statuses, status)
 		}
 	}
-	return lastErr
+
+	// Record batch metrics
+	if metrics.Enabled() {
+		metrics.BatchProcessTotal.Inc()
+		if result.Failed > 0 {
+			metrics.BatchProcessFailed.Inc()
+		}
+		metrics.BatchProcessTemplatesSucceeded.Add(float64(result.Succeeded))
+		metrics.BatchProcessTemplatesFailed.Add(float64(result.Failed))
+	}
+	return result
 }
 
 type intervalProcessor struct {
@@ -60,7 +88,7 @@ func (p *intervalProcessor) Process() {
 			log.Fatal("%s", err.Error())
 			break
 		}
-		process(ts)
+		process(ts, p.config.FailureMode)
 		select {
 		case <-ctx.Done():
 			log.Debug("Context cancelled, stopping interval processor")
@@ -307,10 +335,17 @@ func (p *batchWatchProcessor) processBatch() {
 			timerRunning = false
 			if len(pending) > 0 {
 				log.Info("Processing batch of %d template changes", len(pending))
-				for dest, t := range pending {
-					if err := t.process(); err != nil {
-						p.errChan <- err
-					}
+				// Convert pending map to slice for processWithResult
+				templates := make([]*TemplateResource, 0, len(pending))
+				for _, t := range pending {
+					templates = append(templates, t)
+				}
+				result := processWithResult(templates, p.config.FailureMode)
+				if err := result.Error(); err != nil {
+					p.errChan <- err
+				}
+				// Clear pending map
+				for dest := range pending {
 					delete(pending, dest)
 				}
 			}
@@ -320,10 +355,13 @@ func (p *batchWatchProcessor) processBatch() {
 			// Process any remaining pending changes before shutdown
 			if len(pending) > 0 {
 				log.Info("Processing %d pending template changes before shutdown", len(pending))
+				templates := make([]*TemplateResource, 0, len(pending))
 				for _, t := range pending {
-					if err := t.process(); err != nil {
-						p.errChan <- err
-					}
+					templates = append(templates, t)
+				}
+				result := processWithResult(templates, p.config.FailureMode)
+				if err := result.Error(); err != nil {
+					p.errChan <- err
 				}
 			}
 			return
@@ -333,10 +371,13 @@ func (p *batchWatchProcessor) processBatch() {
 			// Process any remaining pending changes before shutdown
 			if len(pending) > 0 {
 				log.Info("Processing %d pending template changes before shutdown", len(pending))
+				templates := make([]*TemplateResource, 0, len(pending))
 				for _, t := range pending {
-					if err := t.process(); err != nil {
-						p.errChan <- err
-					}
+					templates = append(templates, t)
+				}
+				result := processWithResult(templates, p.config.FailureMode)
+				if err := result.Error(); err != nil {
+					p.errChan <- err
 				}
 			}
 			return

@@ -241,3 +241,68 @@ func TestMetrics_DoubleInitializeCreatesNewRegistry(t *testing.T) {
 	Registry = nil
 }
 
+func TestBatchProcessingMetrics_Initialized(t *testing.T) {
+	// Reset state
+	Registry = nil
+
+	Initialize()
+
+	// Verify batch processing metrics are not nil
+	if BatchProcessTotal == nil {
+		t.Error("BatchProcessTotal should not be nil")
+	}
+	if BatchProcessFailed == nil {
+		t.Error("BatchProcessFailed should not be nil")
+	}
+	if BatchProcessTemplatesSucceeded == nil {
+		t.Error("BatchProcessTemplatesSucceeded should not be nil")
+	}
+	if BatchProcessTemplatesFailed == nil {
+		t.Error("BatchProcessTemplatesFailed should not be nil")
+	}
+
+	// Cleanup
+	Registry = nil
+}
+
+func TestBatchProcessingMetrics_CanBeRecorded(t *testing.T) {
+	// Reset state
+	Registry = nil
+
+	Initialize()
+
+	// Test that we can record batch processing metrics without panicking
+	BatchProcessTotal.Inc()
+	BatchProcessFailed.Inc()
+	BatchProcessTemplatesSucceeded.Add(5)
+	BatchProcessTemplatesFailed.Add(2)
+
+	// Verify we can gather metrics
+	metricFamilies, err := Registry.Gather()
+	if err != nil {
+		t.Fatalf("Failed to gather metrics after recording: %v", err)
+	}
+
+	// Find and verify our batch processing metrics
+	found := make(map[string]bool)
+	for _, mf := range metricFamilies {
+		found[mf.GetName()] = true
+	}
+
+	expectedMetrics := []string{
+		"confd_batch_process_total",
+		"confd_batch_process_failed_total",
+		"confd_batch_templates_succeeded_total",
+		"confd_batch_templates_failed_total",
+	}
+
+	for _, metric := range expectedMetrics {
+		if !found[metric] {
+			t.Errorf("Expected metric %q to be present in gathered metrics", metric)
+		}
+	}
+
+	// Cleanup
+	Registry = nil
+}
+
