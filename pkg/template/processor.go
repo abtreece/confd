@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
 	util "github.com/abtreece/confd/pkg/util"
 )
 
@@ -93,6 +94,17 @@ func (p *watchProcessor) Process() {
 		log.Fatal("%s", err.Error())
 		return
 	}
+
+	// Calculate total watched keys for metrics
+	if metrics.Enabled() {
+		totalKeys := 0
+		for _, t := range ts {
+			keys := util.AppendPrefix(t.Prefix, t.Keys)
+			totalKeys += len(keys)
+		}
+		metrics.WatchedKeys.Set(float64(totalKeys))
+	}
+
 	for _, t := range ts {
 		t := t
 		p.wg.Add(1)
@@ -202,6 +214,16 @@ func (p *batchWatchProcessor) Process() {
 	if err != nil {
 		log.Fatal("%s", err.Error())
 		return
+	}
+
+	// Calculate total watched keys for metrics
+	if metrics.Enabled() {
+		totalKeys := 0
+		for _, t := range ts {
+			keys := util.AppendPrefix(t.Prefix, t.Keys)
+			totalKeys += len(keys)
+		}
+		metrics.WatchedKeys.Set(float64(totalKeys))
 	}
 
 	// Start batch processor goroutine
@@ -348,5 +370,11 @@ func getTemplateResources(config Config) ([]*TemplateResource, error) {
 		}
 		templates = append(templates, t)
 	}
+
+	// Update templates loaded metric
+	if metrics.Enabled() {
+		metrics.TemplatesLoaded.Set(float64(len(templates)))
+	}
+
 	return templates, lastError
 }
