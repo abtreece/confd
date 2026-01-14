@@ -70,15 +70,23 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 
 	// Write content to temp file
 	if _, err = temp.Write(content); err != nil {
-		temp.Close()
-		os.Remove(temp.Name())
+		if closeErr := temp.Close(); closeErr != nil {
+			log.Error("Failed to close temp file during cleanup: %v", closeErr)
+		}
+		if removeErr := os.Remove(temp.Name()); removeErr != nil {
+			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
+		}
 		return nil, err
 	}
 
 	// Apply permissions to stage file
 	if err := s.applyPermissions(temp.Name()); err != nil {
-		temp.Close()
-		os.Remove(temp.Name())
+		if closeErr := temp.Close(); closeErr != nil {
+			log.Error("Failed to close temp file during cleanup: %v", closeErr)
+		}
+		if removeErr := os.Remove(temp.Name()); removeErr != nil {
+			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
+		}
 		return nil, err
 	}
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
+	"github.com/abtreece/confd/pkg/log"
 )
 
 const healthCheckTimeout = 5 * time.Second
@@ -15,7 +16,9 @@ const healthCheckTimeout = 5 * time.Second
 func HealthHandler(_ backends.StoreClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			log.Error("Failed to write health response: %v", err)
+		}
 	}
 }
 
@@ -28,10 +31,14 @@ func ReadyHandler(client backends.StoreClient) http.HandlerFunc {
 
 		if err := client.HealthCheck(ctx); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte("backend unhealthy: " + err.Error()))
+			if _, writeErr := w.Write([]byte("backend unhealthy: " + err.Error())); writeErr != nil {
+				log.Error("Failed to write ready response: %v", writeErr)
+			}
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		if _, err := w.Write([]byte("ok")); err != nil {
+			log.Error("Failed to write ready response: %v", err)
+		}
 	}
 }
