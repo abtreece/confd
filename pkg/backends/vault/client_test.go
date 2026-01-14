@@ -1029,9 +1029,9 @@ func TestGetValues_ReadRawError(t *testing.T) {
 
 	client := &Client{logical: mock}
 	vars, err := client.GetValues(context.Background(), []string{"/secret/data"})
-	// GetValues doesn't return error for read failures, it logs and continues
-	if err != nil {
-		t.Errorf("GetValues() unexpected error: %v", err)
+	// GetValues returns error for read failures while continuing to process
+	if err == nil {
+		t.Error("GetValues() expected error for read failure, got nil")
 	}
 	if len(vars) != 0 {
 		t.Errorf("GetValues() should return empty map on error, got %v", vars)
@@ -1209,13 +1209,13 @@ func TestGetValues_SecretReadError(t *testing.T) {
 
 	client := &Client{logical: mock}
 	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
-	if err != nil {
-		t.Fatalf("GetValues() unexpected error: %v", err)
+	if err == nil {
+		t.Error("GetValues() expected error when secret1 fails")
 	}
 
-	// Should still get secret2 even though secret1 failed
+	// Should still get secret2 even though secret1 failed (partial results)
 	if vars["/secret/secret2/value"] != "test" {
-		t.Errorf("GetValues() should continue after read error, got %v", vars)
+		t.Errorf("GetValues() should continue after read error and return partial results, got %v", vars)
 	}
 }
 
@@ -1368,13 +1368,13 @@ func TestGetValues_KVv2_SecretReadError(t *testing.T) {
 
 	client := &Client{logical: mock}
 	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
-	if err != nil {
-		t.Fatalf("GetValues() unexpected error: %v", err)
+	if err == nil {
+		t.Error("GetValues() expected error when secret1 fails")
 	}
 
-	// Should still get secret2 even though secret1 failed
+	// Should still get secret2 even though secret1 failed (partial results)
 	if vars["/secret/secret2/value"] != "test" {
-		t.Errorf("GetValues() v2 should continue after read error, got %v", vars)
+		t.Errorf("GetValues() v2 should continue after read error and return partial results, got %v", vars)
 	}
 }
 
@@ -1440,10 +1440,10 @@ func TestGetValues_KVv1_MarshalError(t *testing.T) {
 
 	client := &Client{logical: mock}
 	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
-	if err != nil {
-		t.Fatalf("GetValues() unexpected error: %v", err)
+	if err == nil {
+		t.Error("GetValues() expected error for marshal failure")
 	}
-	// Should handle marshal error gracefully (skip the secret)
+	// Should handle marshal error gracefully (skip the secret, return empty but with error)
 	if len(vars) != 0 {
 		t.Errorf("GetValues() v1 should handle marshal error, got %v", vars)
 	}
@@ -1478,10 +1478,10 @@ func TestGetValues_KVv2_MarshalError(t *testing.T) {
 
 	client := &Client{logical: mock}
 	vars, err := client.GetValues(context.Background(), []string{"/secret/"})
-	if err != nil {
-		t.Fatalf("GetValues() unexpected error: %v", err)
+	if err == nil {
+		t.Error("GetValues() expected error for marshal failure")
 	}
-	// Should handle marshal error gracefully (skip the secret)
+	// Should handle marshal error gracefully (skip the secret, return empty but with error)
 	if len(vars) != 0 {
 		t.Errorf("GetValues() v2 should handle marshal error, got %v", vars)
 	}

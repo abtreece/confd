@@ -228,10 +228,12 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 	}
 	mounts = uniqMounts(mounts)
 
+	var errs []error
 	for _, mount := range mounts {
 		resp, err := c.logical.ReadRaw("/sys/internal/ui/mounts/" + mount)
 		if err != nil {
-			log.Error("failed to get mount info for %s: %v", mount, err)
+			log.Warning("failed to get mount info for %s: %v", mount, err)
+			errs = append(errs, fmt.Errorf("mount %s: failed to get mount info: %w", mount, err))
 			continue
 		}
 		if resp == nil || resp.Body == nil {
@@ -242,7 +244,8 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 		secret, err := vaultapi.ParseSecret(resp.Body)
 		resp.Body.Close() // Close immediately after parsing to avoid resource leak in loop
 		if err != nil {
-			log.Error("failed to parse secret for %s: %v", mount, err)
+			log.Warning("failed to parse secret for %s: %v", mount, err)
+			errs = append(errs, fmt.Errorf("mount %s: failed to parse secret: %w", mount, err))
 			continue
 		}
 		if secret == nil || secret.Data == nil {
@@ -255,7 +258,8 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 		if engine == "kv" {
 			version, err := getKVVersion(secret.Data)
 			if err != nil {
-				log.Error("failed to get KV version for %s: %v", mount, err)
+				log.Warning("failed to get KV version for %s: %v", mount, err)
+				errs = append(errs, fmt.Errorf("mount %s: failed to get KV version: %w", mount, err))
 				continue
 			}
 			var key string
@@ -266,6 +270,7 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 					secretResp, err := c.logical.Read(secretPath)
 					if err != nil {
 						log.Warning("failed to read secret %s: %v", secretPath, err)
+						errs = append(errs, fmt.Errorf("secret %s: failed to read: %w", secretPath, err))
 						continue
 					}
 					if secretResp == nil || secretResp.Data == nil {
@@ -274,6 +279,7 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 					js, err := json.Marshal(secretResp.Data)
 					if err != nil {
 						log.Warning("failed to marshal secret %s: %v", secretPath, err)
+						errs = append(errs, fmt.Errorf("secret %s: failed to marshal: %w", secretPath, err))
 						continue
 					}
 					vars[secretPath] = string(js)
@@ -284,6 +290,7 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 					secretResp, err := c.logical.Read(secretPath)
 					if err != nil {
 						log.Warning("failed to read secret %s: %v", secretPath, err)
+						errs = append(errs, fmt.Errorf("secret %s: failed to read: %w", secretPath, err))
 						continue
 					}
 					if secretResp == nil || secretResp.Data == nil {
@@ -293,6 +300,7 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 					js, err := json.Marshal(data)
 					if err != nil {
 						log.Warning("failed to marshal secret %s: %v", secretPath, err)
+						errs = append(errs, fmt.Errorf("secret %s: failed to marshal: %w", secretPath, err))
 						continue
 					}
 					vars[secretPath] = string(js)
@@ -303,6 +311,12 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 			log.Error("Engine type %s is not supported", engine)
 		}
 	}
+
+	if len(errs) > 0 {
+		log.Error("encountered %d error(s) processing Vault mounts", len(errs))
+		return vars, errors.Join(errs...)
+	}
+
 	return vars, nil
 }
 

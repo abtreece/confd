@@ -66,7 +66,7 @@ func New() (*Client, error) {
 		return nil, fmt.Errorf("failed to retrieve AWS credentials: %w", err)
 	}
 	if !creds.HasKeys() {
-		return nil, errors.New("no AWS credentials found")
+		return nil, fmt.Errorf("no AWS credentials found")
 	}
 
 	// Create SSM client with optional local endpoint

@@ -77,7 +77,7 @@ func New(versionStage string, noFlatten bool) (*Client, error) {
 		return nil, fmt.Errorf("failed to retrieve AWS credentials: %w", err)
 	}
 	if !creds.HasKeys() {
-		return nil, errors.New("no AWS credentials found")
+		return nil, fmt.Errorf("no AWS credentials found")
 	}
 
 	// Create Secrets Manager client with optional local endpoint

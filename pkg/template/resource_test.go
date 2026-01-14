@@ -1267,7 +1267,7 @@ func TestSync_CheckCmdFails(t *testing.T) {
 	if err == nil {
 		t.Error("sync() expected error when check command fails, got nil")
 	}
-	if !strings.Contains(err.Error(), "Config check failed") {
-		t.Errorf("sync() error = %v, want error containing 'Config check failed'", err)
+	if !strings.Contains(err.Error(), "config check failed") {
+		t.Errorf("sync() error = %v, want error containing 'config check failed'", err)
 	}
 }

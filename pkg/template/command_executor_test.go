@@ -54,8 +54,8 @@ func TestExecuteCheck_Failure(t *testing.T) {
 	if err == nil {
 		t.Error("executeCheck() expected error for exit 1, got nil")
 	}
-	if err != nil && err.Error() != "Config check failed: exit status 1" {
-		t.Errorf("executeCheck() expected 'Config check failed' prefix, got: %v", err)
+	if err != nil && err.Error() != "config check failed: exit status 1" {
+		t.Errorf("executeCheck() expected 'config check failed' prefix, got: %v", err)
 	}
 }
 
