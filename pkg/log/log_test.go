@@ -2,11 +2,12 @@ package log
 
 import (
 	"bytes"
-	"fmt"
+	"context"
+	"log/slog"
+	"os"
 	"strings"
 	"testing"
-
-	"github.com/sirupsen/logrus"
+	"time"
 )
 
 func TestSetTag(t *testing.T) {
@@ -23,20 +24,24 @@ func TestSetLevel(t *testing.T) {
 	tests := []struct {
 		name     string
 		level    string
-		expected logrus.Level
+		expected slog.Level
 	}{
-		{"debug level", "debug", logrus.DebugLevel},
-		{"info level", "info", logrus.InfoLevel},
-		{"warn level", "warn", logrus.WarnLevel},
-		{"warning level", "warning", logrus.WarnLevel},
-		{"error level", "error", logrus.ErrorLevel},
+		{"debug level", "debug", slog.LevelDebug},
+		{"info level", "info", slog.LevelInfo},
+		{"warn level", "warn", slog.LevelWarn},
+		{"warning level", "warning", slog.LevelWarn},
+		{"error level", "error", slog.LevelError},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			SetLevel(tt.level)
-			if logrus.GetLevel() != tt.expected {
-				t.Errorf("SetLevel(%q) level = %v, want %v", tt.level, logrus.GetLevel(), tt.expected)
+			handler, ok := logger.Handler().(*ConfdHandler)
+			if !ok {
+				t.Fatal("Expected ConfdHandler")
+			}
+			if handler.opts.Level.Level() != tt.expected {
+				t.Errorf("SetLevel(%q) level = %v, want %v", tt.level, handler.opts.Level.Level(), tt.expected)
 			}
 		})
 	}
@@ -44,42 +49,55 @@ func TestSetLevel(t *testing.T) {
 
 func TestSetFormat(t *testing.T) {
 	tests := []struct {
-		name           string
-		format         string
-		expectedFormat string
+		name      string
+		format    string
+		checkJSON bool
 	}{
-		{"json format", "json", "*logrus.JSONFormatter"},
-		{"text format", "text", "*log.ConfdFormatter"},
+		{"json format", "json", true},
+		{"text format", "text", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			SetFormat(tt.format)
-			formatter := logrus.StandardLogger().Formatter
-			typeName := strings.Replace(
-				strings.Replace(fmt.Sprintf("%T", formatter), "github.com/sirupsen/logrus", "logrus", 1),
-				"github.com/abtreece/confd/pkg/log", "log", 1,
-			)
-			if typeName != tt.expectedFormat {
-				t.Errorf("SetFormat(%q) formatter type = %v, want %v", tt.format, typeName, tt.expectedFormat)
+			handler := logger.Handler()
+			
+			// Check the handler type
+			_, isJSON := handler.(*slog.JSONHandler)
+			_, isConfd := handler.(*ConfdHandler)
+			
+			if tt.checkJSON {
+				if !isJSON {
+					t.Errorf("SetFormat(%q) expected JSONHandler, got %T", tt.format, handler)
+				}
+			} else {
+				if !isConfd {
+					t.Errorf("SetFormat(%q) expected ConfdHandler, got %T", tt.format, handler)
+				}
 			}
 		})
 	}
 }
 
 func TestConfdFormatter(t *testing.T) {
-	formatter := &ConfdFormatter{}
-	entry := &logrus.Entry{
-		Level:   logrus.InfoLevel,
-		Message: "test message",
+	handler := &ConfdHandler{
+		opts: slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		},
+		hostname: "testhost",
+		w:        &bytes.Buffer{},
 	}
-
-	output, err := formatter.Format(entry)
+	
+	var buf bytes.Buffer
+	handler.w = &buf
+	
+	r := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
+	err := handler.Handle(context.Background(), r)
 	if err != nil {
-		t.Fatalf("Format() error = %v", err)
+		t.Fatalf("Handle() error = %v", err)
 	}
 
-	outputStr := string(output)
+	outputStr := buf.String()
 	if !strings.Contains(outputStr, "INFO") {
 		t.Errorf("Format() output should contain 'INFO', got %q", outputStr)
 	}
@@ -93,9 +111,16 @@ func TestConfdFormatter(t *testing.T) {
 
 func TestDebug(t *testing.T) {
 	var buf bytes.Buffer
-	logrus.SetOutput(&buf)
-	logrus.SetLevel(logrus.DebugLevel)
-	defer logrus.SetOutput(nil)
+	
+	hostname, _ := os.Hostname()
+	handler := &ConfdHandler{
+		opts: slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		},
+		hostname: hostname,
+		w:        &buf,
+	}
+	logger = slog.New(handler)
 
 	Debug("test %s", "debug")
 
@@ -107,9 +132,16 @@ func TestDebug(t *testing.T) {
 
 func TestError(t *testing.T) {
 	var buf bytes.Buffer
-	logrus.SetOutput(&buf)
-	logrus.SetLevel(logrus.ErrorLevel)
-	defer logrus.SetOutput(nil)
+	
+	hostname, _ := os.Hostname()
+	handler := &ConfdHandler{
+		opts: slog.HandlerOptions{
+			Level: slog.LevelError,
+		},
+		hostname: hostname,
+		w:        &buf,
+	}
+	logger = slog.New(handler)
 
 	Error("test %s", "error")
 
@@ -121,9 +153,16 @@ func TestError(t *testing.T) {
 
 func TestInfo(t *testing.T) {
 	var buf bytes.Buffer
-	logrus.SetOutput(&buf)
-	logrus.SetLevel(logrus.InfoLevel)
-	defer logrus.SetOutput(nil)
+	
+	hostname, _ := os.Hostname()
+	handler := &ConfdHandler{
+		opts: slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		},
+		hostname: hostname,
+		w:        &buf,
+	}
+	logger = slog.New(handler)
 
 	Info("test %s", "info")
 
@@ -135,14 +174,74 @@ func TestInfo(t *testing.T) {
 
 func TestWarning(t *testing.T) {
 	var buf bytes.Buffer
-	logrus.SetOutput(&buf)
-	logrus.SetLevel(logrus.WarnLevel)
-	defer logrus.SetOutput(nil)
+	
+	hostname, _ := os.Hostname()
+	handler := &ConfdHandler{
+		opts: slog.HandlerOptions{
+			Level: slog.LevelWarn,
+		},
+		hostname: hostname,
+		w:        &buf,
+	}
+	logger = slog.New(handler)
 
 	Warning("test %s", "warning")
 
 	output := buf.String()
 	if !strings.Contains(output, "test warning") {
 		t.Errorf("Warning() output = %q, want to contain 'test warning'", output)
+	}
+}
+
+// Test structured logging methods
+func TestStructuredLogging(t *testing.T) {
+	var buf bytes.Buffer
+	
+	hostname, _ := os.Hostname()
+	handler := &ConfdHandler{
+		opts: slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		},
+		hostname: hostname,
+		w:        &buf,
+	}
+	logger = slog.New(handler)
+
+	InfoContext(context.Background(), "structured message", "key", "value", "count", 42)
+
+	output := buf.String()
+	if !strings.Contains(output, "structured message") {
+		t.Errorf("InfoContext() output = %q, want to contain 'structured message'", output)
+	}
+	if !strings.Contains(output, "key=value") {
+		t.Errorf("InfoContext() output = %q, want to contain 'key=value'", output)
+	}
+	if !strings.Contains(output, "count=42") {
+		t.Errorf("InfoContext() output = %q, want to contain 'count=42'", output)
+	}
+}
+
+func TestWith(t *testing.T) {
+	var buf bytes.Buffer
+	
+	hostname, _ := os.Hostname()
+	handler := &ConfdHandler{
+		opts: slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		},
+		hostname: hostname,
+		w:        &buf,
+	}
+	logger = slog.New(handler)
+
+	childLogger := With("component", "test")
+	childLogger.Info("test message")
+
+	output := buf.String()
+	if !strings.Contains(output, "test message") {
+		t.Errorf("With() output = %q, want to contain 'test message'", output)
+	}
+	if !strings.Contains(output, "component=test") {
+		t.Errorf("With() output = %q, want to contain 'component=test'", output)
 	}
 }

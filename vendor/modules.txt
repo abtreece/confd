@@ -280,9 +280,6 @@ github.com/redis/go-redis/v9/push
 # github.com/ryanuber/go-glob v1.0.0
 ## explicit
 github.com/ryanuber/go-glob
-# github.com/sirupsen/logrus v1.9.3
-## explicit; go 1.13
-github.com/sirupsen/logrus
 # github.com/yuin/gopher-lua v1.1.1
 ## explicit; go 1.17
 github.com/yuin/gopher-lua
