@@ -344,25 +344,6 @@ func TestNew_MissingAuthType(t *testing.T) {
 	}
 }
 
-func TestListSecret_UnsupportedVersion(t *testing.T) {
-	// ListSecret with unsupported version returns nil
-	result, err := ListSecret(nil, "/secret", "/key", "unsupported")
-	if err != nil {
-		t.Errorf("ListSecret() unexpected error: %v", err)
-	}
-	if result != nil {
-		t.Error("ListSecret() expected nil for unsupported version")
-	}
-}
-
-func TestRecursiveListSecret_UnsupportedVersion(t *testing.T) {
-	// RecursiveListSecret with unsupported version returns nil
-	result := RecursiveListSecret(nil, "/secret", "/key", "unsupported")
-	if result != nil {
-		t.Error("RecursiveListSecret() expected nil for unsupported version")
-	}
-}
-
 // mockVaultLogical implements the vaultLogical interface for testing
 type mockVaultLogical struct {
 	listFunc    func(path string) (*vaultapi.Secret, error)
@@ -623,6 +604,158 @@ func TestRecursiveListSecretWithLogical_UnsupportedVersion(t *testing.T) {
 	// For unsupported version, an empty slice should be returned since listSecretWithLogical returns nil
 	if len(result) != 0 {
 		t.Errorf("recursiveListSecretWithLogical() expected empty slice for unsupported version, got %v", result)
+	}
+}
+
+func TestBuildListPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		basePath string
+		key      string
+		version  string
+		want     string
+	}{
+		{
+			name:     "version 1",
+			basePath: "/secret",
+			key:      "/mykey",
+			version:  "1",
+			want:     "/secret/mykey",
+		},
+		{
+			name:     "version 2",
+			basePath: "/secret",
+			key:      "/mykey",
+			version:  "2",
+			want:     "/secret/metadata//mykey",
+		},
+		{
+			name:     "empty version defaults to v1",
+			basePath: "/secret",
+			key:      "/mykey",
+			version:  "",
+			want:     "/secret/mykey",
+		},
+		{
+			name:     "unsupported version defaults to v1",
+			basePath: "/secret",
+			key:      "/mykey",
+			version:  "3",
+			want:     "/secret/mykey",
+		},
+		{
+			name:     "nested path v1",
+			basePath: "/secret",
+			key:      "/app/config/db",
+			version:  "1",
+			want:     "/secret/app/config/db",
+		},
+		{
+			name:     "nested path v2",
+			basePath: "/secret",
+			key:      "/app/config/db",
+			version:  "2",
+			want:     "/secret/metadata//app/config/db",
+		},
+		{
+			name:     "empty key v1",
+			basePath: "/secret",
+			key:      "",
+			version:  "1",
+			want:     "/secret",
+		},
+		{
+			name:     "empty key v2",
+			basePath: "/secret",
+			key:      "",
+			version:  "2",
+			want:     "/secret/metadata/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildListPath(tt.basePath, tt.key, tt.version)
+			if got != tt.want {
+				t.Errorf("buildListPath() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildSecretPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		basePath string
+		key      string
+		version  string
+		want     string
+	}{
+		{
+			name:     "version 1",
+			basePath: "/secret",
+			key:      "/mykey",
+			version:  "1",
+			want:     "/secret/mykey",
+		},
+		{
+			name:     "version 2",
+			basePath: "/secret",
+			key:      "/mykey",
+			version:  "2",
+			want:     "/secret/data/mykey",
+		},
+		{
+			name:     "empty version defaults to v1",
+			basePath: "/secret",
+			key:      "/mykey",
+			version:  "",
+			want:     "/secret/mykey",
+		},
+		{
+			name:     "unsupported version defaults to v1",
+			basePath: "/secret",
+			key:      "/mykey",
+			version:  "3",
+			want:     "/secret/mykey",
+		},
+		{
+			name:     "nested path v1",
+			basePath: "/secret",
+			key:      "/app/config/db",
+			version:  "1",
+			want:     "/secret/app/config/db",
+		},
+		{
+			name:     "nested path v2",
+			basePath: "/secret",
+			key:      "/app/config/db",
+			version:  "2",
+			want:     "/secret/data/app/config/db",
+		},
+		{
+			name:     "empty key v1",
+			basePath: "/secret",
+			key:      "",
+			version:  "1",
+			want:     "/secret",
+		},
+		{
+			name:     "empty key v2",
+			basePath: "/secret",
+			key:      "",
+			version:  "2",
+			want:     "/secret/data",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildSecretPath(tt.basePath, tt.key, tt.version)
+			if got != tt.want {
+				t.Errorf("buildSecretPath() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

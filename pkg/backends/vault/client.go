@@ -336,23 +336,38 @@ func flatten(key string, value interface{}, mount string, vars map[string]string
 	}
 }
 
+// buildListPath returns the correct path for listing secrets based on KV version.
+// Note: key parameter may contain a leading slash (e.g., "/mykey") which will
+// result in paths like "/secret/metadata//mykey" - this is expected behavior.
+func buildListPath(basePath, key, version string) string {
+	switch version {
+	case "2":
+		return basePath + "/metadata/" + key
+	default: // "", "1", or any other value defaults to v1
+		return basePath + key
+	}
+}
+
+// buildSecretPath returns the correct path for reading secrets based on KV version.
+// Note: key parameter may contain a leading slash (e.g., "/mykey") which will
+// result in paths like "/secret/data//mykey" - this is expected behavior.
+func buildSecretPath(basePath, key, version string) string {
+	switch version {
+	case "2":
+		return basePath + "/data" + key
+	default: // "", "1", or any other value defaults to v1
+		return basePath + key
+	}
+}
+
 // listSecretWithLogical returns a list of secrets from Vault using the vaultLogical interface
 func listSecretWithLogical(logical vaultLogical, path string, key string, version string) (*vaultapi.Secret, error) {
-	switch version {
-	case "", "1":
-		secret, err := logical.List(path + key)
-		if err != nil {
-			log.Warning("Couldn't list from the Vault: %v", err)
-		}
-		return secret, err
-	case "2":
-		secret, err := logical.List(path + "/metadata/" + key)
-		if err != nil {
-			log.Warning("Couldn't list from the Vault: %v", err)
-		}
-		return secret, err
+	listPath := buildListPath(path, key, version)
+	secret, err := logical.List(listPath)
+	if err != nil {
+		log.Warning("Couldn't list from the Vault: %v", err)
 	}
-	return nil, nil
+	return secret, err
 }
 
 // recursiveListSecretWithLogical returns a list of secrets paths from Vault using the vaultLogical interface
@@ -381,72 +396,13 @@ func recursiveListSecretWithLogical(logical vaultLogical, basePath string, key s
 		} else {
 			// It's a secret
 			newKey := key + "/" + secretStr
-			switch version {
-			case "", "1":
-				results = append(results, basePath+newKey)
-			case "2":
-				results = append(results, basePath+"/data"+newKey)
-			}
+			secretPath := buildSecretPath(basePath, newKey, version)
+			results = append(results, secretPath)
 		}
 	}
 	return results
 }
 
-// ListSecret returns a list of secrets from Vault
-func ListSecret(vault *vaultapi.Client, path string, key string, version string) (*vaultapi.Secret, error) {
-	switch version {
-	case "1":
-		secret, err := vault.Logical().List(path + key)
-		if err != nil {
-			log.Warning("Couldn't list from the Vault: %v", err)
-		}
-		return secret, err
-	case "2":
-		secret, err := vault.Logical().List(path + "/metadata/" + key)
-		if err != nil {
-			log.Warning("Couldn't list from the Vault: %v", err)
-		}
-		return secret, err
-	}
-	return nil, nil
-}
-
-// RecursiveListSecret returns a list of secrets paths from Vault
-func RecursiveListSecret(vault *vaultapi.Client, basePath string, key string, version string) []string {
-	var results []string
-	secretList, err := ListSecret(vault, basePath, key, version)
-	if err != nil || secretList == nil || secretList.Data == nil {
-		return results
-	}
-
-	keys, ok := secretList.Data["keys"].([]interface{})
-	if !ok {
-		return results
-	}
-
-	for _, secret := range keys {
-		secretStr, ok := secret.(string)
-		if !ok {
-			continue
-		}
-		if strings.HasSuffix(secretStr, "/") {
-			// It's a directory, recurse
-			newKey := key + "/" + strings.TrimSuffix(secretStr, "/")
-			subResults := RecursiveListSecret(vault, basePath, newKey, version)
-			results = append(results, subResults...)
-		} else {
-			// It's a secret
-			newKey := key + "/" + secretStr
-			switch version {
-			case "1":
-				results = append(results, basePath+newKey)
-			case "2":
-				results = append(results, basePath+"/data"+newKey)
-			}
-		}
-	}
-	return results
-}
 
 func getMount(path string) string {
 	split := strings.Split(path, string(os.PathSeparator))
