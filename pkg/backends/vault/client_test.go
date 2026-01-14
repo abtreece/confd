@@ -11,15 +11,20 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	vaultapi "github.com/hashicorp/vault/api"
 )
 
 // createMockResponse creates a mock vaultapi.Response with the given data
-func createMockResponse(data map[string]interface{}) *vaultapi.Response {
-	body, _ := json.Marshal(map[string]interface{}{
+func createMockResponse(t *testing.T, data map[string]interface{}) *vaultapi.Response {
+	t.Helper()
+	body, err := json.Marshal(map[string]interface{}{
 		"data": data,
 	})
+	if err != nil {
+		t.Fatalf("createMockResponse: failed to marshal data: %v", err)
+	}
 	return &vaultapi.Response{
 		Response: &http.Response{
 			StatusCode: 200,
@@ -912,7 +917,7 @@ func TestGetValues_KVv1(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
 			if path == "/sys/internal/ui/mounts//secret" {
-				return createMockResponse(map[string]interface{}{
+				return createMockResponse(t, map[string]interface{}{
 					"type": "kv",
 					"options": map[string]interface{}{
 						"version": "1",
@@ -963,7 +968,7 @@ func TestGetValues_KVv2(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
 			if path == "/sys/internal/ui/mounts//secret" {
-				return createMockResponse(map[string]interface{}{
+				return createMockResponse(t, map[string]interface{}{
 					"type": "kv",
 					"options": map[string]interface{}{
 						"version": "2",
@@ -1053,7 +1058,7 @@ func TestGetValues_EmptyResponse(t *testing.T) {
 func TestGetValues_UnsupportedEngine(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "transit", // Not a kv engine
 			}), nil
 		},
@@ -1072,7 +1077,7 @@ func TestGetValues_UnsupportedEngine(t *testing.T) {
 func TestGetValues_MultiplePaths(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
 					"version": "1",
@@ -1135,7 +1140,7 @@ func TestGetValues_DuplicateMounts(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
 			callCount++
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
 					"version": "1",
@@ -1173,7 +1178,7 @@ func TestGetValues_DuplicateMounts(t *testing.T) {
 func TestGetValues_SecretReadError(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
 					"version": "1",
@@ -1217,7 +1222,7 @@ func TestGetValues_SecretReadError(t *testing.T) {
 func TestGetValues_NilSecretData(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
 					"version": "1",
@@ -1252,7 +1257,7 @@ func TestGetValues_NilSecretData(t *testing.T) {
 func TestGetValues_KVv2_NilDataField(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
 					"version": "2",
@@ -1283,10 +1288,10 @@ func TestGetValues_KVv2_NilDataField(t *testing.T) {
 		t.Fatalf("GetValues() unexpected error: %v", err)
 	}
 
-	// Should have the JSON marshaled "null" value
+	// When data field is nil, json.Marshal(nil) produces "null"
+	// The secret path for KVv2 is /secret/data/<key>
 	if vars["/secret/data/key"] != "null" {
-		// This tests the behavior when data field is nil
-		t.Logf("GetValues() with nil data field = %v", vars)
+		t.Errorf("GetValues() with nil data field: got %q, want \"null\"", vars["/secret/data/key"])
 	}
 }
 
@@ -1330,7 +1335,7 @@ func TestGetValues_NilSecretFromParse(t *testing.T) {
 func TestGetValues_KVv2_SecretReadError(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
 					"version": "2",
@@ -1376,7 +1381,7 @@ func TestGetValues_KVv2_SecretReadError(t *testing.T) {
 func TestGetValues_KVv2_NilSecretResponse(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
 					"version": "2",
@@ -1409,7 +1414,7 @@ func TestGetValues_KVv2_NilSecretResponse(t *testing.T) {
 func TestGetValues_KVv1_MarshalError(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
 					"version": "1",
@@ -1447,7 +1452,7 @@ func TestGetValues_KVv1_MarshalError(t *testing.T) {
 func TestGetValues_KVv2_MarshalError(t *testing.T) {
 	mock := &mockVaultLogical{
 		readRawFunc: func(path string) (*vaultapi.Response, error) {
-			return createMockResponse(map[string]interface{}{
+			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
 					"version": "2",
@@ -1499,7 +1504,11 @@ func TestHealthCheck_Success(t *testing.T) {
 		t.Fatalf("Failed to create listener: %v", err)
 	}
 	go func() { _ = ts.Serve(listener) }()
-	defer ts.Close()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = ts.Shutdown(ctx)
+	}()
 
 	// Create a real Vault client pointing at our mock server
 	config := vaultapi.DefaultConfig()
@@ -1531,7 +1540,11 @@ func TestHealthCheck_ServerError(t *testing.T) {
 		t.Fatalf("Failed to create listener: %v", err)
 	}
 	go func() { _ = ts.Serve(listener) }()
-	defer ts.Close()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = ts.Shutdown(ctx)
+	}()
 
 	config := vaultapi.DefaultConfig()
 	config.Address = "http://" + listener.Addr().String()

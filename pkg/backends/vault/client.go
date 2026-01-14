@@ -237,9 +237,9 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 			log.Error("empty response getting mount info for %s", mount)
 			continue
 		}
-		defer resp.Body.Close()
 
 		secret, err := vaultapi.ParseSecret(resp.Body)
+		resp.Body.Close() // Close immediately after parsing to avoid resource leak in loop
 		if err != nil {
 			log.Error("failed to parse secret for %s: %v", mount, err)
 			continue
