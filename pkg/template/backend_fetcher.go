@@ -48,8 +48,9 @@ func newBackendFetcher(config backendFetcherConfig) *backendFetcher {
 // The store is purged before populating with new values.
 // Returns an error if the backend fetch operation fails.
 func (b *backendFetcher) fetchValues(keys []string) error {
-	log.Debug("Retrieving keys from store")
-	log.Debug("Key prefix set to %s", b.prefix)
+	start := time.Now()
+	logger := log.With("prefix", b.prefix, "key_count", len(keys))
+	logger.DebugContext(b.ctx, "Starting backend fetch")
 
 	// Use context with timeout if configured
 	ctx := b.ctx
@@ -63,13 +64,24 @@ func (b *backendFetcher) fetchValues(keys []string) error {
 	}
 
 	// Fetch values from backend
+	fetchStart := time.Now()
 	result, err := b.storeClient.GetValues(ctx, util.AppendPrefix(b.prefix, keys))
+	fetchDuration := time.Since(fetchStart)
+
 	if err != nil {
+		logger.ErrorContext(ctx, "Backend fetch failed",
+			"fetch_duration_ms", fetchDuration.Milliseconds(),
+			"total_duration_ms", time.Since(start).Milliseconds(),
+			"error", err.Error())
 		return err
 	}
-	log.Debug("Got the following map from store: %v", result)
+
+	logger.DebugContext(ctx, "Backend fetch completed",
+		"fetch_duration_ms", fetchDuration.Milliseconds(),
+		"value_count", len(result))
 
 	// Purge existing values and populate with new ones
+	updateStart := time.Now()
 	b.store.Purge()
 
 	for k, v := range result {
@@ -77,6 +89,13 @@ func (b *backendFetcher) fetchValues(keys []string) error {
 		normalizedKey := path.Join("/", strings.TrimPrefix(k, b.prefix))
 		b.store.Set(normalizedKey, v)
 	}
+	updateDuration := time.Since(updateStart)
+
+	logger.InfoContext(ctx, "Backend fetch and store update completed",
+		"total_duration_ms", time.Since(start).Milliseconds(),
+		"fetch_duration_ms", fetchDuration.Milliseconds(),
+		"update_duration_ms", updateDuration.Milliseconds(),
+		"value_count", len(result))
 
 	return nil
 }

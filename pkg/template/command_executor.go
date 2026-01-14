@@ -127,7 +127,9 @@ func (e *commandExecutor) executeReload(stagePath, destPath string) error {
 // are killed when the command times out or is cancelled.
 // It returns an error if the command fails, times out, or the context is cancelled.
 func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duration) error {
-	log.Debug("Running %s", cmd)
+	start := time.Now()
+	logger := log.With("command", cmd, "timeout", timeout.String())
+	logger.DebugContext(e.ctx, "Starting command execution")
 
 	ctx := e.ctx
 	if timeout > 0 {
@@ -146,20 +148,55 @@ func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duratio
 	}
 
 	output, err := c.CombinedOutput()
+	duration := time.Since(start)
+	outputSize := len(output)
+
+	// Extract exit code
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		}
+	}
+
+	// Truncate output for logging if too large
+	outputStr := string(output)
+	const maxOutputLen = 500
+	if len(outputStr) > maxOutputLen {
+		outputStr = outputStr[:maxOutputLen] + "... (truncated)"
+	}
+
 	if err != nil {
 		// Check if it was a timeout or context cancellation
 		if ctx.Err() == context.DeadlineExceeded {
-			log.Error("Command timed out after %v: %s", timeout, cmd)
+			logger.ErrorContext(e.ctx, "Command timed out",
+				"exit_code", exitCode,
+				"duration_ms", duration.Milliseconds(),
+				"output_size_bytes", outputSize,
+				"output", outputStr)
 			return fmt.Errorf("command timed out after %v", timeout)
 		}
 		if ctx.Err() == context.Canceled {
-			log.Debug("Command cancelled: %s", cmd)
+			logger.DebugContext(e.ctx, "Command cancelled",
+				"exit_code", exitCode,
+				"duration_ms", duration.Milliseconds(),
+				"output_size_bytes", outputSize)
 			return fmt.Errorf("command cancelled")
 		}
-		log.Error("%q", string(output))
+		logger.ErrorContext(e.ctx, "Command failed",
+			"exit_code", exitCode,
+			"duration_ms", duration.Milliseconds(),
+			"output_size_bytes", outputSize,
+			"output", outputStr,
+			"error", err.Error())
 		return err
 	}
-	log.Debug("%q", string(output))
+
+	logger.InfoContext(e.ctx, "Command completed successfully",
+		"exit_code", exitCode,
+		"duration_ms", duration.Milliseconds(),
+		"output_size_bytes", outputSize)
+	logger.DebugContext(e.ctx, "Command output", "output", outputStr)
 	return nil
 }
 

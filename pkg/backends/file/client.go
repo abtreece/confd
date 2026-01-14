@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/abtreece/confd/pkg/log"
 	util "github.com/abtreece/confd/pkg/util"
@@ -143,11 +144,23 @@ func (c *Client) watchChanges(watcher *fsnotify.Watcher, stopChan chan bool) Res
 // HealthCheck verifies the backend is healthy.
 // It checks that all configured files exist and are readable.
 func (c *Client) HealthCheck(ctx context.Context) error {
+	start := time.Now()
+	logger := log.With("backend", "file", "file_count", len(c.filepath))
+
 	for _, path := range c.filepath {
 		if _, err := os.Stat(path); err != nil {
+			duration := time.Since(start)
+			logger.ErrorContext(ctx, "Backend health check failed",
+				"duration_ms", duration.Milliseconds(),
+				"failed_path", path,
+				"error", err.Error())
 			return fmt.Errorf("file not accessible: %s: %w", path, err)
 		}
 	}
+
+	duration := time.Since(start)
+	logger.InfoContext(ctx, "Backend health check passed",
+		"duration_ms", duration.Milliseconds())
 	return nil
 }
 

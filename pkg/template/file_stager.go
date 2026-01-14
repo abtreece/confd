@@ -1,12 +1,14 @@
 package template
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/abtreece/confd/pkg/log"
 	util "github.com/abtreece/confd/pkg/util"
@@ -61,25 +63,49 @@ func (s *fileStager) updateFileMode(mode os.FileMode) {
 // with the provided content and applies the configured permissions.
 // Returns the created file or an error.
 func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File, error) {
+	start := time.Now()
+	logger := log.With("dest_path", destPath, "content_size_bytes", len(content))
+	logger.DebugContext(context.Background(), "Creating stage file")
+
 	// Create temp file in destination directory to avoid cross-filesystem issues
 	temp, err := os.CreateTemp(filepath.Dir(destPath), "."+filepath.Base(destPath))
 	if err != nil {
+		logger.ErrorContext(context.Background(), "Failed to create temp file",
+			"duration_ms", time.Since(start).Milliseconds(),
+			"error", err.Error())
 		return nil, err
 	}
 
 	// Write content to temp file
+	writeStart := time.Now()
 	if _, err = temp.Write(content); err != nil {
 		temp.Close()
 		os.Remove(temp.Name())
+		logger.ErrorContext(context.Background(), "Failed to write to stage file",
+			"duration_ms", time.Since(start).Milliseconds(),
+			"write_duration_ms", time.Since(writeStart).Milliseconds(),
+			"error", err.Error())
 		return nil, err
 	}
+	writeDuration := time.Since(writeStart)
 
 	// Apply permissions to stage file
+	permStart := time.Now()
 	if err := s.applyPermissions(temp.Name()); err != nil {
 		temp.Close()
 		os.Remove(temp.Name())
+		logger.ErrorContext(context.Background(), "Failed to apply permissions",
+			"duration_ms", time.Since(start).Milliseconds(),
+			"error", err.Error())
 		return nil, err
 	}
+	permDuration := time.Since(permStart)
+
+	logger.InfoContext(context.Background(), "Stage file created successfully",
+		"stage_path", temp.Name(),
+		"total_duration_ms", time.Since(start).Milliseconds(),
+		"write_duration_ms", writeDuration.Milliseconds(),
+		"permission_duration_ms", permDuration.Milliseconds())
 
 	return temp, nil
 }
@@ -108,29 +134,57 @@ func (s *fileStager) isConfigChanged(stagePath, destPath string) (bool, error) {
 // Note: This method assumes the caller has already checked if files differ
 // and handled noop mode. It only performs the actual file sync operation.
 func (s *fileStager) syncFiles(stagePath, destPath string) error {
-	log.Debug("Overwriting target config %s", destPath)
+	start := time.Now()
+	logger := log.With("stage_path", stagePath, "dest_path", destPath)
+	logger.DebugContext(context.Background(), "Starting file sync")
 
 	// If keepStageFile is true, we must copy instead of move
 	if s.keepStageFile {
-		log.Info("Keeping staged file: %s", stagePath)
-		return s.writeToDestination(stagePath, destPath)
+		logger.InfoContext(context.Background(), "Keeping staged file, using copy mode")
+		if err := s.writeToDestination(stagePath, destPath); err != nil {
+			return err
+		}
+		logger.InfoContext(context.Background(), "File sync completed (copy mode)",
+			"duration_ms", time.Since(start).Milliseconds())
+		return nil
 	}
 
 	// Otherwise, try atomic rename first (moves the file)
 	defer os.Remove(stagePath)
 
+	renameStart := time.Now()
 	err := os.Rename(stagePath, destPath)
+	renameDuration := time.Since(renameStart)
+
 	if err != nil {
 		// If rename fails due to cross-filesystem or mount point, fall back to write
 		// EXDEV: cross-device link (more reliable cross-platform detection)
 		if errors.Is(err, syscall.EXDEV) || strings.Contains(err.Error(), "device or resource busy") {
-			log.Debug("Rename failed - target is on different filesystem or mount point. Trying to write instead")
+			logger.DebugContext(context.Background(), "Rename failed, falling back to write",
+				"rename_duration_ms", renameDuration.Milliseconds())
+
+			writeStart := time.Now()
 			if err := s.writeToDestination(stagePath, destPath); err != nil {
+				logger.ErrorContext(context.Background(), "File sync failed",
+					"duration_ms", time.Since(start).Milliseconds(),
+					"error", err.Error())
 				return err
 			}
+			writeDuration := time.Since(writeStart)
+
+			logger.InfoContext(context.Background(), "File sync completed (write fallback)",
+				"total_duration_ms", time.Since(start).Milliseconds(),
+				"write_duration_ms", writeDuration.Milliseconds())
 		} else {
+			logger.ErrorContext(context.Background(), "File sync failed",
+				"duration_ms", time.Since(start).Milliseconds(),
+				"error", err.Error())
 			return err
 		}
+	} else {
+		logger.InfoContext(context.Background(), "File sync completed (atomic rename)",
+			"duration_ms", time.Since(start).Milliseconds(),
+			"rename_duration_ms", renameDuration.Milliseconds())
 	}
 
 	return nil
@@ -139,19 +193,46 @@ func (s *fileStager) syncFiles(stagePath, destPath string) error {
 // writeToDestination writes the staged file content to the destination
 // when atomic rename is not possible (e.g., mount points).
 func (s *fileStager) writeToDestination(stagePath, destPath string) error {
+	start := time.Now()
+	logger := log.With("stage_path", stagePath, "dest_path", destPath)
+
+	readStart := time.Now()
 	contents, err := os.ReadFile(stagePath)
+	readDuration := time.Since(readStart)
+
 	if err != nil {
+		logger.ErrorContext(context.Background(), "Failed to read stage file",
+			"duration_ms", time.Since(start).Milliseconds(),
+			"error", err.Error())
 		return err
 	}
 
+	writeStart := time.Now()
 	if err := os.WriteFile(destPath, contents, s.fileMode); err != nil {
+		logger.ErrorContext(context.Background(), "Failed to write to destination",
+			"duration_ms", time.Since(start).Milliseconds(),
+			"file_size_bytes", len(contents),
+			"error", err.Error())
 		return fmt.Errorf("failed to write to destination file: %w", err)
 	}
+	writeDuration := time.Since(writeStart)
 
 	// Ensure owner and group match, in case the file was created with WriteFile
+	chownStart := time.Now()
 	if err := os.Chown(destPath, s.uid, s.gid); err != nil {
+		logger.ErrorContext(context.Background(), "Failed to chown destination",
+			"duration_ms", time.Since(start).Milliseconds(),
+			"error", err.Error())
 		return fmt.Errorf("failed to chown destination file: %w", err)
 	}
+	chownDuration := time.Since(chownStart)
+
+	logger.InfoContext(context.Background(), "Write to destination completed",
+		"total_duration_ms", time.Since(start).Milliseconds(),
+		"read_duration_ms", readDuration.Milliseconds(),
+		"write_duration_ms", writeDuration.Milliseconds(),
+		"chown_duration_ms", chownDuration.Milliseconds(),
+		"file_size_bytes", len(contents))
 
 	return nil
 }

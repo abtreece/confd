@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/abtreece/confd/pkg/log"
 )
@@ -61,5 +62,11 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 // HealthCheck verifies the backend is healthy.
 // Environment variables are always available, so this always returns nil.
 func (c *Client) HealthCheck(ctx context.Context) error {
+	start := time.Now()
+	logger := log.With("backend", "env")
+
+	duration := time.Since(start)
+	logger.InfoContext(ctx, "Backend health check passed",
+		"duration_ms", duration.Milliseconds())
 	return nil
 }

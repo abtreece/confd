@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -143,6 +144,20 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 // HealthCheck verifies the backend connection is healthy.
 // It checks that the DynamoDB table exists and is accessible.
 func (c *Client) HealthCheck(ctx context.Context) error {
+	start := time.Now()
+	logger := log.With("backend", "dynamodb", "table", c.table)
+
 	_, err := c.client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: &c.table})
-	return err
+
+	duration := time.Since(start)
+	if err != nil {
+		logger.ErrorContext(ctx, "Backend health check failed",
+			"duration_ms", duration.Milliseconds(),
+			"error", err.Error())
+		return err
+	}
+
+	logger.InfoContext(ctx, "Backend health check passed",
+		"duration_ms", duration.Milliseconds())
+	return nil
 }
