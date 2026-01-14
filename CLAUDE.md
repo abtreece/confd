@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-confd is a lightweight configuration management tool that keeps local configuration files up-to-date using data stored in backends (etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM, environment variables, or files). It processes Go text/templates and can reload applications when config changes.
+confd is a lightweight configuration management tool that keeps local configuration files up-to-date using data stored in backends (etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM, AWS ACM, AWS Secrets Manager, environment variables, or files). It processes Go text/templates and can reload applications when config changes.
 
 This is a divergent fork of kelseyhightower/confd. The upstream repository is effectively abandoned.
 
@@ -51,20 +51,30 @@ go test -run TestFunctionName ./pkg/template/
 
 ### Package Structure
 
-- **cmd/confd/** - Entry point, config parsing, main loop with signal handling
+- **cmd/confd/** - Entry point using Kong for CLI parsing, config handling, main loop
+  - `cli.go` - CLI argument definitions and parsing with alecthomas/kong
+  - `config.go` - Configuration loading from file, env vars, and flags
+  - `main.go` - Entry point
 - **pkg/backends/** - Backend abstraction layer with `StoreClient` interface
-  - Each backend (consul/, etcd/, vault/, redis/, zookeeper/, dynamodb/, ssm/, env/, file/) implements `GetValues()` and `WatchPrefix()`
+  - Each backend implements `GetValues()`, `WatchPrefix()`, and `HealthCheck()`
   - `client.go` contains factory function `New()` that creates appropriate backend
-- **pkg/template/** - Template processing
+  - Backends: acm/, consul/, dynamodb/, env/, etcd/, file/, redis/, secretsmanager/, ssm/, vault/, zookeeper/
+- **pkg/template/** - Template processing (follows Single Responsibility Principle)
   - `processor.go` - `Processor` interface with `IntervalProcessor` (polling) and `WatchProcessor` (continuous)
-  - `resource.go` - `TemplateResource` parses TOML configs, renders templates, handles check/reload commands
-  - `template_funcs.go` - Custom template functions (get, getAll, base, etc.)
+  - `resource.go` - `TemplateResource` core processing: TOML parsing, template rendering, check/reload commands
+  - `template_funcs.go` - Custom template functions (string, data, network, encoding, math)
+  - `template_cache.go` - Compiled template caching with mtime-based invalidation
+  - `client_cache.go` - Backend client caching to prevent duplicate connections
+  - `include.go` - Template include function with cycle detection and max depth enforcement
+  - `validate.go` - Configuration and template validation (syntax, required fields, backend types)
+  - `preflight.go` - Pre-flight checks: backend connectivity, template loading, key accessibility
+- **pkg/memkv/** - In-memory key-value store used by template processing
 - **pkg/log/** - Logging wrapper using logrus
 - **pkg/util/** - File operations, MD5 comparison utilities
 
 ### Execution Flow
 
-1. Main parses flags and config (TOML file + env vars + flags)
+1. Main parses CLI args with Kong and loads config (TOML file + env vars + flags)
 2. Creates `StoreClient` via `backends.New()`
 3. Selects processor: `WatchProcessor` for `--watch`, `IntervalProcessor` for `--interval`
 4. Processor loads template resources from conf.d/*.toml
@@ -89,9 +99,31 @@ go test -run TestFunctionName ./pkg/template/
 - **Factory Pattern**: `backends.New()` creates appropriate `StoreClient` based on backend type
 - **Strategy Pattern**: `Processor` interface allows swapping between watch/interval modes
 - **Template Functions**: Custom Go text/template functions in `template_funcs.go`
+- **Caching**: Template cache (`template_cache.go`) and client cache (`client_cache.go`) for performance
+- **Single Responsibility**: Template package split into focused modules (resource, validation, caching, includes)
 
 ## Supported Backends
 
-consul, etcd, vault, dynamodb, redis, zookeeper, ssm, env, file
+acm, consul, dynamodb, env, etcd, file, redis, secretsmanager, ssm, vault, zookeeper
 
-Watch mode is not supported for DynamoDB and SSM (polling only).
+**Watch mode supported**: consul, env, etcd, file, redis, zookeeper
+
+**Polling only (no watch)**: acm, dynamodb, secretsmanager, ssm, vault
+
+## Template Functions
+
+Available functions in templates (defined in `pkg/template/template_funcs.go`):
+
+**String functions**: `base`, `dir`, `split`, `join`, `toUpper`, `toLower`, `contains`, `replace`, `trimSuffix`
+
+**Data functions**: `json`, `jsonArray`, `map`, `getenv`, `hostname`, `datetime`
+
+**Network functions**: `lookupIP`, `lookupIPV4`, `lookupIPV6`, `lookupSRV`, `lookupIfaceIPV4`, `lookupIfaceIPV6`
+
+**Encoding functions**: `base64Encode`, `base64Decode`
+
+**Utility functions**: `fileExists`, `parseBool`, `atoi`, `reverse`, `sortByLength`, `sortKVByLength`, `seq`
+
+**Math functions**: `add`, `sub`, `div`, `mod`, `mul`
+
+**Include function**: `include` - Include other templates with cycle detection (max depth: 10)
