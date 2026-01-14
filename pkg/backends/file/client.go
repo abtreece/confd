@@ -65,6 +65,17 @@ func readFile(path string, vars map[string]string) error {
 	return nil
 }
 
+// matchesAnyPrefix returns true if path has any of the given prefixes.
+// Returns false if prefixes is empty.
+func matchesAnyPrefix(path string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
 	vars := make(map[string]string)
 	var filePaths []string
@@ -83,14 +94,10 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		}
 	}
 
-VarsLoop:
-	for k, _ := range vars {
-		for _, key := range keys {
-			if strings.HasPrefix(k, key) {
-				continue VarsLoop
-			}
+for k := range vars {
+		if !matchesAnyPrefix(k, keys) {
+			delete(vars, k)
 		}
-		delete(vars, k)
 	}
 	log.Debug("Key Map: %#v", vars)
 	return vars, nil
