@@ -161,9 +161,18 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 				return
 			}
 		} else {
-			// No debouncing, process immediately
-			if err := t.process(); err != nil {
-				p.errChan <- err
+			// Check for shutdown signals before processing
+			select {
+			case <-ctx.Done():
+				log.Debug("Context cancelled, stopping watch for %s", t.Dest)
+				return
+			case <-p.stopChan:
+				return
+			default:
+				// No debouncing, process immediately
+				if err := t.process(); err != nil {
+					p.errChan <- err
+				}
 			}
 		}
 	}
