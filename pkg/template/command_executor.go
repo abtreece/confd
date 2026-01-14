@@ -123,6 +123,8 @@ func (e *commandExecutor) executeReload(stagePath, destPath string) error {
 // runCommandWithTimeout executes the given command with the specified timeout.
 // If timeout is 0, no timeout is applied (command can run indefinitely).
 // It handles cross-platform execution (Windows vs Unix) using exec.CommandContext.
+// On Unix systems, it creates a new process group to ensure all child processes
+// are killed when the command times out or is cancelled.
 // It returns an error if the command fails, times out, or the context is cancelled.
 func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duration) error {
 	log.Debug("Running %s", cmd)
@@ -139,6 +141,8 @@ func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duratio
 		c = exec.CommandContext(ctx, "cmd", "/C", cmd)
 	} else {
 		c = exec.CommandContext(ctx, "/bin/sh", "-c", cmd)
+		// Set up process group handling for proper child process cleanup
+		setupProcessGroup(c)
 	}
 
 	output, err := c.CombinedOutput()
