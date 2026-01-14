@@ -17,7 +17,7 @@ split_port: {{ index $hostParts 1 }}
 # replace (requires 4 args: string, old, new, count)
 replaced: {{ replace (getv "/key") "bar" "baz" -1 }}
 # trimSuffix
-trimmed: {{ "hello.txt" | trimSuffix ".txt" }}
+trimmed: {{ trimSuffix "hello.txt" ".txt" }}
 # contains
 contains_bar: {{ if contains (getv "/key") "bar" }}yes{{ else }}no{{ end }}
 
@@ -43,7 +43,7 @@ mod_result: {{ mod 17 5 }}
 # atoi (string to int)
 port_plus_one: {{ add (atoi (getv "/database/port")) 1 }}
 # seq (generate sequence and iterate)
-seq_result: {{- range $i, $v := seq 1 5 }}{{ if $i }},{{ end }}{{ $v }}{{ end }}
+seq_result: {{range $i, $v := seq 1 5}}{{if $i}},{{end}}{{$v}}{{end}}
 # parseBool
 bool_true: {{ if parseBool "true" }}yes{{ else }}no{{ end }}
 bool_false: {{ if parseBool "false" }}yes{{ else }}no{{ end }}
