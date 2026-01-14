@@ -40,6 +40,9 @@ type Config struct {
 	BackendTimeout   time.Duration // Timeout for backend operations
 	CheckCmdTimeout  time.Duration // Default timeout for check commands
 	ReloadCmdTimeout time.Duration // Default timeout for reload commands
+	// Watch mode and preflight timeouts
+	WatchErrorBackoff time.Duration // Backoff after watch errors
+	PreflightTimeout  time.Duration // Preflight check timeout
 }
 
 // TemplateResourceConfig holds the parsed template resource.

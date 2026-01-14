@@ -40,7 +40,7 @@ func New(config Config) (StoreClient, error) {
 	switch config.Backend {
 	case "acm":
 		log.Info("Backend source(s) set to AWS ACM")
-		return acm.New(config.ACMExportPrivateKey)
+		return acm.New(config.ACMExportPrivateKey, config.DialTimeout)
 	case "consul":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		return consul.New(config.BackendNodes, config.Scheme,
@@ -52,13 +52,15 @@ func New(config Config) (StoreClient, error) {
 		)
 	case "etcd":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return etcd.NewEtcdClient(backendNodes, config.ClientCert, config.ClientKey, config.ClientCaKeys, config.ClientInsecure, config.BasicAuth, config.Username, config.Password)
+		return etcd.NewEtcdClient(backendNodes, config.ClientCert, config.ClientKey, config.ClientCaKeys, config.ClientInsecure, config.BasicAuth, config.Username, config.Password, config.DialTimeout)
 	case "zookeeper":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return zookeeper.NewZookeeperClient(backendNodes)
+		return zookeeper.NewZookeeperClient(backendNodes, config.DialTimeout)
 	case "redis":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return redis.NewRedisClient(backendNodes, config.ClientKey, config.Separator)
+		return redis.NewRedisClient(backendNodes, config.ClientKey, config.Separator,
+			config.DialTimeout, config.ReadTimeout, config.WriteTimeout,
+			config.RetryMaxAttempts, config.RetryBaseDelay, config.RetryMaxDelay)
 	case "env":
 		return env.NewEnvClient()
 	case "file":
@@ -85,10 +87,10 @@ func New(config Config) (StoreClient, error) {
 		log.Info("DynamoDB table set to %s", table)
 		return dynamodb.NewDynamoDBClient(table)
 	case "ssm":
-		return ssm.New()
+		return ssm.New(config.DialTimeout)
 	case "secretsmanager":
 		log.Info("Backend source(s) set to AWS Secrets Manager")
-		return secretsmanager.New(config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten)
+		return secretsmanager.New(config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten, config.DialTimeout)
 	}
 	return nil, errors.New("invalid backend")
 }

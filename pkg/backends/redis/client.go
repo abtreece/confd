@@ -65,19 +65,22 @@ func calculateBackoff(attempt int, config RetryConfig) time.Duration {
 
 // Client is a wrapper around the redis client
 type Client struct {
-	client      *redis.Client
-	machines    []string
-	password    string
-	separator   string
-	db          int
-	pubsub      *redis.PubSub
-	pscChan     chan watchResponse
-	retryConfig RetryConfig
+	client       *redis.Client
+	machines     []string
+	password     string
+	separator    string
+	db           int
+	pubsub       *redis.PubSub
+	pscChan      chan watchResponse
+	retryConfig  RetryConfig
+	dialTimeout  time.Duration
+	readTimeout  time.Duration
+	writeTimeout time.Duration
 }
 
 // createClient attempts to connect to each machine in order with exponential backoff retry logic.
 // Returns the first successful connection or an aggregated error from all attempts.
-func createClient(machines []string, password string, withReadTimeout bool, retryConfig RetryConfig) (*redis.Client, int, error) {
+func createClient(machines []string, password string, withReadTimeout bool, retryConfig RetryConfig, dialTimeout, readTimeout, writeTimeout time.Duration) (*redis.Client, int, error) {
 	var allErrors []error
 
 	for _, address := range machines {
@@ -115,12 +118,12 @@ func createClient(machines []string, password string, withReadTimeout bool, retr
 				Addr:         address,
 				Password:     password,
 				DB:           db,
-				DialTimeout:  time.Second,
-				WriteTimeout: time.Second,
+				DialTimeout:  dialTimeout,
+				WriteTimeout: writeTimeout,
 			}
 
 			if withReadTimeout {
-				opts.ReadTimeout = time.Second
+				opts.ReadTimeout = readTimeout
 			}
 
 			client := redis.NewClient(opts)
@@ -171,7 +174,7 @@ func (c *Client) connectedClient(ctx context.Context) (*redis.Client, error) {
 
 	// Existing client could have been deleted by previous block
 	if c.client == nil {
-		client, db, err := createClient(c.machines, c.password, true, c.retryConfig)
+		client, db, err := createClient(c.machines, c.password, true, c.retryConfig, c.dialTimeout, c.readTimeout, c.writeTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to reconnect redis client: %w", err)
 		}
@@ -184,26 +187,56 @@ func (c *Client) connectedClient(ctx context.Context) (*redis.Client, error) {
 
 // NewRedisClient returns an *redis.Client with a connection to named machines.
 // It returns an error if a connection to the cluster cannot be made.
-func NewRedisClient(machines []string, password string, separator string) (*Client, error) {
+func NewRedisClient(machines []string, password string, separator string, dialTimeout, readTimeout, writeTimeout time.Duration, retryMaxAttempts int, retryBaseDelay, retryMaxDelay time.Duration) (*Client, error) {
 	if separator == "" {
 		separator = "/"
 	}
 	log.Debug("Redis Separator: %#v", separator)
 
-	retryConfig := DefaultRetryConfig()
-	client, db, err := createClient(machines, password, true, retryConfig)
+	// Use provided retry config or fall back to defaults
+	retryConfig := RetryConfig{
+		MaxRetries:   retryMaxAttempts,
+		BaseDelay:    retryBaseDelay,
+		MaxDelay:     retryMaxDelay,
+		JitterFactor: 0.3, // Keep 30% jitter as default
+	}
+	if retryConfig.MaxRetries == 0 {
+		retryConfig.MaxRetries = 3
+	}
+	if retryConfig.BaseDelay == 0 {
+		retryConfig.BaseDelay = 100 * time.Millisecond
+	}
+	if retryConfig.MaxDelay == 0 {
+		retryConfig.MaxDelay = 5 * time.Second
+	}
+
+	// Use provided timeouts or fall back to defaults
+	if dialTimeout == 0 {
+		dialTimeout = time.Second
+	}
+	if readTimeout == 0 {
+		readTimeout = time.Second
+	}
+	if writeTimeout == 0 {
+		writeTimeout = time.Second
+	}
+
+	client, db, err := createClient(machines, password, true, retryConfig, dialTimeout, readTimeout, writeTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create redis client: %w", err)
 	}
 
 	return &Client{
-		client:      client,
-		machines:    machines,
-		password:    password,
-		separator:   separator,
-		db:          db,
-		pscChan:     make(chan watchResponse),
-		retryConfig: retryConfig,
+		client:       client,
+		machines:     machines,
+		password:     password,
+		separator:    separator,
+		db:           db,
+		pscChan:      make(chan watchResponse),
+		retryConfig:  retryConfig,
+		dialTimeout:  dialTimeout,
+		readTimeout:  readTimeout,
+		writeTimeout: writeTimeout,
 	}, nil
 }
 
@@ -391,7 +424,7 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 
 		// Create a new client for PubSub (without read timeout for blocking)
 		var err error
-		rClient, db, err = createClient(c.machines, c.password, false, c.retryConfig)
+		rClient, db, err = createClient(c.machines, c.password, false, c.retryConfig, c.dialTimeout, c.readTimeout, c.writeTimeout)
 		if err != nil {
 			attempt++
 			if attempt > c.retryConfig.MaxRetries {

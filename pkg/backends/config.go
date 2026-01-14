@@ -1,6 +1,8 @@
 package backends
 
 import (
+	"time"
+
 	util "github.com/abtreece/confd/pkg/util"
 )
 
@@ -32,4 +34,14 @@ type Config struct {
 	ACMExportPrivateKey          bool   `toml:"acm_export_private_key"`
 	SecretsManagerVersionStage   string `toml:"secretsmanager_version_stage"`
 	SecretsManagerNoFlatten      bool   `toml:"secretsmanager_no_flatten"`
+
+	// Connection timeouts
+	DialTimeout  time.Duration `toml:"dial_timeout"`
+	ReadTimeout  time.Duration `toml:"read_timeout"`
+	WriteTimeout time.Duration `toml:"write_timeout"`
+
+	// Retry configuration
+	RetryMaxAttempts int           `toml:"retry_max_attempts"`
+	RetryBaseDelay   time.Duration `toml:"retry_base_delay"`
+	RetryMaxDelay    time.Duration `toml:"retry_max_delay"`
 }

@@ -28,8 +28,13 @@ type Client struct {
 }
 
 // New creates a new SSM client with automatic region detection.
-func New() (*Client, error) {
+func New(dialTimeout time.Duration) (*Client, error) {
 	ctx := context.Background()
+
+	// Use provided timeout or fall back to default
+	if dialTimeout == 0 {
+		dialTimeout = 2 * time.Second
+	}
 
 	// Attempt to get AWS Region from environment first, then EC2 metadata
 	var region string
@@ -37,7 +42,7 @@ func New() (*Client, error) {
 		region = os.Getenv("AWS_REGION")
 	} else {
 		// Try to get region from EC2 metadata with a timeout
-		imdsCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		imdsCtx, cancel := context.WithTimeout(ctx, dialTimeout)
 		defer cancel()
 
 		imdsClient := imds.New(imds.Options{})
