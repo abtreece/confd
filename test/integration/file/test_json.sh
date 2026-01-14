@@ -1,8 +1,13 @@
 #!/bin/bash
+set -e
 
 export HOSTNAME="localhost"
+
+# Clean up before test
+rm -rf backends/json
+
 mkdir -p backends/json
-cat <<EOT >> backends/json/1.json
+cat <<EOT > backends/json/1.json
 {
   "key": "foobar",
   "database": {
@@ -14,7 +19,7 @@ cat <<EOT >> backends/json/1.json
 }
 EOT
 
-cat <<EOT >> backends/json/2.json
+cat <<EOT > backends/json/2.json
 {
   "upstream": {
     "app1": "10.0.1.10:8080",
@@ -23,7 +28,7 @@ cat <<EOT >> backends/json/2.json
 }
 EOT
 
-cat <<EOT >> backends/json/3.json
+cat <<EOT > backends/json/3.json
 {
   "nested": {
     "production": {

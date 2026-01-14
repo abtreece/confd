@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
 )
 
 // commandExecutor handles execution of check and reload commands.
@@ -24,6 +25,7 @@ type commandExecutor struct {
 	ctx               context.Context
 	checkCmdTimeout   time.Duration
 	reloadCmdTimeout  time.Duration
+	dest              string // destination path for metrics labeling
 }
 
 // commandExecutorConfig holds configuration for creating a commandExecutor.
@@ -36,6 +38,7 @@ type commandExecutorConfig struct {
 	Ctx               context.Context
 	CheckCmdTimeout   time.Duration
 	ReloadCmdTimeout  time.Duration
+	Dest              string
 }
 
 // newCommandExecutor creates a new commandExecutor instance.
@@ -53,6 +56,7 @@ func newCommandExecutor(config commandExecutorConfig) *commandExecutor {
 		ctx:               ctx,
 		checkCmdTimeout:   config.CheckCmdTimeout,
 		reloadCmdTimeout:  config.ReloadCmdTimeout,
+		dest:              config.Dest,
 	}
 }
 
@@ -65,6 +69,7 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 		return nil
 	}
 
+	start := time.Now()
 	var cmdBuffer bytes.Buffer
 	data := map[string]string{"src": stagePath}
 	tmpl, err := template.New("checkcmd").Parse(e.checkCmd)
@@ -74,8 +79,23 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
 		return err
 	}
-	if err := e.runCommandWithTimeout(cmdBuffer.String(), e.checkCmdTimeout); err != nil {
-		return errors.New("Config check failed: " + err.Error())
+
+	cmdErr := e.runCommandWithTimeout(cmdBuffer.String(), e.checkCmdTimeout)
+
+	// Record metrics
+	if metrics.Enabled() {
+		duration := time.Since(start).Seconds()
+		metrics.CommandDuration.WithLabelValues("check", e.dest).Observe(duration)
+		metrics.CommandTotal.WithLabelValues("check", e.dest).Inc()
+		if cmdErr != nil {
+			metrics.CommandExitCodes.WithLabelValues("check", "1").Inc()
+		} else {
+			metrics.CommandExitCodes.WithLabelValues("check", "0").Inc()
+		}
+	}
+
+	if cmdErr != nil {
+		return errors.New("Config check failed: " + cmdErr.Error())
 	}
 	return nil
 }
@@ -99,6 +119,7 @@ func (e *commandExecutor) executeReload(stagePath, destPath string) error {
 		}
 	}
 
+	start := time.Now()
 	var cmdBuffer bytes.Buffer
 	data := map[string]string{"src": stagePath, "dest": destPath}
 	tmpl, err := template.New("reloadcmd").Parse(e.reloadCmd)
@@ -109,8 +130,22 @@ func (e *commandExecutor) executeReload(stagePath, destPath string) error {
 		return err
 	}
 
-	if err := e.runCommandWithTimeout(cmdBuffer.String(), e.reloadCmdTimeout); err != nil {
-		return err
+	cmdErr := e.runCommandWithTimeout(cmdBuffer.String(), e.reloadCmdTimeout)
+
+	// Record metrics
+	if metrics.Enabled() {
+		duration := time.Since(start).Seconds()
+		metrics.CommandDuration.WithLabelValues("reload", e.dest).Observe(duration)
+		metrics.CommandTotal.WithLabelValues("reload", e.dest).Inc()
+		if cmdErr != nil {
+			metrics.CommandExitCodes.WithLabelValues("reload", "1").Inc()
+		} else {
+			metrics.CommandExitCodes.WithLabelValues("reload", "0").Inc()
+		}
+	}
+
+	if cmdErr != nil {
+		return cmdErr
 	}
 
 	// Update last reload time on success

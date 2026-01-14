@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
 	util "github.com/abtreece/confd/pkg/util"
 )
 
@@ -79,8 +80,12 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 	// Write content to temp file
 	writeStart := time.Now()
 	if _, err = temp.Write(content); err != nil {
-		temp.Close()
-		os.Remove(temp.Name())
+		if closeErr := temp.Close(); closeErr != nil {
+			log.Error("Failed to close temp file during cleanup: %v", closeErr)
+		}
+		if removeErr := os.Remove(temp.Name()); removeErr != nil {
+			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
+		}
 		logger.ErrorContext(context.Background(), "Failed to write to stage file",
 			"duration_ms", time.Since(start).Milliseconds(),
 			"write_duration_ms", time.Since(writeStart).Milliseconds(),
@@ -92,8 +97,12 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 	// Apply permissions to stage file
 	permStart := time.Now()
 	if err := s.applyPermissions(temp.Name()); err != nil {
-		temp.Close()
-		os.Remove(temp.Name())
+		if closeErr := temp.Close(); closeErr != nil {
+			log.Error("Failed to close temp file during cleanup: %v", closeErr)
+		}
+		if removeErr := os.Remove(temp.Name()); removeErr != nil {
+			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
+		}
 		logger.ErrorContext(context.Background(), "Failed to apply permissions",
 			"duration_ms", time.Since(start).Milliseconds(),
 			"error", err.Error())
@@ -137,6 +146,12 @@ func (s *fileStager) syncFiles(stagePath, destPath string) error {
 	start := time.Now()
 	logger := log.With("stage_path", stagePath, "dest_path", destPath)
 	logger.DebugContext(context.Background(), "Starting file sync")
+
+	// Record file sync metrics
+	if metrics.Enabled() {
+		metrics.FileSyncTotal.WithLabelValues(destPath).Inc()
+		metrics.FileChangedTotal.Inc()
+	}
 
 	// If keepStageFile is true, we must copy instead of move
 	if s.keepStageFile {

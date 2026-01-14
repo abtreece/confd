@@ -15,6 +15,7 @@ import (
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/abtreece/confd/pkg/memkv"
+	"github.com/abtreece/confd/pkg/metrics"
 	util "github.com/abtreece/confd/pkg/util"
 )
 
@@ -295,6 +296,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		Ctx:               tr.ctx,
 		CheckCmdTimeout:   tr.checkCmdTimeoutDur,
 		ReloadCmdTimeout:  tr.reloadCmdTimeoutDur,
+		Dest:              tr.Dest,
 	})
 
 	// Initialize format validator
@@ -472,6 +474,7 @@ func (t *TemplateResource) check() error {
 			Ctx:               t.ctx,
 			CheckCmdTimeout:   t.checkCmdTimeoutDur,
 			ReloadCmdTimeout:  t.reloadCmdTimeoutDur,
+			Dest:              t.Dest,
 		})
 	}
 	return t.cmdExecutor.executeCheck(t.StageFile.Name())
@@ -497,6 +500,7 @@ func (t *TemplateResource) reload() error {
 			Ctx:               t.ctx,
 			CheckCmdTimeout:   t.checkCmdTimeoutDur,
 			ReloadCmdTimeout:  t.reloadCmdTimeoutDur,
+			Dest:              t.Dest,
 		})
 	}
 	return t.cmdExecutor.executeReload(t.StageFile.Name(), t.Dest)
@@ -509,16 +513,30 @@ func (t *TemplateResource) reload() error {
 // things up.
 // It returns an error if any.
 func (t *TemplateResource) process() error {
-	if err := t.setFileMode(); err != nil {
+	start := time.Now()
+	var err error
+	defer func() {
+		if metrics.Enabled() {
+			duration := time.Since(start).Seconds()
+			metrics.TemplateProcessDuration.WithLabelValues(t.Dest).Observe(duration)
+			if err != nil {
+				metrics.TemplateProcessTotal.WithLabelValues(t.Dest, "error").Inc()
+			} else {
+				metrics.TemplateProcessTotal.WithLabelValues(t.Dest, "success").Inc()
+			}
+		}
+	}()
+
+	if err = t.setFileMode(); err != nil {
 		return err
 	}
-	if err := t.setVars(); err != nil {
+	if err = t.setVars(); err != nil {
 		return err
 	}
-	if err := t.createStageFile(); err != nil {
+	if err = t.createStageFile(); err != nil {
 		return err
 	}
-	if err := t.sync(); err != nil {
+	if err = t.sync(); err != nil {
 		return err
 	}
 	return nil

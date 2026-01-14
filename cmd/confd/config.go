@@ -53,6 +53,9 @@ type TOMLConfig struct {
 
 	// Performance settings
 	TemplateCache *bool `toml:"template_cache"` // Pointer to distinguish unset from false
+
+	// Metrics and observability
+	MetricsAddr string `toml:"metrics_addr"`
 }
 
 // loadConfigFile loads the TOML config file and applies defaults to CLI and backend config
@@ -112,6 +115,9 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if cli.SRVRecord == "" && tomlCfg.SRVRecord != "" {
 		cli.SRVRecord = tomlCfg.SRVRecord
+	}
+	if cli.MetricsAddr == "" && tomlCfg.MetricsAddr != "" {
+		cli.MetricsAddr = tomlCfg.MetricsAddr
 	}
 
 	// Backend settings (only apply if not already set via CLI)
