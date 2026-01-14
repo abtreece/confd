@@ -241,16 +241,29 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 // It attempts to get a non-existent secret to verify AWS credentials and connectivity.
 // A "not found" error is expected and indicates successful connectivity.
 func (c *Client) HealthCheck(ctx context.Context) error {
+	start := time.Now()
+	logger := log.With("backend", "secretsmanager")
+
 	_, err := c.client.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId: aws.String("confd-health-check-nonexistent"),
 	})
+
+	duration := time.Since(start)
 	if err != nil {
 		var notFoundErr *types.ResourceNotFoundException
 		if errors.As(err, &notFoundErr) {
 			// Not found is expected and indicates connectivity is working
+			logger.InfoContext(ctx, "Backend health check passed",
+				"duration_ms", duration.Milliseconds())
 			return nil
 		}
+		logger.ErrorContext(ctx, "Backend health check failed",
+			"duration_ms", duration.Milliseconds(),
+			"error", err.Error())
 		return err
 	}
+
+	logger.InfoContext(ctx, "Backend health check passed",
+		"duration_ms", duration.Milliseconds())
 	return nil
 }

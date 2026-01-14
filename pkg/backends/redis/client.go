@@ -459,6 +459,20 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 // HealthCheck verifies the backend connection is healthy.
 // It attempts to connect and ping the Redis server.
 func (c *Client) HealthCheck(ctx context.Context) error {
+	start := time.Now()
+	logger := log.With("backend", "redis")
+
 	_, err := c.connectedClient(ctx)
-	return err
+
+	duration := time.Since(start)
+	if err != nil {
+		logger.ErrorContext(ctx, "Backend health check failed",
+			"duration_ms", duration.Milliseconds(),
+			"error", err.Error())
+		return err
+	}
+
+	logger.InfoContext(ctx, "Backend health check passed",
+		"duration_ms", duration.Milliseconds())
+	return nil
 }

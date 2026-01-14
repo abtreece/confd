@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/abtreece/confd/pkg/log"
 	vaultapi "github.com/hashicorp/vault/api"
@@ -430,6 +431,20 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 // HealthCheck verifies the backend connection is healthy.
 // It checks the Vault server health status.
 func (c *Client) HealthCheck(ctx context.Context) error {
+	start := time.Now()
+	logger := log.With("backend", "vault")
+
 	_, err := c.client.Sys().Health()
-	return err
+
+	duration := time.Since(start)
+	if err != nil {
+		logger.ErrorContext(ctx, "Backend health check failed",
+			"duration_ms", duration.Milliseconds(),
+			"error", err.Error())
+		return err
+	}
+
+	logger.InfoContext(ctx, "Backend health check passed",
+		"duration_ms", duration.Milliseconds())
+	return nil
 }

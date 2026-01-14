@@ -190,8 +190,22 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 // HealthCheck verifies the backend connection is healthy.
 // It attempts to list certificates to verify AWS credentials and connectivity.
 func (c *Client) HealthCheck(ctx context.Context) error {
+	start := time.Now()
+	logger := log.With("backend", "acm")
+
 	_, err := c.client.ListCertificates(ctx, &acm.ListCertificatesInput{
 		MaxItems: aws.Int32(1),
 	})
-	return err
+
+	duration := time.Since(start)
+	if err != nil {
+		logger.ErrorContext(ctx, "Backend health check failed",
+			"duration_ms", duration.Milliseconds(),
+			"error", err.Error())
+		return err
+	}
+
+	logger.InfoContext(ctx, "Backend health check passed",
+		"duration_ms", duration.Milliseconds())
+	return nil
 }
