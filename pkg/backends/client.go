@@ -35,6 +35,10 @@ func New(config Config) (StoreClient, error) {
 	if config.Backend == "" {
 		config.Backend = "etcd"
 	}
+
+	// Apply default timeout values if not set
+	config.ApplyTimeoutDefaults()
+
 	backendNodes := config.BackendNodes
 
 	switch config.Backend {

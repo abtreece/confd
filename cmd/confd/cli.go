@@ -19,6 +19,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Default timeout and retry values
+const (
+	DefaultDialTimeout        = 5 * time.Second
+	DefaultReadTimeout        = 1 * time.Second
+	DefaultWriteTimeout       = 1 * time.Second
+	DefaultRetryMaxAttempts   = 3
+	DefaultRetryBaseDelay     = 100 * time.Millisecond
+	DefaultRetryMaxDelay      = 5 * time.Second
+	DefaultWatchErrorBackoff  = 2 * time.Second
+	DefaultPreflightTimeout   = 10 * time.Second
+)
+
 // CLI is the root command structure
 type CLI struct {
 	// Global flags

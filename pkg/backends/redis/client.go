@@ -193,32 +193,12 @@ func NewRedisClient(machines []string, password string, separator string, dialTi
 	}
 	log.Debug("Redis Separator: %#v", separator)
 
-	// Use provided retry config or fall back to defaults
+	// Build retry config from parameters (defaults already applied via ApplyTimeoutDefaults)
 	retryConfig := RetryConfig{
 		MaxRetries:   retryMaxAttempts,
 		BaseDelay:    retryBaseDelay,
 		MaxDelay:     retryMaxDelay,
-		JitterFactor: 0.3, // Keep 30% jitter as default
-	}
-	if retryConfig.MaxRetries == 0 {
-		retryConfig.MaxRetries = 3
-	}
-	if retryConfig.BaseDelay == 0 {
-		retryConfig.BaseDelay = 100 * time.Millisecond
-	}
-	if retryConfig.MaxDelay == 0 {
-		retryConfig.MaxDelay = 5 * time.Second
-	}
-
-	// Use provided timeouts or fall back to defaults
-	if dialTimeout == 0 {
-		dialTimeout = time.Second
-	}
-	if readTimeout == 0 {
-		readTimeout = time.Second
-	}
-	if writeTimeout == 0 {
-		writeTimeout = time.Second
+		JitterFactor: 0.3, // 30% jitter
 	}
 
 	client, db, err := createClient(machines, password, true, retryConfig, dialTimeout, readTimeout, writeTimeout)

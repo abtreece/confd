@@ -211,40 +211,40 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	// Connection timeout settings (apply to CLI if default, then to backend config)
 	if tomlCfg.DialTimeout != "" {
 		if d, err := time.ParseDuration(tomlCfg.DialTimeout); err == nil {
-			if cli.DialTimeout == 5*time.Second {
+			if cli.DialTimeout == DefaultDialTimeout {
 				cli.DialTimeout = d
 			}
 		}
 	}
 	if tomlCfg.ReadTimeout != "" {
 		if d, err := time.ParseDuration(tomlCfg.ReadTimeout); err == nil {
-			if cli.ReadTimeout == 1*time.Second {
+			if cli.ReadTimeout == DefaultReadTimeout {
 				cli.ReadTimeout = d
 			}
 		}
 	}
 	if tomlCfg.WriteTimeout != "" {
 		if d, err := time.ParseDuration(tomlCfg.WriteTimeout); err == nil {
-			if cli.WriteTimeout == 1*time.Second {
+			if cli.WriteTimeout == DefaultWriteTimeout {
 				cli.WriteTimeout = d
 			}
 		}
 	}
 
 	// Retry configuration (apply to CLI if default, then to backend config)
-	if tomlCfg.RetryMaxAttempts != 0 && cli.RetryMaxAttempts == 3 {
+	if tomlCfg.RetryMaxAttempts != 0 && cli.RetryMaxAttempts == DefaultRetryMaxAttempts {
 		cli.RetryMaxAttempts = tomlCfg.RetryMaxAttempts
 	}
 	if tomlCfg.RetryBaseDelay != "" {
 		if d, err := time.ParseDuration(tomlCfg.RetryBaseDelay); err == nil {
-			if cli.RetryBaseDelay == 100*time.Millisecond {
+			if cli.RetryBaseDelay == DefaultRetryBaseDelay {
 				cli.RetryBaseDelay = d
 			}
 		}
 	}
 	if tomlCfg.RetryMaxDelay != "" {
 		if d, err := time.ParseDuration(tomlCfg.RetryMaxDelay); err == nil {
-			if cli.RetryMaxDelay == 5*time.Second {
+			if cli.RetryMaxDelay == DefaultRetryMaxDelay {
 				cli.RetryMaxDelay = d
 			}
 		}
@@ -253,7 +253,7 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	// Watch mode timeouts
 	if tomlCfg.WatchErrorBackoff != "" {
 		if d, err := time.ParseDuration(tomlCfg.WatchErrorBackoff); err == nil {
-			if cli.WatchErrorBackoff == 2*time.Second {
+			if cli.WatchErrorBackoff == DefaultWatchErrorBackoff {
 				cli.WatchErrorBackoff = d
 			}
 		}
@@ -262,7 +262,7 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	// Preflight timeout
 	if tomlCfg.PreflightTimeout != "" {
 		if d, err := time.ParseDuration(tomlCfg.PreflightTimeout); err == nil {
-			if cli.PreflightTimeout == 10*time.Second {
+			if cli.PreflightTimeout == DefaultPreflightTimeout {
 				cli.PreflightTimeout = d
 			}
 		}

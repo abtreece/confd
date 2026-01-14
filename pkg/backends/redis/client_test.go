@@ -975,14 +975,17 @@ func TestGetValues_ErrorHandling(t *testing.T) {
 func TestRetryConfigRetention(t *testing.T) {
 	s := miniredis.RunT(t)
 
-	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	// Pass actual default values (normally applied by backends.Config.ApplyTimeoutDefaults)
+	expected := DefaultRetryConfig()
+	client, err := NewRedisClient([]string{s.Addr()}, "", "/",
+		time.Second, time.Second, time.Second,
+		expected.MaxRetries, expected.BaseDelay, expected.MaxDelay)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}
 	defer client.client.Close()
 
-	// Client should retain default retry config
-	expected := DefaultRetryConfig()
+	// Client should retain the provided retry config
 	if client.retryConfig.MaxRetries != expected.MaxRetries {
 		t.Errorf("retryConfig.MaxRetries = %d, want %d", client.retryConfig.MaxRetries, expected.MaxRetries)
 	}

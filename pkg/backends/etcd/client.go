@@ -128,11 +128,7 @@ type Client struct {
 
 // NewEtcdClient returns an *etcd.Client with a connection to named machines.
 func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure bool, basicAuth bool, username string, password string, dialTimeout time.Duration) (*Client, error) {
-	// Use provided timeout or fall back to default
-	if dialTimeout == 0 {
-		dialTimeout = 5 * time.Second
-	}
-
+	// Defaults already applied via ApplyTimeoutDefaults in the factory
 	cfg := clientv3.Config{
 		Endpoints:            machines,
 		DialTimeout:          dialTimeout,

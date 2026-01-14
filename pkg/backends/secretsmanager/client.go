@@ -40,11 +40,7 @@ func New(versionStage string, noFlatten bool, dialTimeout time.Duration) (*Clien
 		versionStage = "AWSCURRENT"
 	}
 
-	// Use provided timeout or fall back to default
-	if dialTimeout == 0 {
-		dialTimeout = 2 * time.Second
-	}
-
+	// Defaults already applied via ApplyTimeoutDefaults in the factory
 	// Attempt to get AWS Region from environment first, then EC2 metadata
 	var region string
 	if os.Getenv("AWS_REGION") != "" {
