@@ -34,20 +34,20 @@ EOT
 confd env --onetime --log-level debug --confdir ./test/integration/features/per-resource-backend/confdir
 
 # Check results
-if ! diff -q /tmp/confd-per-resource-app.conf test/integration/per-resource-backend/expect/app.conf > /dev/null 2>&1; then
+if ! diff -q /tmp/confd-per-resource-app.conf test/integration/features/per-resource-backend/expect/app.conf > /dev/null 2>&1; then
     echo "ERROR: app.conf output mismatch"
     echo "=== Expected ==="
-    cat test/integration/per-resource-backend/expect/app.conf
+    cat test/integration/features/per-resource-backend/expect/app.conf
     echo "=== Actual ==="
     cat /tmp/confd-per-resource-app.conf
     exit 1
 fi
 echo "OK: app.conf"
 
-if ! diff -q /tmp/confd-per-resource-secrets.conf test/integration/per-resource-backend/expect/secrets.conf > /dev/null 2>&1; then
+if ! diff -q /tmp/confd-per-resource-secrets.conf test/integration/features/per-resource-backend/expect/secrets.conf > /dev/null 2>&1; then
     echo "ERROR: secrets.conf output mismatch"
     echo "=== Expected ==="
-    cat test/integration/per-resource-backend/expect/secrets.conf
+    cat test/integration/features/per-resource-backend/expect/secrets.conf
     echo "=== Actual ==="
     cat /tmp/confd-per-resource-secrets.conf
     exit 1
