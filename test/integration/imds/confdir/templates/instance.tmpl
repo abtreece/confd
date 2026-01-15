@@ -1,0 +1,16 @@
+# EC2 Instance Configuration
+instance_id={{ getv "/meta-data/instance-id" }}
+instance_type={{ getv "/meta-data/instance-type" }}
+ami_id={{ getv "/meta-data/ami-id" }}
+{{- if exists "/meta-data/tags/instance/Name" }}
+name={{ getv "/meta-data/tags/instance/Name" }}
+{{- end }}
+{{- if exists "/meta-data/tags/instance/Environment" }}
+environment={{ getv "/meta-data/tags/instance/Environment" }}
+{{- end }}
+availability_zone={{ getv "/meta-data/placement/availability-zone" }}
+region={{ getv "/meta-data/placement/region" }}
+local_ip={{ getv "/meta-data/local-ipv4" }}
+{{- if exists "/meta-data/public-ipv4" }}
+public_ip={{ getv "/meta-data/public-ipv4" }}
+{{- end }}

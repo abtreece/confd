@@ -11,6 +11,7 @@ import (
 	"github.com/abtreece/confd/pkg/backends/env"
 	"github.com/abtreece/confd/pkg/backends/etcd"
 	"github.com/abtreece/confd/pkg/backends/file"
+	"github.com/abtreece/confd/pkg/backends/imds"
 	"github.com/abtreece/confd/pkg/backends/redis"
 	"github.com/abtreece/confd/pkg/backends/secretsmanager"
 	"github.com/abtreece/confd/pkg/backends/ssm"
@@ -100,6 +101,9 @@ func New(config Config) (StoreClient, error) {
 		return dynamodb.NewDynamoDBClient(table)
 	case "ssm":
 		return ssm.New(config.DialTimeout)
+	case "imds":
+		log.Info("Backend source(s) set to AWS EC2 IMDS")
+		return imds.New(config.IMDSCacheTTL, config.DialTimeout)
 	case "secretsmanager":
 		log.Info("Backend source(s) set to AWS Secrets Manager")
 		return secretsmanager.New(config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten, config.DialTimeout)

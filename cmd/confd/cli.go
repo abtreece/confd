@@ -111,6 +111,7 @@ type CLI struct {
 	SSM            SSMCmd            `cmd:"" name:"ssm" help:"Use AWS SSM Parameter Store backend"`
 	ACM            ACMCmd            `cmd:"" name:"acm" help:"Use AWS ACM backend"`
 	SecretsManager SecretsManagerCmd `cmd:"" name:"secretsmanager" help:"Use AWS Secrets Manager backend"`
+	IMDS           IMDSCmd           `cmd:"" name:"imds" help:"Use AWS EC2 IMDS backend"`
 	Env            EnvCmd            `cmd:"" name:"env" help:"Use environment variables backend"`
 	File           FileCmd           `cmd:"" name:"file" help:"Use file backend"`
 }
@@ -353,6 +354,27 @@ func (f *FileCmd) Run(cli *CLI) error {
 	}
 	// YAMLFile is a util.Nodes type ([]string)
 	cfg.YAMLFile = f.File
+	return run(cli, cfg)
+}
+
+type IMDSCmd struct {
+	CacheTTL string `name:"imds-cache-ttl" help:"Cache TTL for metadata (e.g., 60s, 5m)" default:"60s"`
+}
+
+func (i *IMDSCmd) Run(cli *CLI) error {
+	if cli.Watch {
+		return fmt.Errorf("watch mode not supported for imds backend")
+	}
+
+	cacheTTL, err := time.ParseDuration(i.CacheTTL)
+	if err != nil {
+		return fmt.Errorf("invalid imds-cache-ttl: %w", err)
+	}
+
+	cfg := backends.Config{
+		Backend:      "imds",
+		IMDSCacheTTL: cacheTTL,
+	}
 	return run(cli, cfg)
 }
 

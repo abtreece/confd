@@ -1,0 +1,13 @@
+[template]
+src = "instance.tmpl"
+dest = "/tmp/confd-imds-test-instance.conf"
+keys = [
+    "/meta-data/instance-id",
+    "/meta-data/instance-type",
+    "/meta-data/ami-id",
+    "/meta-data/tags/instance/",
+    "/meta-data/placement/availability-zone",
+    "/meta-data/placement/region",
+    "/meta-data/local-ipv4",
+    "/meta-data/public-ipv4"
+]

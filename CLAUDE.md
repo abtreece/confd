@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-confd is a lightweight configuration management tool that keeps local configuration files up-to-date using data stored in backends (etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM, AWS ACM, AWS Secrets Manager, environment variables, or files). It processes Go text/templates and can reload applications when config changes.
+confd is a lightweight configuration management tool that keeps local configuration files up-to-date using data stored in backends (etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM, AWS ACM, AWS Secrets Manager, AWS EC2 IMDS, environment variables, or files). It processes Go text/templates and can reload applications when config changes.
 
 This is a divergent fork of kelseyhightower/confd. The upstream repository is effectively abandoned.
 
@@ -74,7 +74,7 @@ go test -run TestFunctionName ./pkg/template/
 - **pkg/backends/** - Backend abstraction layer with `StoreClient` interface
   - Each backend implements `GetValues()`, `WatchPrefix()`, and `HealthCheck()`
   - `client.go` contains factory function `New()` that creates appropriate backend
-  - Backends: acm/, consul/, dynamodb/, env/, etcd/, file/, redis/, secretsmanager/, ssm/, vault/, zookeeper/
+  - Backends: acm/, consul/, dynamodb/, env/, etcd/, file/, imds/, redis/, secretsmanager/, ssm/, vault/, zookeeper/
 - **pkg/template/** - Template processing (follows Single Responsibility Principle)
   - `processor.go` - `Processor` interface with `IntervalProcessor` (polling) and `WatchProcessor` (continuous)
   - `resource.go` - `TemplateResource` core processing: TOML parsing, template rendering, check/reload commands
@@ -122,11 +122,56 @@ go test -run TestFunctionName ./pkg/template/
 
 ## Supported Backends
 
-acm, consul, dynamodb, env, etcd, file, redis, secretsmanager, ssm, vault, zookeeper
+acm, consul, dynamodb, env, etcd, file, imds, redis, secretsmanager, ssm, vault, zookeeper
 
 **Watch mode supported**: consul, env, etcd, file, redis, zookeeper
 
-**Polling only (no watch)**: acm, dynamodb, secretsmanager, ssm, vault
+**Polling only (no watch)**: acm, dynamodb, imds, secretsmanager, ssm, vault
+
+### IMDS Backend
+
+Retrieves metadata from AWS EC2 Instance Metadata Service version 2 (IMDSv2).
+
+**Usage**:
+```bash
+confd imds --interval 300 --imds-cache-ttl 60s
+```
+
+**Metadata Categories**:
+- `/meta-data/instance-id`, `/meta-data/instance-type`, `/meta-data/ami-id`
+- `/meta-data/tags/instance/Name`, `/meta-data/tags/instance/Environment`
+- `/meta-data/placement/availability-zone`, `/meta-data/placement/region`
+- `/meta-data/local-ipv4`, `/meta-data/public-ipv4`, `/meta-data/mac`
+- `/meta-data/network/interfaces/macs/{mac}/...`
+- `/meta-data/iam/security-credentials/{role-name}`
+- `/dynamic/instance-identity/document`
+- `/user-data`
+
+**Example template resource**:
+```toml
+[template]
+src = "instance.tmpl"
+dest = "/etc/app/instance.conf"
+keys = [
+    "/meta-data/instance-id",
+    "/meta-data/tags/instance/Name",
+    "/meta-data/placement/availability-zone"
+]
+```
+
+**Configuration**:
+- `--imds-cache-ttl`: Cache duration (default: 60s)
+- Environment: `IMDS_ENDPOINT` for custom endpoint (testing only)
+
+**Features**:
+- Automatic IMDSv2 token management via AWS SDK
+- In-memory caching reduces API calls
+- No AWS credentials required (network-based security)
+- Only available on EC2 instances
+
+**Limitations**:
+- Polling only (no watch mode)
+- Requires EC2 instance with IMDSv2 enabled
 
 ## Template Functions
 
