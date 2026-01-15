@@ -1,0 +1,7 @@
+[template]
+mode = "0644"
+src = "health.conf.tmpl"
+dest = "/tmp/confd-health-test.conf"
+keys = [
+  "/app/name",
+]

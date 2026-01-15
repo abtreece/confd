@@ -69,6 +69,21 @@ jobs:
         run: |
           test/integration/negative/test.sh
 
+      - name: Test Health Check Endpoints
+        run: test/integration/healthcheck/test.sh
+
+      - name: Test Metrics Endpoint
+        run: test/integration/metrics/test.sh
+
+      - name: Test Failure Modes
+        run: test/integration/failuremode/test.sh
+
+      - name: Test Template Include Function
+        run: test/integration/include/test.sh
+
+      - name: Test Service Signals
+        run: test/integration/service/test.sh
+
   # Tests requiring Consul, etcd, Redis, and Zookeeper
   backend-tests:
     runs-on: ubuntu-latest

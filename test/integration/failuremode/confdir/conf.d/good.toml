@@ -1,0 +1,7 @@
+[template]
+mode = "0644"
+src = "good.conf.tmpl"
+dest = "/tmp/confd-failuremode-good.conf"
+keys = [
+  "/key",
+]
