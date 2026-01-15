@@ -543,3 +543,22 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 		},
 	}, nil
 }
+
+// Close closes the Redis client connections.
+func (c *Client) Close() error {
+	if c.pubsub != nil {
+		if err := c.pubsub.Close(); err != nil {
+			log.Warning("Failed to close Redis pubsub: %v", err)
+		}
+		c.pubsub = nil
+	}
+
+	if c.client != nil {
+		if err := c.client.Close(); err != nil {
+			return fmt.Errorf("failed to close Redis client: %w", err)
+		}
+		c.client = nil
+	}
+
+	return nil
+}

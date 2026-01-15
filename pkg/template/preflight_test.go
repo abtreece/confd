@@ -32,6 +32,10 @@ func (m *mockStoreClient) HealthCheck(ctx context.Context) error {
 	return m.healthCheckErr
 }
 
+func (m *mockStoreClient) Close() error {
+	return nil
+}
+
 func TestPreflight_HealthCheckFailure(t *testing.T) {
 	log.SetLevel("warn")
 

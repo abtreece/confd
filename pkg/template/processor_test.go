@@ -11,7 +11,7 @@ func TestIntervalProcessor_Creation(t *testing.T) {
 	errChan := make(chan error)
 	interval := 10
 
-	processor := IntervalProcessor(config, stopChan, doneChan, errChan, interval)
+	processor := IntervalProcessor(config, stopChan, doneChan, errChan, interval, make(chan struct{}))
 	if processor == nil {
 		t.Error("IntervalProcessor() returned nil")
 	}
@@ -29,7 +29,7 @@ func TestWatchProcessor_Creation(t *testing.T) {
 	doneChan := make(chan bool)
 	errChan := make(chan error)
 
-	processor := WatchProcessor(config, stopChan, doneChan, errChan)
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 	if processor == nil {
 		t.Error("WatchProcessor() returned nil")
 	}

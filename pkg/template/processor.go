@@ -64,16 +64,17 @@ func processWithResult(ts []*TemplateResource, failureMode FailureMode) *BatchPr
 }
 
 type intervalProcessor struct {
-	config   Config
-	stopChan chan bool
-	doneChan chan bool
-	errChan  chan error
-	interval int
+	config     Config
+	stopChan   chan bool
+	doneChan   chan bool
+	errChan    chan error
+	interval   int
+	reloadChan <-chan struct{}
 }
 
 // IntervalProcessor creates a processor that polls for changes at a fixed interval.
-func IntervalProcessor(config Config, stopChan, doneChan chan bool, errChan chan error, interval int) Processor {
-	return &intervalProcessor{config, stopChan, doneChan, errChan, interval}
+func IntervalProcessor(config Config, stopChan, doneChan chan bool, errChan chan error, interval int, reloadChan <-chan struct{}) Processor {
+	return &intervalProcessor{config, stopChan, doneChan, errChan, interval, reloadChan}
 }
 
 func (p *intervalProcessor) Process() {
@@ -95,6 +96,10 @@ func (p *intervalProcessor) Process() {
 			return
 		case <-p.stopChan:
 			return
+		case <-p.reloadChan:
+			log.Info("Reloading template resources (interval processor)")
+			// Re-load templates from conf.d/ on next iteration
+			continue
 		case <-time.After(time.Duration(p.interval) * time.Second):
 			continue
 		}
@@ -102,43 +107,92 @@ func (p *intervalProcessor) Process() {
 }
 
 type watchProcessor struct {
-	config   Config
-	stopChan chan bool
-	doneChan chan bool
-	errChan  chan error
-	wg       sync.WaitGroup
+	config         Config
+	stopChan       chan bool
+	doneChan       chan bool
+	errChan        chan error
+	wg             sync.WaitGroup
+	reloadChan     <-chan struct{}
+	internalStop   chan bool
+	reloadRequested bool
 }
 
 // WatchProcessor creates a processor that watches for backend changes continuously.
-func WatchProcessor(config Config, stopChan, doneChan chan bool, errChan chan error) Processor {
+func WatchProcessor(config Config, stopChan, doneChan chan bool, errChan chan error, reloadChan <-chan struct{}) Processor {
 	var wg sync.WaitGroup
-	return &watchProcessor{config, stopChan, doneChan, errChan, wg}
+	return &watchProcessor{
+		config:       config,
+		stopChan:     stopChan,
+		doneChan:     doneChan,
+		errChan:      errChan,
+		wg:           wg,
+		reloadChan:   reloadChan,
+		internalStop: make(chan bool),
+	}
 }
 
 func (p *watchProcessor) Process() {
 	defer close(p.doneChan)
-	ts, err := getTemplateResources(p.config)
-	if err != nil {
-		log.Fatal("%s", err.Error())
-		return
-	}
 
-	// Calculate total watched keys for metrics
-	if metrics.Enabled() {
-		totalKeys := 0
-		for _, t := range ts {
-			keys := util.AppendPrefix(t.Prefix, t.Keys)
-			totalKeys += len(keys)
+	// Outer loop for handling reloads
+	for {
+		ts, err := getTemplateResources(p.config)
+		if err != nil {
+			log.Fatal("%s", err.Error())
+			return
 		}
-		metrics.WatchedKeys.Set(float64(totalKeys))
-	}
 
-	for _, t := range ts {
-		t := t
-		p.wg.Add(1)
-		go p.monitorPrefix(t)
+		// Calculate total watched keys for metrics
+		if metrics.Enabled() {
+			totalKeys := 0
+			for _, t := range ts {
+				keys := util.AppendPrefix(t.Prefix, t.Keys)
+				totalKeys += len(keys)
+			}
+			metrics.WatchedKeys.Set(float64(totalKeys))
+		}
+
+		// Reset internal stop channel for this iteration
+		p.internalStop = make(chan bool)
+		p.reloadRequested = false
+
+		// Start a goroutine to monitor for reload/stop signals
+		stopMonitor := make(chan bool)
+		go func() {
+			select {
+			case <-p.internalStop:
+				close(p.internalStop)
+				close(stopMonitor)
+			case <-p.reloadChan:
+				log.Info("Reloading template resources (watch processor)")
+				p.reloadRequested = true
+				close(p.internalStop)
+				close(stopMonitor)
+			}
+		}()
+
+		// Start watching all templates
+		for _, t := range ts {
+			t := t
+			p.wg.Add(1)
+			go p.monitorPrefix(t)
+		}
+		p.wg.Wait()
+
+		// Clean up the stop monitor
+		select {
+		case <-stopMonitor:
+		default:
+			close(stopMonitor)
+		}
+
+		// If it was a real stop (not reload), exit
+		if !p.reloadRequested {
+			return
+		}
+		// Otherwise, loop to reload templates and restart watches
+		log.Info("Restarting watches with reloaded templates")
 	}
-	p.wg.Wait()
 }
 
 func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
@@ -155,7 +209,7 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 	var debounceChan <-chan time.Time
 
 	for {
-		index, err := t.storeClient.WatchPrefix(ctx, t.Prefix, keys, t.lastIndex, p.stopChan)
+		index, err := t.storeClient.WatchPrefix(ctx, t.Prefix, keys, t.lastIndex, p.internalStop)
 		if err != nil {
 			// Check if context was cancelled
 			if ctx.Err() != nil {
@@ -194,7 +248,7 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 				if err := t.process(); err != nil {
 					p.errChan <- err
 				}
-			case <-p.stopChan:
+			case <-p.internalStop:
 				if debounceTimer != nil {
 					debounceTimer.Stop()
 				}
@@ -206,7 +260,7 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 			case <-ctx.Done():
 				log.Debug("Context cancelled, stopping watch for %s", t.Dest)
 				return
-			case <-p.stopChan:
+			case <-p.internalStop:
 				return
 			default:
 				// No debouncing, process immediately
@@ -220,52 +274,102 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 
 // batchWatchProcessor processes changes in batches after a batch interval
 type batchWatchProcessor struct {
-	config     Config
-	stopChan   chan bool
-	doneChan   chan bool
-	errChan    chan error
-	changeChan chan *TemplateResource
-	wg         sync.WaitGroup
+	config          Config
+	stopChan        chan bool
+	doneChan        chan bool
+	errChan         chan error
+	changeChan      chan *TemplateResource
+	wg              sync.WaitGroup
+	reloadChan      <-chan struct{}
+	internalStop    chan bool
+	reloadRequested bool
 }
 
 // BatchWatchProcessor creates a processor that batches changes before processing.
 // Changes from all templates are collected and processed together after the batch interval.
-func BatchWatchProcessor(config Config, stopChan, doneChan chan bool, errChan chan error) Processor {
+func BatchWatchProcessor(config Config, stopChan, doneChan chan bool, errChan chan error, reloadChan <-chan struct{}) Processor {
 	var wg sync.WaitGroup
 	changeChan := make(chan *TemplateResource, 100)
-	return &batchWatchProcessor{config, stopChan, doneChan, errChan, changeChan, wg}
+	return &batchWatchProcessor{
+		config:       config,
+		stopChan:     stopChan,
+		doneChan:     doneChan,
+		errChan:      errChan,
+		changeChan:   changeChan,
+		wg:           wg,
+		reloadChan:   reloadChan,
+		internalStop: make(chan bool),
+	}
 }
 
 func (p *batchWatchProcessor) Process() {
 	defer close(p.doneChan)
-	ts, err := getTemplateResources(p.config)
-	if err != nil {
-		log.Fatal("%s", err.Error())
-		return
-	}
 
-	// Calculate total watched keys for metrics
-	if metrics.Enabled() {
-		totalKeys := 0
-		for _, t := range ts {
-			keys := util.AppendPrefix(t.Prefix, t.Keys)
-			totalKeys += len(keys)
+	// Outer loop for handling reloads
+	for {
+		ts, err := getTemplateResources(p.config)
+		if err != nil {
+			log.Fatal("%s", err.Error())
+			return
 		}
-		metrics.WatchedKeys.Set(float64(totalKeys))
-	}
 
-	// Start batch processor goroutine
-	p.wg.Add(1)
-	go p.processBatch()
+		// Calculate total watched keys for metrics
+		if metrics.Enabled() {
+			totalKeys := 0
+			for _, t := range ts {
+				keys := util.AppendPrefix(t.Prefix, t.Keys)
+				totalKeys += len(keys)
+			}
+			metrics.WatchedKeys.Set(float64(totalKeys))
+		}
 
-	// Start monitor goroutines for each template
-	for _, t := range ts {
-		t := t
+		// Reset internal stop channel and change channel for this iteration
+		p.internalStop = make(chan bool)
+		p.changeChan = make(chan *TemplateResource, 100)
+		p.reloadRequested = false
+
+		// Start a goroutine to monitor for reload/stop signals
+		stopMonitor := make(chan bool)
+		go func() {
+			select {
+			case <-p.stopChan:
+				close(p.internalStop)
+				close(stopMonitor)
+			case <-p.reloadChan:
+				log.Info("Reloading template resources (batch watch processor)")
+				p.reloadRequested = true
+				close(p.internalStop)
+				close(stopMonitor)
+			}
+		}()
+
+		// Start batch processor goroutine
 		p.wg.Add(1)
-		go p.monitorForBatch(t)
-	}
+		go p.processBatch()
 
-	p.wg.Wait()
+		// Start monitor goroutines for each template
+		for _, t := range ts {
+			t := t
+			p.wg.Add(1)
+			go p.monitorForBatch(t)
+		}
+
+		p.wg.Wait()
+
+		// Clean up the stop monitor
+		select {
+		case <-stopMonitor:
+		default:
+			close(stopMonitor)
+		}
+
+		// If it was a real stop (not reload), exit
+		if !p.reloadRequested {
+			return
+		}
+		// Otherwise, loop to reload templates and restart watches
+		log.Info("Restarting batch watches with reloaded templates")
+	}
 }
 
 func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
@@ -278,7 +382,7 @@ func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
 	}
 
 	for {
-		index, err := t.storeClient.WatchPrefix(ctx, t.Prefix, keys, t.lastIndex, p.stopChan)
+		index, err := t.storeClient.WatchPrefix(ctx, t.Prefix, keys, t.lastIndex, p.internalStop)
 		if err != nil {
 			// Check if context was cancelled
 			if ctx.Err() != nil {
@@ -298,7 +402,7 @@ func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
 		case <-ctx.Done():
 			log.Debug("Context cancelled, stopping batch watch for %s", t.Dest)
 			return
-		case <-p.stopChan:
+		case <-p.internalStop:
 			return
 		}
 	}
@@ -364,7 +468,7 @@ func (p *batchWatchProcessor) processBatch() {
 			}
 			return
 
-		case <-p.stopChan:
+		case <-p.internalStop:
 			timer.Stop()
 			// Process any remaining pending changes before shutdown
 			if len(pending) > 0 {

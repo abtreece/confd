@@ -210,7 +210,7 @@ prefix = "/"
 	doneChan := make(chan bool)
 	errChan := make(chan error, 10)
 
-	processor := WatchProcessor(config, stopChan, doneChan, errChan)
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
 	// Start processor in goroutine
 	go processor.Process()
@@ -278,7 +278,7 @@ debounce = "500ms"
 	doneChan := make(chan bool)
 	errChan := make(chan error, 10)
 
-	processor := WatchProcessor(config, stopChan, doneChan, errChan)
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
 	// Start processor
 	go processor.Process()
@@ -357,7 +357,7 @@ prefix = "/"
 	doneChan := make(chan bool)
 	errChan := make(chan error, 10)
 
-	processor := WatchProcessor(config, stopChan, doneChan, errChan)
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
 	// Start processor
 	go processor.Process()
@@ -421,7 +421,7 @@ prefix = "/"
 	doneChan := make(chan bool)
 	errChan := make(chan error, 10)
 
-	processor := WatchProcessor(config, stopChan, doneChan, errChan)
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
 	go processor.Process()
 
@@ -483,7 +483,7 @@ prefix = "/"
 	doneChan := make(chan bool)
 	errChan := make(chan error, 10)
 
-	processor := BatchWatchProcessor(config, stopChan, doneChan, errChan)
+	processor := BatchWatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
 	go processor.Process()
 
@@ -548,7 +548,7 @@ prefix = "/"
 	doneChan := make(chan bool)
 	errChan := make(chan error, 10)
 
-	processor := BatchWatchProcessor(config, stopChan, doneChan, errChan)
+	processor := BatchWatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
 	go processor.Process()
 
@@ -615,7 +615,7 @@ prefix = "/"
 	errChan := make(chan error, 10)
 
 	// Use 1 second interval for faster testing
-	processor := IntervalProcessor(config, stopChan, doneChan, errChan, 1)
+	processor := IntervalProcessor(config, stopChan, doneChan, errChan, 1, make(chan struct{}))
 
 	go processor.Process()
 
@@ -675,7 +675,7 @@ prefix = "/"
 	errChan := make(chan error, 10)
 
 	// Use long interval (60s) - we'll cancel before it elapses
-	processor := IntervalProcessor(config, stopChan, doneChan, errChan, 60)
+	processor := IntervalProcessor(config, stopChan, doneChan, errChan, 60, make(chan struct{}))
 
 	go processor.Process()
 

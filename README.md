@@ -131,6 +131,53 @@ retry-max-delay = "5s"
 metrics_addr = ":9100"
 ```
 
+## Service Deployment
+
+confd is production-ready with support for systemd, Docker, and Kubernetes deployments.
+
+### Systemd Integration
+
+Run confd as a systemd service with `Type=notify` support:
+
+```bash
+# Install service
+sudo cp examples/systemd/confd.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable confd
+sudo systemctl start confd
+
+# Reload configuration without restarting
+sudo systemctl reload confd
+
+# Check status
+sudo systemctl status confd
+```
+
+Key features:
+- **Graceful shutdown** - Wait for in-flight operations before exit
+- **SIGHUP reload** - Reload templates and configuration without downtime
+- **Watchdog support** - Automatic restart if service becomes unresponsive
+- **Clean exits** - Proper backend connection cleanup
+
+See [Service Deployment Guide](docs/service-deployment.md) for complete documentation including:
+- systemd service configuration
+- Docker deployment with signal forwarding
+- Kubernetes manifests with health probes
+- Monitoring and troubleshooting
+
+### Command-Line Flags
+
+```bash
+# Graceful shutdown timeout (default: 30s)
+confd --shutdown-timeout=30s etcd --watch
+
+# Systemd integration (Linux only)
+confd --systemd-notify --watchdog-interval=30s etcd --watch
+
+# Reload configuration
+kill -HUP $(pidof confd)
+```
+
 ## Validation and Testing
 
 ### Validate configuration

@@ -378,3 +378,15 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	}
 
 }
+
+// Close closes the etcd client connection.
+func (c *Client) Close() error {
+	if c.client != nil {
+		if err := c.client.Close(); err != nil {
+			return fmt.Errorf("failed to close etcd client: %w", err)
+		}
+		c.client = nil
+		c.kvClient = nil
+	}
+	return nil
+}

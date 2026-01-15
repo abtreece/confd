@@ -8,12 +8,14 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/abtreece/confd/pkg/metrics"
+	"github.com/abtreece/confd/pkg/service"
 	"github.com/abtreece/confd/pkg/template"
 	"github.com/alecthomas/kong"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -86,6 +88,13 @@ type CLI struct {
 
 	// Preflight timeout
 	PreflightTimeout time.Duration `name:"preflight-timeout" help:"preflight check timeout" default:"10s"`
+
+	// Shutdown timeout
+	ShutdownTimeout time.Duration `name:"shutdown-timeout" help:"graceful shutdown timeout" default:"30s"`
+
+	// Systemd integration
+	SystemdNotify    bool          `name:"systemd-notify" help:"enable systemd sd_notify support" env:"CONFD_SYSTEMD_NOTIFY"`
+	WatchdogInterval time.Duration `name:"watchdog-interval" help:"systemd watchdog ping interval (0=disabled)" default:"0"`
 
 	// Metrics and observability
 	MetricsAddr string `name:"metrics-addr" help:"Address for metrics endpoint (e.g., :9100). Disabled if empty." env:"CONFD_METRICS_ADDR"`
@@ -414,22 +423,23 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	}
 
 	// Start metrics server if configured
+	var metricsServer *http.Server
 	if cli.MetricsAddr != "" {
 		metrics.Initialize()
 		storeClient = metrics.WrapStoreClient(storeClient, backendCfg.Backend)
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{}))
+		mux.HandleFunc("/health", metrics.HealthHandler(storeClient))
+		mux.HandleFunc("/ready", metrics.ReadyHandler(storeClient))
+		mux.HandleFunc("/ready/detailed", metrics.ReadyDetailedHandler(storeClient))
+		metricsServer = &http.Server{
+			Addr:              cli.MetricsAddr,
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
 		go func() {
-			mux := http.NewServeMux()
-			mux.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{}))
-			mux.HandleFunc("/health", metrics.HealthHandler(storeClient))
-			mux.HandleFunc("/ready", metrics.ReadyHandler(storeClient))
-			mux.HandleFunc("/ready/detailed", metrics.ReadyDetailedHandler(storeClient))
-			server := &http.Server{
-				Addr:              cli.MetricsAddr,
-				Handler:           mux,
-				ReadHeaderTimeout: 10 * time.Second,
-			}
 			log.Info("Starting metrics server on %s", cli.MetricsAddr)
-			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Error("Metrics server error: %v", err)
 			}
 		}()
@@ -501,33 +511,80 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	doneChan := make(chan bool)
 	errChan := make(chan error, 10)
 
+	// Create reload manager for SIGHUP handling
+	reloadMgr := service.NewReloadManager()
+	reloadChan := reloadMgr.Subscribe()
+
 	var processor template.Processor
 	if cli.Watch {
 		if tmplCfg.BatchInterval > 0 {
 			// Use batch processor when --batch-interval is specified
 			log.Info("Batch processing enabled with interval %v", tmplCfg.BatchInterval)
-			processor = template.BatchWatchProcessor(tmplCfg, stopChan, doneChan, errChan)
+			processor = template.BatchWatchProcessor(tmplCfg, stopChan, doneChan, errChan, reloadChan)
 		} else {
-			processor = template.WatchProcessor(tmplCfg, stopChan, doneChan, errChan)
+			processor = template.WatchProcessor(tmplCfg, stopChan, doneChan, errChan, reloadChan)
 		}
 	} else {
-		processor = template.IntervalProcessor(tmplCfg, stopChan, doneChan, errChan, cli.Interval)
+		processor = template.IntervalProcessor(tmplCfg, stopChan, doneChan, errChan, cli.Interval, reloadChan)
 	}
 
 	go processor.Process()
 
+	// Create shutdown manager for graceful shutdown coordination
+	var inFlightCmds sync.WaitGroup
+	shutdownMgr := service.NewShutdownManager(cli.ShutdownTimeout, metricsServer, storeClient, &inFlightCmds)
+
+	// Create systemd notifier and start watchdog if enabled
+	systemdNotifier := service.NewSystemdNotifier(cli.SystemdNotify, cli.WatchdogInterval)
+	systemdNotifier.StartWatchdog(ctx)
+
+	// Notify systemd that we're ready
+	if err := systemdNotifier.NotifyReady(); err != nil {
+		log.Warning("Failed to notify systemd ready: %v", err)
+	}
+
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	for {
 		select {
 		case err := <-errChan:
 			log.Error("%s", err.Error())
 		case s := <-signalChan:
-			log.Info("Captured %v. Initiating shutdown...", s)
-			cancel() // Cancel context to signal all goroutines
-			close(stopChan)
-			close(doneChan)
+			switch s {
+			case syscall.SIGHUP:
+				log.Info("Captured SIGHUP. Reloading configuration...")
+				// Notify systemd we're reloading
+				if err := systemdNotifier.NotifyReloading(); err != nil {
+					log.Warning("Failed to notify systemd reloading: %v", err)
+				}
+				reloadMgr.TriggerReload()
+				// Get a new reload channel for the next reload
+				reloadChan = reloadMgr.Subscribe()
+				// Notify systemd we're ready again
+				if err := systemdNotifier.NotifyReady(); err != nil {
+					log.Warning("Failed to notify systemd ready: %v", err)
+				}
+			case syscall.SIGINT, syscall.SIGTERM:
+				log.Info("Captured %v. Initiating shutdown...", s)
+				// Notify systemd we're stopping
+				if err := systemdNotifier.NotifyStopping(); err != nil {
+					log.Warning("Failed to notify systemd stopping: %v", err)
+				}
+				cancel() // Cancel context to signal all goroutines
+				close(stopChan)
+				close(doneChan)
+				// Perform graceful shutdown
+				if err := shutdownMgr.Shutdown(context.Background()); err != nil {
+					log.Error("Shutdown error: %v", err)
+					return err
+				}
+			}
 		case <-doneChan:
+			// Perform graceful shutdown on normal exit
+			if err := shutdownMgr.Shutdown(context.Background()); err != nil {
+				log.Error("Shutdown error: %v", err)
+				return err
+			}
 			return nil
 		}
 	}

@@ -28,6 +28,9 @@ type StoreClient interface {
 	// HealthCheck verifies the backend connection is healthy.
 	// Returns nil if the connection is healthy, otherwise returns an error.
 	HealthCheck(ctx context.Context) error
+	// Close releases any resources held by the client.
+	// It should be called when the client is no longer needed.
+	Close() error
 }
 
 // Re-export types for convenience
