@@ -27,16 +27,16 @@ if [[ ! -f /tmp/confd-functions-test.conf ]]; then
     exit 1
 fi
 
-if ! diff -q /tmp/confd-functions-test.conf test/integration/functions/expect/functions.conf > /dev/null 2>&1; then
+if ! diff -q /tmp/confd-functions-test.conf test/integration/features/functions/expect/functions.conf > /dev/null 2>&1; then
     echo "ERROR: Template functions output mismatch"
     echo "=== Expected ==="
-    cat test/integration/functions/expect/functions.conf
+    cat test/integration/features/functions/expect/functions.conf
     echo ""
     echo "=== Actual ==="
     cat /tmp/confd-functions-test.conf
     echo ""
     echo "=== Diff ==="
-    diff test/integration/functions/expect/functions.conf /tmp/confd-functions-test.conf || true
+    diff test/integration/features/functions/expect/functions.conf /tmp/confd-functions-test.conf || true
     exit 1
 fi
 
