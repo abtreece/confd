@@ -63,6 +63,93 @@ go test -run TestFunctionName ./pkg/template/
 # Integration tests require running backend services (see .github/workflows/integration-tests.yml)
 ```
 
+## Integration Test Structure
+
+Integration tests are organized into categorical directories for clarity and maintainability:
+
+```
+test/integration/
+├── backends/         # Backend-specific tests (13 backends)
+│   ├── acm/
+│   ├── consul/
+│   ├── dynamodb/
+│   ├── env/
+│   ├── etcd/
+│   ├── file/
+│   ├── imds/
+│   ├── redis/
+│   ├── secretsmanager/
+│   ├── ssm/
+│   ├── vault/       # Vault tests consolidated by auth/version
+│   │   ├── approle/
+│   │   ├── kv-v1/
+│   │   └── kv-v2/
+│   └── zookeeper/
+├── features/         # Feature/capability tests
+│   ├── commands/     # check_cmd and reload_cmd
+│   ├── failuremode/  # best-effort vs fail-fast
+│   ├── functions/    # Template functions
+│   ├── include/      # Template includes
+│   ├── per-resource-backend/  # Backend override per template
+│   └── permissions/  # File mode handling
+├── operations/       # Operational/runtime tests
+│   ├── healthcheck/  # /health, /ready endpoints
+│   ├── metrics/      # Prometheus metrics
+│   └── signals/      # SIGHUP, SIGTERM handling
+├── validation/       # Error handling tests
+│   └── negative/     # Invalid config rejection
+└── shared/           # Shared test resources
+    ├── confdir/      # Common template resources
+    ├── data/         # Test data loaders
+    └── expect/       # Expected output files
+```
+
+### Test Categories
+
+**Backend Tests** (`backends/`): Each backend has its own directory with a `test.sh` script that:
+- Waits for backend service readiness
+- Loads test data using backend-specific CLI tools
+- Runs confd with `--onetime` flag
+- Validates output against expected results
+
+**Feature Tests** (`features/`): Test specific confd capabilities:
+- `commands/` - check_cmd and reload_cmd execution
+- `failuremode/` - Error handling modes (best-effort vs fail-fast)
+- `functions/` - Template function validation
+- `include/` - Template include with cycle detection
+- `per-resource-backend/` - Backend override at template level
+- `permissions/` - File mode (0644, 0600, 0755) application
+
+**Operations Tests** (`operations/`): Test runtime behavior:
+- `healthcheck/` - Health and readiness endpoints
+- `metrics/` - Prometheus metrics endpoint
+- `signals/` - Signal handling (SIGHUP, SIGTERM)
+
+**Validation Tests** (`validation/`): Test error conditions:
+- `negative/` - Invalid backend types, malformed TOML, template syntax errors
+
+**Shared Resources** (`shared/`): Resources used by multiple tests:
+- `confdir/` - Common template configurations
+- `data/` - Centralized test data definitions and loaders
+- `expect/` - Expected output files for validation
+
+### Running Integration Tests
+
+Integration tests are executed in CI via `.github/workflows/integration-tests.yml`:
+
+```bash
+# Standalone tests (no external services required)
+test/integration/backends/env/test.sh
+test/integration/backends/file/test_yaml.sh
+test/integration/features/commands/test.sh
+
+# Backend tests (require backend services)
+test/integration/backends/consul/test.sh
+test/integration/backends/etcd/test.sh
+
+# Run all tests via CI workflow
+```
+
 ## Architecture
 
 ### Package Structure
