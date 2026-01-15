@@ -1,5 +1,6 @@
 bin/
 dist/
+plans/
 
 .DS_Store
 coverage.out
