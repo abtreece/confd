@@ -38,6 +38,7 @@ Optional:
 * `file` (array of strings) - The YAML file to watch for changes (file backend only).
 * `filter` (string) - Files filter (file backend only) (default "*").
 * `path` (string) - Vault mount path of the auth method (vault backend only).
+* `imds_cache_ttl` (duration) - Cache TTL for IMDS metadata (imds backend only) (default "60s").
 
 Example:
 

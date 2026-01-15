@@ -61,6 +61,7 @@ Commands:
   ssm           Use AWS SSM Parameter Store backend
   acm           Use AWS ACM backend
   secretsmanager Use AWS Secrets Manager backend
+  imds          Use AWS EC2 IMDS backend
   env           Use environment variables backend
   file          Use file backend
 
@@ -189,6 +190,18 @@ confd acm --help
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--acm-export-private-key` | Enable private key export | `false` |
+
+### imds
+
+```bash
+confd imds --help
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--imds-cache-ttl` | Cache TTL for metadata (e.g., 60s, 5m) | `60s` |
+
+**Note**: IMDS backend only works on EC2 instances with IMDSv2 enabled.
 
 ### env
 

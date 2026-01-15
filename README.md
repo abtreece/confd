@@ -10,12 +10,12 @@
 
 * keeping local configuration files up-to-date using data stored in [etcd](https://github.com/etcd-io/etcd),
   [consul](http://consul.io), [dynamodb](http://aws.amazon.com/dynamodb/), [redis](http://redis.io),
-  [vault](https://vaultproject.io), [zookeeper](https://zookeeper.apache.org), [aws ssm parameter store](https://aws.amazon.com/ec2/systems-manager/), [aws secrets manager](https://aws.amazon.com/secrets-manager/), [aws acm](https://aws.amazon.com/certificate-manager/), or env vars and processing [template resources](docs/template-resources.md).
+  [vault](https://vaultproject.io), [zookeeper](https://zookeeper.apache.org), [aws ssm parameter store](https://aws.amazon.com/ec2/systems-manager/), [aws secrets manager](https://aws.amazon.com/secrets-manager/), [aws acm](https://aws.amazon.com/certificate-manager/), [aws ec2 imds](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html), or env vars and processing [template resources](docs/template-resources.md).
 * reloading applications to pick up new config file changes
 
 ## Features
 
-- **Multiple Backends**: etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM/Secrets Manager/ACM, environment variables, and files
+- **Multiple Backends**: etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM/Secrets Manager/ACM/IMDS, environment variables, and files
 - **Template Processing**: Go text/template with custom functions for configuration generation
 - **Watch Mode**: Real-time config updates for supported backends (Consul, etcd, Redis, Zookeeper, env, file)
 - **Polling Mode**: Configurable interval-based polling for all backends
@@ -74,9 +74,12 @@ confd etcd --watch --batch-interval 5s
 ### Interval polling
 
 ```bash
-# Poll every 60 seconds
+# Poll Vault every 60 seconds
 confd vault --node http://127.0.0.1:8200 --interval 60 \
   --auth-type token --auth-token s.XXX
+
+# Poll EC2 IMDS for instance metadata (on EC2 instances)
+confd imds --interval 300
 ```
 
 ## Metrics and Observability
@@ -239,6 +242,7 @@ confd --noop --diff --color etcd
 | SSM | ❌ | ✅ | AWS SDK |
 | Secrets Manager | ❌ | ✅ | AWS SDK |
 | ACM | ❌ | ✅ | AWS SDK |
+| IMDS | ❌ | ✅ | AWS SDK (IMDSv2) |
 
 ## Development
 

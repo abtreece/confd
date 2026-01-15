@@ -19,6 +19,7 @@ confd supports the following backends:
 | [ssm](../pkg/backends/ssm/README.md) | AWS Systems Manager Parameter Store | No | [Details](../pkg/backends/ssm/README.md) |
 | [secretsmanager](../pkg/backends/secretsmanager/README.md) | AWS Secrets Manager | No | [Details](../pkg/backends/secretsmanager/README.md) |
 | [acm](../pkg/backends/acm/README.md) | AWS Certificate Manager | No | [Details](../pkg/backends/acm/README.md) |
+| [imds](../pkg/backends/imds/README.md) | AWS EC2 Instance Metadata Service | No | [Details](../pkg/backends/imds/README.md) |
 
 This quick start uses the **env** and **file** backends which require no external services. For production use cases, see the backend-specific documentation linked above.
 
