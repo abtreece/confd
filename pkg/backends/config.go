@@ -34,6 +34,7 @@ type Config struct {
 	ACMExportPrivateKey          bool   `toml:"acm_export_private_key"`
 	SecretsManagerVersionStage   string `toml:"secretsmanager_version_stage"`
 	SecretsManagerNoFlatten      bool   `toml:"secretsmanager_no_flatten"`
+	IMDSCacheTTL                 time.Duration `toml:"imds_cache_ttl"`
 
 	// Connection timeouts
 	DialTimeout  time.Duration `toml:"dial_timeout"`
@@ -66,5 +67,8 @@ func (c *Config) ApplyTimeoutDefaults() {
 	}
 	if c.RetryMaxDelay == 0 {
 		c.RetryMaxDelay = 5 * time.Second
+	}
+	if c.IMDSCacheTTL == 0 {
+		c.IMDSCacheTTL = 60 * time.Second
 	}
 }
