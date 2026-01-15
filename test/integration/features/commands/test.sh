@@ -23,8 +23,8 @@ confd env --onetime --log-level debug --confdir ./test/integration/features/comm
 
 # Create a temporary confdir with just the check_cmd test
 mkdir -p /tmp/confd-cmd-test/conf.d /tmp/confd-cmd-test/templates
-cp test/integration/commands/confdir/conf.d/check_cmd.toml /tmp/confd-cmd-test/conf.d/
-cp test/integration/commands/confdir/templates/check.conf.tmpl /tmp/confd-cmd-test/templates/
+cp test/integration/features/commands/confdir/conf.d/check_cmd.toml /tmp/confd-cmd-test/conf.d/
+cp test/integration/features/commands/confdir/templates/check.conf.tmpl /tmp/confd-cmd-test/templates/
 
 confd env --onetime --log-level debug --confdir /tmp/confd-cmd-test
 
@@ -33,9 +33,9 @@ if [[ ! -f /tmp/confd-check-cmd-test.conf ]]; then
     exit 1
 fi
 
-if ! diff -q /tmp/confd-check-cmd-test.conf test/integration/commands/expect/check.conf > /dev/null 2>&1; then
+if ! diff -q /tmp/confd-check-cmd-test.conf test/integration/features/commands/expect/check.conf > /dev/null 2>&1; then
     echo "ERROR: check_cmd test - output mismatch"
-    diff test/integration/commands/expect/check.conf /tmp/confd-check-cmd-test.conf || true
+    diff test/integration/features/commands/expect/check.conf /tmp/confd-check-cmd-test.conf || true
     exit 1
 fi
 echo "OK: check_cmd with successful command"
@@ -43,8 +43,8 @@ echo "OK: check_cmd with successful command"
 # Test 2: reload_cmd execution
 echo "Test 2: reload_cmd execution"
 rm -rf /tmp/confd-cmd-test/conf.d/*
-cp test/integration/commands/confdir/conf.d/reload_cmd.toml /tmp/confd-cmd-test/conf.d/
-cp test/integration/commands/confdir/templates/reload.conf.tmpl /tmp/confd-cmd-test/templates/
+cp test/integration/features/commands/confdir/conf.d/reload_cmd.toml /tmp/confd-cmd-test/conf.d/
+cp test/integration/features/commands/confdir/templates/reload.conf.tmpl /tmp/confd-cmd-test/templates/
 
 confd env --onetime --log-level debug --confdir /tmp/confd-cmd-test
 
@@ -64,9 +64,9 @@ if [[ "$(cat /tmp/confd-reload-marker)" != "reloaded" ]]; then
     exit 1
 fi
 
-if ! diff -q /tmp/confd-reload-cmd-test.conf test/integration/commands/expect/reload.conf > /dev/null 2>&1; then
+if ! diff -q /tmp/confd-reload-cmd-test.conf test/integration/features/commands/expect/reload.conf > /dev/null 2>&1; then
     echo "ERROR: reload_cmd test - output mismatch"
-    diff test/integration/commands/expect/reload.conf /tmp/confd-reload-cmd-test.conf || true
+    diff test/integration/features/commands/expect/reload.conf /tmp/confd-reload-cmd-test.conf || true
     exit 1
 fi
 echo "OK: reload_cmd execution"
@@ -77,8 +77,8 @@ echo "OK: reload_cmd execution"
 echo "Test 3: check_cmd failure handling"
 rm -rf /tmp/confd-cmd-test/conf.d/*
 rm -f /tmp/confd-check-fail-test.conf
-cp test/integration/commands/confdir/conf.d/check_fail.toml /tmp/confd-cmd-test/conf.d/
-cp test/integration/commands/confdir/templates/check_fail.conf.tmpl /tmp/confd-cmd-test/templates/
+cp test/integration/features/commands/confdir/conf.d/check_fail.toml /tmp/confd-cmd-test/conf.d/
+cp test/integration/features/commands/confdir/templates/check_fail.conf.tmpl /tmp/confd-cmd-test/templates/
 
 # This should complete but the file should not exist (check_cmd failed)
 confd env --onetime --log-level debug --confdir /tmp/confd-cmd-test 2>&1 || true
