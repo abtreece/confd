@@ -27,6 +27,10 @@ func (m *mockStoreClient) HealthCheck(ctx context.Context) error {
 	return m.healthError
 }
 
+func (m *mockStoreClient) Close() error {
+	return nil
+}
+
 func TestWrapStoreClient_NoOpWhenMetricsDisabled(t *testing.T) {
 	// Reset state - metrics disabled
 	Registry = nil

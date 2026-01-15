@@ -1,0 +1,40 @@
+[Unit]
+Description=confd configuration management
+Documentation=https://github.com/abtreece/confd
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=confd
+Group=confd
+
+# Main service command without systemd integration
+ExecStart=/usr/local/bin/confd etcd \
+  --watch \
+  --log-level=info
+
+# Reload configuration on SIGHUP
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Graceful shutdown
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Restart behavior
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/confd /etc/confd
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

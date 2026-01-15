@@ -247,3 +247,8 @@ func (c *ConsulClient) HealthCheckDetailed(ctx context.Context) (*types.HealthRe
 		},
 	}, nil
 }
+
+// Close is a no-op for this backend.
+func (c *ConsulClient) Close() error {
+	return nil
+}

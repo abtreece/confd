@@ -25,6 +25,10 @@ func (m *healthMockClient) HealthCheck(ctx context.Context) error {
 	return m.healthError
 }
 
+func (m *healthMockClient) Close() error {
+	return nil
+}
+
 func TestHealthHandler_ReturnsOK(t *testing.T) {
 	client := &healthMockClient{}
 	handler := HealthHandler(client)

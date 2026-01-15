@@ -259,6 +259,11 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 	}, nil
 }
 
+// Close is a no-op for this backend.
+func (c *Client) Close() error {
+	return nil
+}
+
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	if waitIndex == 0 {
 		return 1, nil

@@ -105,3 +105,8 @@ func (c *InstrumentedClient) HealthCheckDetailed(ctx context.Context) (*types.He
 
 	return result, err
 }
+
+// Close closes the wrapped backend client.
+func (c *InstrumentedClient) Close() error {
+	return c.client.Close()
+}

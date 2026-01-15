@@ -37,6 +37,10 @@ func (m *mockBackendStoreClient) HealthCheck(ctx context.Context) error {
 	return nil // Default to healthy
 }
 
+func (m *mockBackendStoreClient) Close() error {
+	return nil
+}
+
 func TestNewBackendFetcher(t *testing.T) {
 	store := memkv.New()
 	client := &mockBackendStoreClient{}

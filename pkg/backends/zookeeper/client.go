@@ -259,3 +259,13 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 		},
 	}, nil
 }
+
+// Close closes the Zookeeper client connection.
+func (c *Client) Close() error {
+	if c.conn != nil {
+		c.conn.Close()
+		c.conn = nil
+		c.client = nil
+	}
+	return nil
+}

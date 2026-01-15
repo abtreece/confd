@@ -32,6 +32,22 @@ make snapshot       # Build snapshot release via goreleaser
 make release        # Build release via goreleaser
 ```
 
+## Dependency Management
+
+**CRITICAL**: CI builds use `-mod=vendor` which requires all dependencies to be vendored.
+
+After adding new dependencies to `go.mod`, always run:
+
+```bash
+go mod vendor
+git add vendor/
+```
+
+This ensures CI integration tests can build successfully. Without vendoring, CI will fail with:
+```
+cannot find module providing package X: import lookup disabled by -mod=vendor
+```
+
 ## Running Tests
 
 ```bash
