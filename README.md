@@ -231,18 +231,18 @@ confd --noop --diff --color etcd
 
 | Backend | Watch Mode | Polling | Authentication |
 |---------|------------|---------|----------------|
-| etcd | ✅ | ✅ | Basic, TLS, Token |
-| Consul | ✅ | ✅ | Basic, TLS, Token |
-| Redis | ✅ | ✅ | Password |
-| Zookeeper | ✅ | ✅ | None |
-| Env | ✅ | ✅ | None |
-| File | ✅ | ✅ | None |
-| Vault | ❌ | ✅ | Token, AppRole, App-ID, Kubernetes |
-| DynamoDB | ❌ | ✅ | AWS SDK |
-| SSM | ❌ | ✅ | AWS SDK |
-| Secrets Manager | ❌ | ✅ | AWS SDK |
-| ACM | ❌ | ✅ | AWS SDK |
-| IMDS | ❌ | ✅ | AWS SDK (IMDSv2) |
+| [etcd](pkg/backends/etcd/README.md) | ✅ | ✅ | Basic, TLS, Token |
+| [Consul](pkg/backends/consul/README.md) | ✅ | ✅ | Basic, TLS, Token |
+| [Redis](pkg/backends/redis/README.md) | ✅ | ✅ | Password |
+| [Zookeeper](pkg/backends/zookeeper/README.md) | ✅ | ✅ | None |
+| [Env](pkg/backends/env/README.md) | ✅ | ✅ | None |
+| [File](pkg/backends/file/README.md) | ✅ | ✅ | None |
+| [Vault](pkg/backends/vault/README.md) | ❌ | ✅ | Token, AppRole, App-ID, Kubernetes |
+| [DynamoDB](pkg/backends/dynamodb/README.md) | ❌ | ✅ | AWS SDK |
+| [SSM](pkg/backends/ssm/README.md) | ❌ | ✅ | AWS SDK |
+| [Secrets Manager](pkg/backends/secretsmanager/README.md) | ❌ | ✅ | AWS SDK |
+| [ACM](pkg/backends/acm/README.md) | ❌ | ✅ | AWS SDK |
+| [IMDS](pkg/backends/imds/README.md) | ❌ | ✅ | AWS SDK (IMDSv2) |
 
 ## Development
 
