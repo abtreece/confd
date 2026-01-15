@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -508,10 +509,10 @@ func TestWatchPrefix(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	callCount := 0
+	var callCount atomic.Int32
 	mock := &mockIMDS{
 		getMetadataFunc: func(ctx context.Context, params *imds.GetMetadataInput, optFns ...func(*imds.Options)) (*imds.GetMetadataOutput, error) {
-			callCount++
+			callCount.Add(1)
 			time.Sleep(1 * time.Millisecond) // Simulate network delay
 			if params.Path == "instance-id" {
 				return mockResponse("i-1234567890abcdef0"), nil
@@ -543,15 +544,15 @@ func TestConcurrentAccess(t *testing.T) {
 	// With concurrent requests, all may check cache before any populate it
 	// This is expected behavior - cache works for subsequent requests
 	// We just verify that the operations complete successfully
-	t.Logf("Concurrent requests made %d IMDS calls", callCount)
+	t.Logf("Concurrent requests made %d IMDS calls", callCount.Load())
 
 	// Verify cache works for a subsequent request
-	callCountBefore := callCount
+	callCountBefore := callCount.Load()
 	_, err := client.GetValues(ctx, []string{"/meta-data/instance-id"})
 	if err != nil {
 		t.Errorf("Subsequent GetValues failed: %v", err)
 	}
-	if callCount > callCountBefore {
+	if callCount.Load() > callCountBefore {
 		t.Errorf("Cache not working: subsequent request made another IMDS call")
 	}
 }
