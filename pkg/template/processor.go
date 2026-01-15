@@ -160,7 +160,8 @@ func (p *watchProcessor) Process() {
 		stopMonitor := make(chan bool)
 		go func() {
 			select {
-			case <-p.internalStop:
+			case <-p.stopChan:
+				// External stop signal - propagate to internal
 				close(p.internalStop)
 				close(stopMonitor)
 			case <-p.reloadChan:
@@ -179,12 +180,8 @@ func (p *watchProcessor) Process() {
 		}
 		p.wg.Wait()
 
-		// Clean up the stop monitor
-		select {
-		case <-stopMonitor:
-		default:
-			close(stopMonitor)
-		}
+		// Clean up the stop monitor (don't close, just wait)
+		<-stopMonitor
 
 		// If it was a real stop (not reload), exit
 		if !p.reloadRequested {
@@ -356,12 +353,8 @@ func (p *batchWatchProcessor) Process() {
 
 		p.wg.Wait()
 
-		// Clean up the stop monitor
-		select {
-		case <-stopMonitor:
-		default:
-			close(stopMonitor)
-		}
+		// Clean up the stop monitor (don't close, just wait)
+		<-stopMonitor
 
 		// If it was a real stop (not reload), exit
 		if !p.reloadRequested {

@@ -21,19 +21,18 @@ func NewReloadManager() *ReloadManager {
 }
 
 // Subscribe registers a channel to receive reload notifications.
-// The channel will be closed when a reload is triggered.
-// Returns the reload channel.
+// Returns the reload channel that will receive signals (not be closed).
 func (r *ReloadManager) Subscribe() chan struct{} {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	reloadChan := make(chan struct{})
+	reloadChan := make(chan struct{}, 1) // Buffered to prevent blocking
 	r.subscribers = append(r.subscribers, reloadChan)
 	return reloadChan
 }
 
 // TriggerReload initiates a configuration reload.
-// It clears the template cache and notifies all subscribers.
+// It clears the template cache and sends signals to all subscribers.
 func (r *ReloadManager) TriggerReload() {
 	log.Info("Triggering configuration reload")
 
@@ -41,15 +40,18 @@ func (r *ReloadManager) TriggerReload() {
 	template.ClearTemplateCache()
 	log.Debug("Template cache cleared")
 
-	// Notify all subscribers
-	r.mu.Lock()
-	oldSubscribers := r.subscribers
-	r.subscribers = make([]chan struct{}, 0)
-	r.mu.Unlock()
+	// Send signal to all subscribers (non-blocking)
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-	for _, ch := range oldSubscribers {
-		close(ch)
+	for _, ch := range r.subscribers {
+		select {
+		case ch <- struct{}{}:
+			// Signal sent successfully
+		default:
+			// Channel buffer full (reload already pending), skip
+		}
 	}
 
-	log.Info("Reload notification sent to %d subscriber(s)", len(oldSubscribers))
+	log.Info("Reload notification sent to %d subscriber(s)", len(r.subscribers))
 }

@@ -558,8 +558,6 @@ func run(cli *CLI, backendCfg backends.Config) error {
 					log.Warning("Failed to notify systemd reloading: %v", err)
 				}
 				reloadMgr.TriggerReload()
-				// Get a new reload channel for the next reload
-				reloadChan = reloadMgr.Subscribe()
 				// Notify systemd we're ready again
 				if err := systemdNotifier.NotifyReady(); err != nil {
 					log.Warning("Failed to notify systemd ready: %v", err)
@@ -572,12 +570,14 @@ func run(cli *CLI, backendCfg backends.Config) error {
 				}
 				cancel() // Cancel context to signal all goroutines
 				close(stopChan)
-				close(doneChan)
-				// Perform graceful shutdown
+				// Wait for processor to finish and close doneChan
+				// Perform graceful shutdown after processor exits
+				<-doneChan
 				if err := shutdownMgr.Shutdown(context.Background()); err != nil {
 					log.Error("Shutdown error: %v", err)
 					return err
 				}
+				return nil
 			}
 		case <-doneChan:
 			// Perform graceful shutdown on normal exit
