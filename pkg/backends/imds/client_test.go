@@ -512,7 +512,7 @@ func TestConcurrentAccess(t *testing.T) {
 	mock := &mockIMDS{
 		getMetadataFunc: func(ctx context.Context, params *imds.GetMetadataInput, optFns ...func(*imds.Options)) (*imds.GetMetadataOutput, error) {
 			callCount++
-			time.Sleep(10 * time.Millisecond) // Simulate network delay
+			time.Sleep(1 * time.Millisecond) // Simulate network delay
 			if params.Path == "instance-id" {
 				return mockResponse("i-1234567890abcdef0"), nil
 			}

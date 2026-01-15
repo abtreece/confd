@@ -37,14 +37,28 @@ trap cleanup EXIT
 check_ec2() {
     log_info "Checking if running on EC2 instance..."
 
-    # Try to reach IMDS endpoint with a short timeout
-    if curl -s -m 2 -f http://169.254.169.254/latest/meta-data/instance-id > /dev/null 2>&1; then
-        log_info "Running on EC2 instance - IMDS available"
-        return 0
-    else
-        log_warn "Not running on EC2 or IMDS not available"
-        return 1
+    # Prefer IMDSv2 (token-based); fall back to IMDSv1 if token is not available
+    local token
+    token="$(curl -s -m 2 -X PUT "http://169.254.169.254/latest/api/token" \
+        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null || true)"
+
+    if [[ -n "${token}" ]]; then
+        # IMDSv2: use the token to query instance-id
+        if curl -s -m 2 -f -H "X-aws-ec2-metadata-token: ${token}" \
+            "http://169.254.169.254/latest/meta-data/instance-id" > /dev/null 2>&1; then
+            log_info "Running on EC2 instance - IMDSv2 available"
+            return 0
+        fi
     fi
+
+    # Fallback to IMDSv1 (no token). This may fail if HttpTokens=required.
+    if curl -s -m 2 -f "http://169.254.169.254/latest/meta-data/instance-id" > /dev/null 2>&1; then
+        log_info "Running on EC2 instance - IMDSv1 available"
+        return 0
+    fi
+
+    log_warn "Not running on EC2 or IMDS not available"
+    return 1
 }
 
 # Test basic functionality

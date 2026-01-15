@@ -99,7 +99,9 @@ func New(cacheTTL, dialTimeout time.Duration) (*Client, error) {
 	// Create IMDS client with custom endpoint support for testing
 	opts := []func(*imds.Options){
 		func(o *imds.Options) {
-			// Support custom endpoint for testing
+			// Support custom endpoint override via IMDS_ENDPOINT for testing/non-production only.
+			// WARNING: Overriding the IMDS endpoint can be a security risk in production and should
+			// not be used there, as it may allow redirection of metadata requests to a malicious service.
 			if endpoint := os.Getenv("IMDS_ENDPOINT"); endpoint != "" {
 				o.Endpoint = endpoint
 			}
@@ -263,7 +265,11 @@ func (c *Client) getMetadata(ctx context.Context, path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get metadata: %w", err)
 	}
-	defer output.Content.Close()
+	defer func() {
+		if closeErr := output.Content.Close(); closeErr != nil {
+			log.Debug("Failed to close metadata response: %v", closeErr)
+		}
+	}()
 
 	content, err := io.ReadAll(output.Content)
 	if err != nil {
@@ -281,7 +287,11 @@ func (c *Client) getDynamicData(ctx context.Context, path string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("failed to get dynamic data: %w", err)
 	}
-	defer output.Content.Close()
+	defer func() {
+		if closeErr := output.Content.Close(); closeErr != nil {
+			log.Debug("Failed to close dynamic data response: %v", closeErr)
+		}
+	}()
 
 	content, err := io.ReadAll(output.Content)
 	if err != nil {
@@ -297,7 +307,11 @@ func (c *Client) getUserData(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get user data: %w", err)
 	}
-	defer output.Content.Close()
+	defer func() {
+		if closeErr := output.Content.Close(); closeErr != nil {
+			log.Debug("Failed to close user data response: %v", closeErr)
+		}
+	}()
 
 	content, err := io.ReadAll(output.Content)
 	if err != nil {
@@ -344,7 +358,9 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 		result.Duration = types.DurationMillis(time.Since(start))
 		return result, nil
 	}
-	output.Content.Close()
+	if closeErr := output.Content.Close(); closeErr != nil {
+		log.Debug("Failed to close IMDS response: %v", closeErr)
+	}
 
 	result.Duration = types.DurationMillis(time.Since(start))
 	result.Message = "IMDS available"
