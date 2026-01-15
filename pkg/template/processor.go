@@ -158,6 +158,10 @@ func (p *watchProcessor) Process() {
 
 		// Start a goroutine to monitor for reload/stop signals
 		stopMonitor := make(chan bool)
+		ctx := p.config.Ctx
+		if ctx == nil {
+			ctx = context.Background()
+		}
 		go func() {
 			select {
 			case <-p.stopChan:
@@ -167,6 +171,11 @@ func (p *watchProcessor) Process() {
 			case <-p.reloadChan:
 				log.Info("Reloading template resources (watch processor)")
 				p.reloadRequested = true
+				close(p.internalStop)
+				close(stopMonitor)
+			case <-ctx.Done():
+				// Context cancelled - stop watching
+				log.Debug("Context cancelled, stopping watch processor")
 				close(p.internalStop)
 				close(stopMonitor)
 			}
@@ -327,6 +336,10 @@ func (p *batchWatchProcessor) Process() {
 
 		// Start a goroutine to monitor for reload/stop signals
 		stopMonitor := make(chan bool)
+		ctx := p.config.Ctx
+		if ctx == nil {
+			ctx = context.Background()
+		}
 		go func() {
 			select {
 			case <-p.stopChan:
@@ -335,6 +348,11 @@ func (p *batchWatchProcessor) Process() {
 			case <-p.reloadChan:
 				log.Info("Reloading template resources (batch watch processor)")
 				p.reloadRequested = true
+				close(p.internalStop)
+				close(stopMonitor)
+			case <-ctx.Done():
+				// Context cancelled - stop watching
+				log.Debug("Context cancelled, stopping batch watch processor")
 				close(p.internalStop)
 				close(stopMonitor)
 			}
