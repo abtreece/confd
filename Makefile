@@ -27,7 +27,7 @@ integration:
 	@for i in `find ./test/integration -name test.sh`; do \
 		echo "Running $$i"; \
 		bash $$i || exit 1; \
-		bash test/integration/expect/check.sh || exit 1; \
+		bash test/integration/shared/expect/check.sh || exit 1; \
 		rm /tmp/confd-*; \
 	done
 

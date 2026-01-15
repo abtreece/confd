@@ -1,32 +1,134 @@
 # Release Checklist
 
-In order to cut a new release, a few things must be done:
+This project uses [GoReleaser](https://goreleaser.com/) to automate releases. Follow these steps to cut a new release:
 
-1. auto-generate the CHANGELOG using the provided script
-2. bump version.go and docs/installation.md to the new release
-3. push a tag for the new release
-4. draft a [new release](https://github.com/abtreece/confd/releases/new)
-5. bump version.go to the next release, appending `-dev`
+## Prerequisites
 
-For the former, you can use the following script:
+- GoReleaser installed (`brew install goreleaser` on macOS)
+- Push access to the repository
+- All CI checks passing on main branch
 
-    $ echo -e "$(./contrib/generate-changelog.sh v$LATEST_RELEASE)\n" | cat - CHANGELOG | sponge CHANGELOG
+## Release Process
 
-You can find `sponge` in the `moreutils` package on Ubuntu.
+### 1. Prepare the Release
 
-This script will generate all merged changes since $LATEST_RELEASE and append it to the top of the CHANGELOG. However, this will show up as "HEAD" at the top:
+Ensure the codebase is ready:
+```bash
+# Run tests
+make test
 
-    $ ./contrib/generate-changelog.sh v$LATEST_RELEASE
-    ### HEAD
+# Run linter
+make lint
 
-    abc123 Some merged PR summary
-    ...
+# Test build locally
+make build
+```
 
-You'll need to manually modify "HEAD" to show up as the latest release.
+### 2. Update Version
 
-When drafting a new release, you must make sure that a `darwin`, `linux` and `windows` build of confd have
-been uploaded. You must have Docker installed to build release binaries:
+Update the version in `cmd/confd/version.go`:
+```go
+const Version = "0.XX.0"
+```
 
-    $ make release
+**Important**: Do not append `-dev` suffix for releases. The `-dev` suffix is only used between releases.
 
-You can then drag and drop these binaries into the release draft.
+### 3. Update Installation Documentation
+
+Update version references in `docs/installation.md`:
+- Binary download URLs
+- Docker ARG CONFD_VERSION
+- Multi-stage build ARG CONFD_VERSION
+
+Example:
+```bash
+# Find and replace version
+sed -i '' 's/v0.30.0/v0.31.0/g' docs/installation.md
+sed -i '' 's/0.30.0/0.31.0/g' docs/installation.md
+```
+
+### 4. Commit Version Changes
+
+```bash
+git add cmd/confd/version.go docs/installation.md
+git commit -m "chore: bump version to 0.XX.0"
+git push origin main
+```
+
+### 5. Create and Push Tag
+
+```bash
+# Create annotated tag
+git tag -a v0.XX.0 -m "Release v0.XX.0"
+
+# Push tag (this triggers GoReleaser via GitHub Actions)
+git push origin v0.XX.0
+```
+
+### 6. Monitor Release
+
+GoReleaser will automatically:
+- Build binaries for all platforms (darwin, linux, windows)
+- Create archives (.tar.gz for unix, .zip for windows)
+- Generate checksums
+- Create GitHub release with auto-generated changelog
+- Upload all artifacts to the release
+
+Monitor the GitHub Actions workflow at:
+https://github.com/abtreece/confd/actions
+
+### 7. Verify Release
+
+Once complete:
+1. Visit https://github.com/abtreece/confd/releases
+2. Verify the new release is published
+3. Check that all binaries are attached
+4. Review the auto-generated changelog
+
+### 8. Bump to Next Development Version
+
+After the release is published, bump the version for development:
+
+```bash
+# Update to next version with -dev suffix
+# Edit cmd/confd/version.go
+const Version = "0.XX.0-dev"
+
+git add cmd/confd/version.go
+git commit -m "chore: bump version to 0.XX.0-dev"
+git push origin main
+```
+
+## Manual Release (If Needed)
+
+If you need to release manually without CI:
+
+```bash
+# Clean release
+make release
+
+# Snapshot release (for testing)
+make snapshot
+```
+
+This will create binaries in `dist/` directory.
+
+## Troubleshooting
+
+**Issue**: GoReleaser fails with validation errors
+- **Solution**: Run `goreleaser check` locally to validate configuration
+
+**Issue**: Release artifacts missing
+- **Solution**: Check `.goreleaser.yml` configuration
+
+**Issue**: Changelog not generating correctly
+- **Solution**: Ensure commits follow [Conventional Commits](https://www.conventionalcommits.org/) format
+
+## Release Notes
+
+GoReleaser automatically generates release notes from commit messages. For better release notes:
+- Use conventional commit format: `feat:`, `fix:`, `docs:`, `chore:`, etc.
+- Write descriptive commit messages
+- Reference issues/PRs in commits: `fixes #123`
+
+Commits with `^docs:` and `^test:` prefixes are automatically excluded from changelogs (see `.goreleaser.yml`).
