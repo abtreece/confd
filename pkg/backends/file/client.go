@@ -170,6 +170,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 
 		// If it's a file (not a directory), verify read permissions by attempting to open it
 		if !fileInfo.IsDir() {
+			// #nosec G304 -- path is from configured filepath list, not user input
 			f, err := os.Open(path)
 			if err != nil {
 				duration := time.Since(start)
@@ -179,7 +180,9 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 					"error", err.Error())
 				return fmt.Errorf("file not readable: %s: %w", path, err)
 			}
-			f.Close()
+			if closeErr := f.Close(); closeErr != nil {
+				log.Warning("Failed to close file during health check: %v", closeErr)
+			}
 		}
 	}
 
@@ -220,6 +223,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			totalSize += fileInfo.Size()
 			fileCount++
 
+			// #nosec G304 -- path is from configured filepath list, not user input
 			f, err := os.Open(path)
 			if err != nil {
 				duration := time.Since(start)
@@ -234,7 +238,9 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 					},
 				}, err
 			}
-			f.Close()
+			if closeErr := f.Close(); closeErr != nil {
+				log.Warning("Failed to close file during detailed health check: %v", closeErr)
+			}
 		}
 	}
 
