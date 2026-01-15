@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	util "github.com/abtreece/confd/pkg/util"
 	"github.com/fsnotify/fsnotify"
@@ -157,7 +158,8 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	logger := log.With("backend", "file", "file_count", len(c.filepath))
 
 	for _, path := range c.filepath {
-		if _, err := os.Stat(path); err != nil {
+		fileInfo, err := os.Stat(path)
+		if err != nil {
 			duration := time.Since(start)
 			logger.ErrorContext(ctx, "Backend health check failed",
 				"duration_ms", duration.Milliseconds(),
@@ -165,12 +167,96 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 				"error", err.Error())
 			return fmt.Errorf("file not accessible: %s: %w", path, err)
 		}
+
+		// If it's a file (not a directory), verify read permissions by attempting to open it
+		if !fileInfo.IsDir() {
+			// #nosec G304 -- path is from configured filepath list, not user input
+			f, err := os.Open(path)
+			if err != nil {
+				duration := time.Since(start)
+				logger.ErrorContext(ctx, "Backend health check failed",
+					"duration_ms", duration.Milliseconds(),
+					"failed_path", path,
+					"error", err.Error())
+				return fmt.Errorf("file not readable: %s: %w", path, err)
+			}
+			if closeErr := f.Close(); closeErr != nil {
+				log.Warning("Failed to close file during health check: %v", closeErr)
+			}
+		}
 	}
 
 	duration := time.Since(start)
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the file backend.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	var totalSize int64
+	var fileCount int
+	pathList := make([]string, 0, len(c.filepath))
+
+	for _, path := range c.filepath {
+		fileInfo, err := os.Stat(path)
+		if err != nil {
+			duration := time.Since(start)
+			return &types.HealthResult{
+				Healthy:   false,
+				Message:   fmt.Sprintf("file not accessible: %s", path),
+				Duration:  types.DurationMillis(duration),
+				CheckedAt: time.Now(),
+				Details: map[string]string{
+					"failed_path": path,
+					"error":       err.Error(),
+				},
+			}, err
+		}
+
+		pathList = append(pathList, path)
+
+		// If it's a file (not a directory), add its size and verify read permissions
+		if !fileInfo.IsDir() {
+			totalSize += fileInfo.Size()
+			fileCount++
+
+			// #nosec G304 -- path is from configured filepath list, not user input
+			f, err := os.Open(path)
+			if err != nil {
+				duration := time.Since(start)
+				return &types.HealthResult{
+					Healthy:   false,
+					Message:   fmt.Sprintf("file not readable: %s", path),
+					Duration:  types.DurationMillis(duration),
+					CheckedAt: time.Now(),
+					Details: map[string]string{
+						"failed_path": path,
+						"error":       err.Error(),
+					},
+				}, err
+			}
+			if closeErr := f.Close(); closeErr != nil {
+				log.Warning("Failed to close file during detailed health check: %v", closeErr)
+			}
+		}
+	}
+
+	duration := time.Since(start)
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "All configured files are accessible and readable",
+		Duration:  types.DurationMillis(duration),
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"file_count":       fmt.Sprintf("%d", fileCount),
+			"total_size_bytes": fmt.Sprintf("%d", totalSize),
+			"paths":            strings.Join(pathList, ", "),
+		},
+	}, nil
 }
 
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {

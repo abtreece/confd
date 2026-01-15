@@ -10,18 +10,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
+	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 )
 
 // secretsManagerAPI defines the interface for Secrets Manager operations.
 // This allows for easy mocking in tests.
 type secretsManagerAPI interface {
 	GetSecretValue(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error)
+	ListSecrets(ctx context.Context, input *secretsmanager.ListSecretsInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error)
 }
 
 // Client is a wrapper around the AWS Secrets Manager client.
@@ -182,7 +184,7 @@ func (c *Client) getSecretCached(ctx context.Context, secretName string, cache m
 
 	resp, err := c.client.GetSecretValue(ctx, input)
 	if err != nil {
-		var notFoundErr *types.ResourceNotFoundException
+		var notFoundErr *smtypes.ResourceNotFoundException
 		if errors.As(err, &notFoundErr) {
 			log.Debug("Secret not found: %s", secretName)
 			cache[secretName] = nil
@@ -239,25 +241,20 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 }
 
 // HealthCheck verifies the backend connection is healthy.
-// It attempts to get a non-existent secret to verify AWS credentials and connectivity.
-// A "not found" error is expected and indicates successful connectivity.
+// It lists secrets with a limit of 1 to verify AWS credentials and connectivity.
+// An empty list indicates success (no secrets exist but connectivity works).
+// An error indicates a credentials or connectivity issue.
 func (c *Client) HealthCheck(ctx context.Context) error {
 	start := time.Now()
 	logger := log.With("backend", "secretsmanager")
 
-	_, err := c.client.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
-		SecretId: aws.String("confd-health-check-nonexistent"),
+	maxResults := int32(1)
+	_, err := c.client.ListSecrets(ctx, &secretsmanager.ListSecretsInput{
+		MaxResults: &maxResults,
 	})
 
 	duration := time.Since(start)
 	if err != nil {
-		var notFoundErr *types.ResourceNotFoundException
-		if errors.As(err, &notFoundErr) {
-			// Not found is expected and indicates connectivity is working
-			logger.InfoContext(ctx, "Backend health check passed",
-				"duration_ms", duration.Milliseconds())
-			return nil
-		}
 		logger.ErrorContext(ctx, "Backend health check failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err.Error())
@@ -267,4 +264,56 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the Secrets Manager backend.
+// Note: This method pages through all secrets to count them. For accounts with many secrets,
+// this may be slow and result in multiple API calls. Consider the performance implications
+// when calling this method frequently.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	// Count secrets by listing them (pages through all secrets)
+	var nextToken *string
+	secretCount := 0
+
+	for {
+		maxResults := int32(100)
+		result, err := c.client.ListSecrets(ctx, &secretsmanager.ListSecretsInput{
+			MaxResults: &maxResults,
+			NextToken:  nextToken,
+		})
+
+		if err != nil {
+			duration := time.Since(start)
+			return &types.HealthResult{
+				Healthy:   false,
+				Message:   fmt.Sprintf("Secrets Manager health check failed: %s", err.Error()),
+				Duration:  types.DurationMillis(duration),
+				CheckedAt: time.Now(),
+				Details: map[string]string{
+					"error": err.Error(),
+				},
+			}, err
+		}
+
+		secretCount += len(result.SecretList)
+
+		if result.NextToken == nil {
+			break
+		}
+		nextToken = result.NextToken
+	}
+
+	duration := time.Since(start)
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "Secrets Manager backend is healthy",
+		Duration:  types.DurationMillis(duration),
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"secret_count": fmt.Sprintf("%d", secretCount),
+		},
+	}, nil
 }

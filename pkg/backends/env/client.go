@@ -2,10 +2,12 @@ package env
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 )
 
@@ -69,4 +71,26 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the environment backend.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	allEnvVars := os.Environ()
+	envVarCount := len(allEnvVars)
+
+	checkedAt := time.Now()
+	duration := time.Since(start)
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "Environment backend is always healthy (no connectivity required)",
+		Duration:  types.DurationMillis(duration),
+		CheckedAt: checkedAt,
+		Details: map[string]string{
+			"env_var_count": fmt.Sprintf("%d", envVarCount),
+			"note":          "No network connectivity required for environment backend",
+		},
+	}, nil
 }

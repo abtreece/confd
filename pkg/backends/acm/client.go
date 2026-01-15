@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -208,4 +209,41 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the ACM backend.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	// List certificates to get count
+	paginator := acm.NewListCertificatesPaginator(c.client, &acm.ListCertificatesInput{})
+	certCount := 0
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			duration := time.Since(start)
+			return &types.HealthResult{
+				Healthy:   false,
+				Message:   fmt.Sprintf("ACM health check failed: %s", err.Error()),
+				Duration:  types.DurationMillis(duration),
+				CheckedAt: time.Now(),
+				Details: map[string]string{
+					"error": err.Error(),
+				},
+			}, err
+		}
+		certCount += len(page.CertificateSummaryList)
+	}
+
+	duration := time.Since(start)
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "ACM backend is healthy",
+		Duration:  types.DurationMillis(duration),
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"certificate_count": fmt.Sprintf("%d", certCount),
+		},
+	}, nil
 }

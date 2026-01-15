@@ -6,11 +6,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 // dynamoDBAPI defines the interface for DynamoDB operations used by this client.
@@ -77,8 +78,8 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 	vars := make(map[string]string)
 	for _, key := range keys {
 		// Check if we can find the single item
-		m := map[string]types.AttributeValue{
-			"key": &types.AttributeValueMemberS{Value: key},
+		m := map[string]dynamodbtypes.AttributeValue{
+			"key": &dynamodbtypes.AttributeValueMemberS{Value: key},
 		}
 		g, err := c.client.GetItem(ctx, &dynamodb.GetItemInput{Key: m, TableName: &c.table})
 		if err != nil {
@@ -87,7 +88,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 
 		if g.Item != nil {
 			if val, ok := g.Item["value"]; ok {
-				if s, ok := val.(*types.AttributeValueMemberS); ok {
+				if s, ok := val.(*dynamodbtypes.AttributeValueMemberS); ok {
 					vars[key] = s.Value
 				} else {
 					log.Warning("Skipping key '%s'. 'value' is not of type 'string'.", key)
@@ -104,8 +105,8 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 				"#k": "key",
 				"#v": "value",
 			},
-			ExpressionAttributeValues: map[string]types.AttributeValue{
-				":prefix": &types.AttributeValueMemberS{Value: key},
+			ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+				":prefix": &dynamodbtypes.AttributeValueMemberS{Value: key},
 			},
 			TableName: aws.String(c.table),
 		})
@@ -121,8 +122,8 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 				continue
 			}
 
-			keyStr, keyIsStr := keyAttr.(*types.AttributeValueMemberS)
-			valStr, valIsStr := valAttr.(*types.AttributeValueMemberS)
+			keyStr, keyIsStr := keyAttr.(*dynamodbtypes.AttributeValueMemberS)
+			valStr, valIsStr := valAttr.(*dynamodbtypes.AttributeValueMemberS)
 
 			if keyIsStr && valIsStr {
 				vars[keyStr.Value] = valStr.Value
@@ -159,4 +160,48 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the DynamoDB backend.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	result, err := c.client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: &c.table})
+
+	if err != nil {
+		duration := time.Since(start)
+		return &types.HealthResult{
+			Healthy:   false,
+			Message:   fmt.Sprintf("DynamoDB health check failed: %s", err.Error()),
+			Duration:  types.DurationMillis(duration),
+			CheckedAt: time.Now(),
+			Details: map[string]string{
+				"table": c.table,
+				"error": err.Error(),
+			},
+		}, err
+	}
+
+	tableStatus := "unknown"
+	itemCount := int64(0)
+	if result.Table != nil {
+		tableStatus = string(result.Table.TableStatus)
+		if result.Table.ItemCount != nil {
+			itemCount = *result.Table.ItemCount
+		}
+	}
+
+	duration := time.Since(start)
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "DynamoDB backend is healthy",
+		Duration:  types.DurationMillis(duration),
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"table":        c.table,
+			"table_status": tableStatus,
+			"item_count":   fmt.Sprintf("%d", itemCount),
+		},
+	}, nil
 }

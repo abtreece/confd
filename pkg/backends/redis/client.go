@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/redis/go-redis/v9"
 )
@@ -488,4 +489,57 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the redis backend.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	client, err := c.connectedClient(ctx)
+	if err != nil {
+		duration := time.Since(start)
+		return &types.HealthResult{
+			Healthy:   false,
+			Message:   fmt.Sprintf("Redis health check failed: %s", err.Error()),
+			Duration:  types.DurationMillis(duration),
+			CheckedAt: time.Now(),
+			Details: map[string]string{
+				"error": err.Error(),
+			},
+		}, err
+	}
+
+	// Get connection pool stats
+	stats := client.PoolStats()
+
+	// Get server info
+	info, err := client.Info(ctx, "server").Result()
+	version := "unknown"
+	if err == nil {
+		// Parse version from info string (format: "redis_version:x.x.x")
+		for _, line := range strings.Split(info, "\n") {
+			if strings.HasPrefix(line, "redis_version:") {
+				version = strings.TrimSpace(strings.TrimPrefix(line, "redis_version:"))
+				break
+			}
+		}
+	}
+
+	duration := time.Since(start)
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "Redis backend is healthy",
+		Duration:  types.DurationMillis(duration),
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"version":        version,
+			"hits":           fmt.Sprintf("%d", stats.Hits),
+			"misses":         fmt.Sprintf("%d", stats.Misses),
+			"timeouts":       fmt.Sprintf("%d", stats.Timeouts),
+			"total_conns":    fmt.Sprintf("%d", stats.TotalConns),
+			"idle_conns":     fmt.Sprintf("%d", stats.IdleConns),
+			"stale_conns":    fmt.Sprintf("%d", stats.StaleConns),
+		},
+	}, nil
 }
