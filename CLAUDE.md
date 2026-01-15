@@ -68,8 +68,10 @@ go test -run TestFunctionName ./pkg/template/
   - `include.go` - Template include function with cycle detection and max depth enforcement
   - `validate.go` - Configuration and template validation (syntax, required fields, backend types)
   - `preflight.go` - Pre-flight checks: backend connectivity, template loading, key accessibility
+  - `error_aggregator.go` - Error aggregation and failure mode handling (best-effort vs fail-fast)
 - **pkg/memkv/** - In-memory key-value store used by template processing
-- **pkg/log/** - Logging wrapper using logrus
+- **pkg/log/** - Logging wrapper using slog (Go's standard library structured logging)
+- **pkg/metrics/** - Prometheus metrics instrumentation for observability
 - **pkg/util/** - File operations, MD5 comparison utilities
 
 ### Execution Flow
@@ -127,3 +129,121 @@ Available functions in templates (defined in `pkg/template/template_funcs.go`):
 **Math functions**: `add`, `sub`, `div`, `mod`, `mul`
 
 **Include function**: `include` - Include other templates with cycle detection (max depth: 10)
+
+## Metrics and Observability
+
+confd provides comprehensive Prometheus metrics when enabled via `--metrics-addr`. The metrics endpoint also exposes health and readiness checks.
+
+### Enabling Metrics
+
+```bash
+confd etcd --metrics-addr :9100
+```
+
+Or via environment variable:
+```bash
+export CONFD_METRICS_ADDR=:9100
+confd etcd
+```
+
+### Endpoints
+
+- `/metrics` - Prometheus metrics
+- `/health` - Basic health check (calls backend HealthCheck)
+- `/ready` - Readiness check (backend connectivity)
+- `/ready/detailed` - Detailed readiness with full diagnostics
+
+### Available Metrics
+
+**Backend Metrics**:
+- `confd_backend_request_duration_seconds` - Histogram of backend request durations
+- `confd_backend_request_total` - Counter of backend requests by operation
+- `confd_backend_errors_total` - Counter of backend errors
+- `confd_backend_healthy` - Gauge indicating backend health (1=healthy, 0=unhealthy)
+
+**Template Metrics**:
+- `confd_template_process_duration_seconds` - Histogram of template processing durations
+- `confd_template_process_total` - Counter of template processing attempts
+- `confd_template_cache_hits_total` - Counter of template cache hits
+- `confd_template_cache_misses_total` - Counter of template cache misses
+- `confd_templates_loaded` - Gauge of currently loaded templates
+- `confd_watched_keys` - Gauge of keys being watched
+
+**Batch Processing Metrics**:
+- `confd_batch_process_total` - Counter of batch processing runs
+- `confd_batch_process_failed` - Counter of failed batch runs
+- `confd_batch_process_templates_succeeded` - Counter of templates succeeded in batch
+- `confd_batch_process_templates_failed` - Counter of templates failed in batch
+
+**Command Metrics**:
+- `confd_command_duration_seconds` - Histogram of check/reload command durations
+- `confd_command_total` - Counter of commands executed
+- `confd_command_exit_codes` - Counter of command exit codes
+
+**File Sync Metrics**:
+- `confd_file_sync_total` - Counter of file sync operations by status
+- `confd_file_changed_total` - Counter of files changed
+
+### Logging
+
+confd uses Go's `log/slog` for structured logging with support for both text and JSON formats:
+
+```bash
+# Text format (default)
+confd etcd --log-level info
+
+# JSON format for log indexing
+confd etcd --log-format json --log-level debug
+```
+
+Structured logging provides timing metrics and contextual information for debugging and analysis.
+
+## Configuration Timeouts and Retries
+
+confd provides configurable timeouts and retry behavior for production resilience:
+
+### Timeout Flags
+
+- `--backend-timeout` - Overall timeout for backend operations (default: 30s)
+- `--check-cmd-timeout` - Timeout for check commands (default: 30s)
+- `--reload-cmd-timeout` - Timeout for reload commands (default: 60s)
+- `--dial-timeout` - Connection timeout for backends (default: 5s)
+- `--read-timeout` - Read timeout for backend operations (default: 1s)
+- `--write-timeout` - Write timeout for backend operations (default: 1s)
+- `--preflight-timeout` - Timeout for preflight checks (default: 10s)
+- `--watch-error-backoff` - Backoff after watch errors (default: 2s)
+
+### Retry Configuration
+
+- `--retry-max-attempts` - Maximum retry attempts (default: 3)
+- `--retry-base-delay` - Initial backoff delay (default: 100ms)
+- `--retry-max-delay` - Maximum backoff delay (default: 5s)
+
+### Failure Modes
+
+confd supports two error handling modes via `--failure-mode`:
+
+- `best-effort` (default) - Continue processing remaining templates when one fails
+- `fail-fast` - Stop all processing on first template error
+
+## Watch Mode Features
+
+### Debouncing
+
+Global debounce waits for changes to settle before processing:
+
+```bash
+confd --watch --debounce 2s etcd
+```
+
+### Batch Processing
+
+Collect changes across all templates and process together:
+
+```bash
+confd --watch --batch-interval 5s etcd
+```
+
+**Difference**:
+- `--debounce`: Per-template, resets timer on each change
+- `--batch-interval`: Global, fixed interval for all templates
