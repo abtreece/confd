@@ -36,53 +36,53 @@ jobs:
 
       - name: Test Env Backend
         run: |
-          test/integration/env/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/env/test.sh
+          test/integration/shared/expect/check.sh
 
       - name: Test Per-Resource Backend
         run: |
-          test/integration/per-resource-backend/test.sh
+          test/integration/features/per-resource-backend/test.sh
 
       - name: Test File Backend (YAML)
         run: |
-          test/integration/file/test_yaml.sh
-          test/integration/expect/check.sh
+          test/integration/backends/file/test_yaml.sh
+          test/integration/shared/expect/check.sh
 
       - name: Test File Backend (JSON)
         run: |
-          test/integration/file/test_json.sh
-          test/integration/expect/check.sh
+          test/integration/backends/file/test_json.sh
+          test/integration/shared/expect/check.sh
 
       - name: Test Template Functions
         run: |
-          test/integration/functions/test.sh
+          test/integration/features/functions/test.sh
 
       - name: Test check_cmd and reload_cmd
         run: |
-          test/integration/commands/test.sh
+          test/integration/features/commands/test.sh
 
       - name: Test File Permissions
         run: |
-          test/integration/permissions/test.sh
+          test/integration/features/permissions/test.sh
 
       - name: Test Negative/Error Conditions
         run: |
-          test/integration/negative/test.sh
+          test/integration/validation/negative/test.sh
 
       - name: Test Health Check Endpoints
-        run: test/integration/healthcheck/test.sh
+        run: test/integration/operations/healthcheck/test.sh
 
       - name: Test Metrics Endpoint
-        run: test/integration/metrics/test.sh
+        run: test/integration/operations/metrics/test.sh
 
       - name: Test Failure Modes
-        run: test/integration/failuremode/test.sh
+        run: test/integration/features/failuremode/test.sh
 
       - name: Test Template Include Function
-        run: test/integration/include/test.sh
+        run: test/integration/features/include/test.sh
 
       - name: Test Service Signals
-        run: test/integration/service/test.sh
+        run: test/integration/operations/signals/test.sh
 
   # Tests requiring Consul, etcd, Redis, and Zookeeper
   backend-tests:
@@ -136,31 +136,31 @@ jobs:
 
       - name: Test Consul
         run: |
-          test/integration/consul/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/consul/test.sh
+          test/integration/shared/expect/check.sh
         env:
           CONSUL_HOST: consul
           CONSUL_PORT: 8500
 
       - name: Test etcd
         run: |
-          test/integration/etcd/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/etcd/test.sh
+          test/integration/shared/expect/check.sh
         env:
           ETCD_ENDPOINT: "http://etcd:2379"
 
       - name: Test Redis
         run: |
-          test/integration/redis/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/redis/test.sh
+          test/integration/shared/expect/check.sh
         env:
           REDIS_HOST: redis
           REDIS_PORT: 6379
 
       - name: Test Zookeeper
         run: |
-          test/integration/zookeeper/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/zookeeper/test.sh
+          test/integration/shared/expect/check.sh
         env:
           ZOOKEEPER_NODE: zookeeper
 
@@ -202,24 +202,24 @@ jobs:
 
       - name: Test Vault KV v1
         run: |
-          test/integration/vault-v1/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/vault/kv-v1/test.sh
+          test/integration/shared/expect/check.sh
         env:
           VAULT_ADDR: http://vault:8200
           VAULT_TOKEN: "super-secret-token"
 
       - name: Test Vault KV v2
         run: |
-          test/integration/vault-v2/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/vault/kv-v2/test.sh
+          test/integration/shared/expect/check.sh
         env:
           VAULT_ADDR: http://vault:8200
           VAULT_TOKEN: "super-secret-token"
 
       - name: Test Vault AppRole
         run: |
-          test/integration/vault-approle/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/vault/approle/test.sh
+          test/integration/shared/expect/check.sh
         env:
           VAULT_ADDR: http://vault:8200
           VAULT_TOKEN: "super-secret-token"
@@ -259,8 +259,8 @@ jobs:
 
       - name: Test DynamoDB
         run: |
-          test/integration/dynamodb/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/dynamodb/test.sh
+          test/integration/shared/expect/check.sh
         env:
           AWS_ACCESS_KEY_ID: "test"
           AWS_SECRET_ACCESS_KEY: "test"
@@ -271,8 +271,8 @@ jobs:
 
       - name: Test SSM Parameter Store
         run: |
-          test/integration/ssm/test.sh
-          test/integration/expect/check.sh
+          test/integration/backends/ssm/test.sh
+          test/integration/shared/expect/check.sh
         env:
           AWS_ACCESS_KEY_ID: "test"
           AWS_SECRET_ACCESS_KEY: "test"
@@ -283,7 +283,7 @@ jobs:
 
       - name: Test ACM
         run: |
-          test/integration/acm/test.sh
+          test/integration/backends/acm/test.sh
         env:
           AWS_ACCESS_KEY_ID: "test"
           AWS_SECRET_ACCESS_KEY: "test"
@@ -294,7 +294,7 @@ jobs:
 
       - name: Test Secrets Manager
         run: |
-          test/integration/secretsmanager/test.sh
+          test/integration/backends/secretsmanager/test.sh
         env:
           AWS_ACCESS_KEY_ID: "test"
           AWS_SECRET_ACCESS_KEY: "test"
