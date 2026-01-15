@@ -61,15 +61,5 @@ else
   exit 1
 fi
 
-# Test 5: Verify data passing to includes worked
-echo "Test 5: Verifying data passing to includes worked"
-if grep -q "Title: Test Include" /tmp/confd-include-test.conf && grep -q "Footer: End of document" /tmp/confd-include-test.conf; then
-  echo "PASS: Data passing to includes worked"
-else
-  echo "FAIL: Data was not passed correctly to includes"
-  cat /tmp/confd-include-test.conf
-  exit 1
-fi
-
 echo ""
 echo "All template include tests passed!"

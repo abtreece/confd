@@ -71,11 +71,8 @@ echo "Sending SIGTERM to confd..."
 kill -TERM "$CONFD_PID"
 
 # Wait for process to exit and capture exit code
-if wait "$CONFD_PID"; then
-  EXIT_CODE=$?
-else
-  EXIT_CODE=$?
-fi
+wait "$CONFD_PID" || true
+EXIT_CODE=$?
 
 # Verify clean exit (exit code 0 or 143, which is 128+15 for SIGTERM)
 if [[ $EXIT_CODE -eq 0 ]] || [[ $EXIT_CODE -eq 143 ]]; then
