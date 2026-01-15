@@ -1,0 +1,8 @@
+[template]
+mode = "0644"
+src = "main.conf.tmpl"
+dest = "/tmp/confd-include-test.conf"
+keys = [
+  "/title",
+  "/footer",
+]

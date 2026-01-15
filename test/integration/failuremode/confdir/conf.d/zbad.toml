@@ -1,0 +1,7 @@
+[template]
+mode = "0644"
+src = "bad.conf.tmpl"
+dest = "/tmp/confd-failuremode-bad.conf"
+keys = [
+  "/nonexistent/key",
+]

@@ -1,0 +1,5 @@
+{{ include "header.tmpl" (map "title" (getv "/title")) }}
+
+Content from main template.
+
+{{ include "partials/footer.tmpl" (map "text" (getv "/footer")) }}
