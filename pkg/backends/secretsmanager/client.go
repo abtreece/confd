@@ -267,10 +267,13 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 }
 
 // HealthCheckDetailed provides detailed health information for the Secrets Manager backend.
+// Note: This method pages through all secrets to count them. For accounts with many secrets,
+// this may be slow and result in multiple API calls. Consider the performance implications
+// when calling this method frequently.
 func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
 	start := time.Now()
 
-	// Count secrets by listing them
+	// Count secrets by listing them (pages through all secrets)
 	var nextToken *string
 	secretCount := 0
 
@@ -286,7 +289,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			return &types.HealthResult{
 				Healthy:   false,
 				Message:   fmt.Sprintf("Secrets Manager health check failed: %s", err.Error()),
-				Duration:  duration,
+				Duration:  types.DurationMillis(duration),
 				CheckedAt: time.Now(),
 				Details: map[string]string{
 					"error": err.Error(),
@@ -307,7 +310,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 	return &types.HealthResult{
 		Healthy:   true,
 		Message:   "Secrets Manager backend is healthy",
-		Duration:  duration,
+		Duration:  types.DurationMillis(duration),
 		CheckedAt: time.Now(),
 		Details: map[string]string{
 			"secret_count": fmt.Sprintf("%d", secretCount),

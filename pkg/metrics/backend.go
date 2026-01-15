@@ -93,7 +93,7 @@ func (c *InstrumentedClient) HealthCheckDetailed(ctx context.Context) (*types.He
 	result := &types.HealthResult{
 		Healthy:   err == nil,
 		Message:   "Backend does not support detailed health checks",
-		Duration:  duration,
+		Duration:  types.DurationMillis(duration),
 		CheckedAt: time.Now(),
 		Details:   map[string]string{},
 	}

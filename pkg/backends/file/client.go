@@ -204,7 +204,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			return &types.HealthResult{
 				Healthy:   false,
 				Message:   fmt.Sprintf("file not accessible: %s", path),
-				Duration:  duration,
+				Duration:  types.DurationMillis(duration),
 				CheckedAt: time.Now(),
 				Details: map[string]string{
 					"failed_path": path,
@@ -226,7 +226,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 				return &types.HealthResult{
 					Healthy:   false,
 					Message:   fmt.Sprintf("file not readable: %s", path),
-					Duration:  duration,
+					Duration:  types.DurationMillis(duration),
 					CheckedAt: time.Now(),
 					Details: map[string]string{
 						"failed_path": path,
@@ -243,7 +243,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 	return &types.HealthResult{
 		Healthy:   true,
 		Message:   "All configured files are accessible and readable",
-		Duration:  duration,
+		Duration:  types.DurationMillis(duration),
 		CheckedAt: time.Now(),
 		Details: map[string]string{
 			"file_count":       fmt.Sprintf("%d", fileCount),

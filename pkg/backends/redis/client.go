@@ -501,7 +501,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 		return &types.HealthResult{
 			Healthy:   false,
 			Message:   fmt.Sprintf("Redis health check failed: %s", err.Error()),
-			Duration:  duration,
+			Duration:  types.DurationMillis(duration),
 			CheckedAt: time.Now(),
 			Details: map[string]string{
 				"error": err.Error(),
@@ -530,7 +530,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 	return &types.HealthResult{
 		Healthy:   true,
 		Message:   "Redis backend is healthy",
-		Duration:  duration,
+		Duration:  types.DurationMillis(duration),
 		CheckedAt: time.Now(),
 		Details: map[string]string{
 			"version":        version,

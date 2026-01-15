@@ -173,7 +173,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 		return &types.HealthResult{
 			Healthy:   false,
 			Message:   fmt.Sprintf("DynamoDB health check failed: %s", err.Error()),
-			Duration:  duration,
+			Duration:  types.DurationMillis(duration),
 			CheckedAt: time.Now(),
 			Details: map[string]string{
 				"table": c.table,
@@ -196,7 +196,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 	return &types.HealthResult{
 		Healthy:   true,
 		Message:   "DynamoDB backend is healthy",
-		Duration:  duration,
+		Duration:  types.DurationMillis(duration),
 		CheckedAt: time.Now(),
 		Details: map[string]string{
 			"table":        c.table,

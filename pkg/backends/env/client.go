@@ -86,7 +86,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 	return &types.HealthResult{
 		Healthy:   true,
 		Message:   "Environment backend is always healthy (no connectivity required)",
-		Duration:  duration,
+		Duration:  types.DurationMillis(duration),
 		CheckedAt: checkedAt,
 		Details: map[string]string{
 			"env_var_count": fmt.Sprintf("%d", envVarCount),
