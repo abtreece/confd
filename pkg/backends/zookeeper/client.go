@@ -2,10 +2,12 @@ package zookeeper
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	zk "github.com/go-zookeeper/zk"
 )
@@ -23,6 +25,7 @@ type zkConn interface {
 // Client provides a wrapper around the zookeeper client
 type Client struct {
 	client zkConn
+	conn   *zk.Conn // Full connection for health checks
 }
 
 func NewZookeeperClient(machines []string, dialTimeout time.Duration) (*Client, error) {
@@ -31,7 +34,10 @@ func NewZookeeperClient(machines []string, dialTimeout time.Duration) (*Client, 
 	if err != nil {
 		return nil, err
 	}
-	return &Client{c}, nil
+	return &Client{
+		client: c,
+		conn:   c,
+	}, nil
 }
 
 func nodeWalk(prefix string, c *Client, vars map[string]string) error {
@@ -215,4 +221,41 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the zookeeper backend.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	_, _, err := c.client.Exists("/")
+
+	if err != nil {
+		duration := time.Since(start)
+		return &types.HealthResult{
+			Healthy:   false,
+			Message:   fmt.Sprintf("Zookeeper health check failed: %s", err.Error()),
+			Duration:  duration,
+			CheckedAt: time.Now(),
+			Details: map[string]string{
+				"error": err.Error(),
+			},
+		}, err
+	}
+
+	// Get session info
+	sessionID := c.conn.SessionID()
+	state := c.conn.State()
+
+	duration := time.Since(start)
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "Zookeeper backend is healthy",
+		Duration:  duration,
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"session_id":    fmt.Sprintf("%d", sessionID),
+			"session_state": state.String(),
+		},
+	}, nil
 }

@@ -11,6 +11,7 @@ import (
 
 	"sync"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -259,9 +260,9 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	endpoints := c.client.Endpoints()
 	if len(endpoints) == 0 {
 		duration := time.Since(start)
-		logger.InfoContext(ctx, "Backend health check passed (no endpoints configured)",
+		logger.ErrorContext(ctx, "Backend health check failed (no endpoints configured)",
 			"duration_ms", duration.Milliseconds())
-		return nil
+		return fmt.Errorf("etcd: no endpoints configured")
 	}
 
 	_, err := c.client.Status(ctx, endpoints[0])
@@ -279,6 +280,55 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		"duration_ms", duration.Milliseconds(),
 		"endpoint", endpoints[0])
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the etcd backend.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	endpoints := c.client.Endpoints()
+	if len(endpoints) == 0 {
+		duration := time.Since(start)
+		return &types.HealthResult{
+			Healthy:   false,
+			Message:   "etcd: no endpoints configured",
+			Duration:  duration,
+			CheckedAt: time.Now(),
+			Details: map[string]string{
+				"error": "no endpoints configured",
+			},
+		}, fmt.Errorf("etcd: no endpoints configured")
+	}
+
+	status, err := c.client.Status(ctx, endpoints[0])
+
+	duration := time.Since(start)
+	if err != nil {
+		return &types.HealthResult{
+			Healthy:   false,
+			Message:   fmt.Sprintf("etcd health check failed: %s", err.Error()),
+			Duration:  duration,
+			CheckedAt: time.Now(),
+			Details: map[string]string{
+				"endpoint": endpoints[0],
+				"error":    err.Error(),
+			},
+		}, err
+	}
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "etcd backend is healthy",
+		Duration:  duration,
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"endpoint":   endpoints[0],
+			"version":    status.Version,
+			"db_size":    fmt.Sprintf("%d", status.DbSize),
+			"leader_id":  fmt.Sprintf("%d", status.Leader),
+			"raft_index": fmt.Sprintf("%d", status.RaftIndex),
+		},
+	}, nil
 }
 
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {

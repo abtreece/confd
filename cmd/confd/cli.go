@@ -422,6 +422,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 			mux.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{}))
 			mux.HandleFunc("/health", metrics.HealthHandler(storeClient))
 			mux.HandleFunc("/ready", metrics.ReadyHandler(storeClient))
+			mux.HandleFunc("/ready/detailed", metrics.ReadyDetailedHandler(storeClient))
 			server := &http.Server{
 				Addr:              cli.MetricsAddr,
 				Handler:           mux,

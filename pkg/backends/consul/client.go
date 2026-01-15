@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/hashicorp/consul/api"
 )
@@ -19,7 +20,8 @@ type consulKVAPI interface {
 
 // ConsulClient provides a wrapper around the consulkv client
 type ConsulClient struct {
-	client consulKVAPI
+	client    consulKVAPI
+	apiClient *api.Client // Full API client for health checks
 }
 
 // NewConsulClient returns a new client to Consul for the given address
@@ -75,7 +77,10 @@ func New(nodes []string, scheme, cert, key, caCert string, basicAuth bool, usern
 
 	logger.InfoContext(context.Background(), "Successfully initialized Consul client",
 		"duration_ms", duration.Milliseconds())
-	return &ConsulClient{client.KV()}, nil
+	return &ConsulClient{
+		client:    client.KV(),
+		apiClient: client,
+	}, nil
 }
 
 // GetValues queries Consul for keys
@@ -186,4 +191,59 @@ func (c *ConsulClient) HealthCheck(ctx context.Context) error {
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the consul backend.
+func (c *ConsulClient) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	opts := &api.QueryOptions{}
+	opts = opts.WithContext(ctx)
+	_, _, err := c.client.List("", opts)
+
+	if err != nil {
+		duration := time.Since(start)
+		return &types.HealthResult{
+			Healthy:   false,
+			Message:   fmt.Sprintf("Consul health check failed: %s", err.Error()),
+			Duration:  duration,
+			CheckedAt: time.Now(),
+			Details: map[string]string{
+				"error": err.Error(),
+			},
+		}, err
+	}
+
+	// Get agent info
+	agent := c.apiClient.Agent()
+	self, err := agent.Self()
+
+	datacenter := "unknown"
+	if err == nil {
+		if cfg, cfgOk := self["Config"]; cfgOk {
+			if dc, dcOk := cfg["Datacenter"]; dcOk {
+				datacenter = fmt.Sprintf("%v", dc)
+			}
+		}
+	}
+
+	// Get leader info
+	status := c.apiClient.Status()
+	leader, err := status.Leader()
+	if err != nil {
+		leader = "unknown"
+	}
+
+	duration := time.Since(start)
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "Consul backend is healthy",
+		Duration:  duration,
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"datacenter": datacenter,
+			"leader":     leader,
+		},
+	}, nil
 }

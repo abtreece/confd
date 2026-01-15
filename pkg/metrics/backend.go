@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
+	"github.com/abtreece/confd/pkg/backends/types"
 )
 
 // InstrumentedClient wraps a StoreClient with metrics instrumentation.
@@ -65,4 +66,42 @@ func (c *InstrumentedClient) HealthCheck(ctx context.Context) error {
 		BackendHealthy.WithLabelValues(c.backend).Set(1)
 	}
 	return err
+}
+
+// HealthCheckDetailed provides detailed health information if the backend supports it.
+func (c *InstrumentedClient) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	// Check if the client implements DetailedHealthChecker
+	if detailedChecker, ok := c.client.(types.DetailedHealthChecker); ok {
+		start := time.Now()
+		result, err := detailedChecker.HealthCheckDetailed(ctx)
+		duration := time.Since(start).Seconds()
+
+		BackendRequestDuration.WithLabelValues(c.backend, "health_check_detailed").Observe(duration)
+		BackendRequestTotal.WithLabelValues(c.backend, "health_check_detailed").Inc()
+		if err != nil {
+			BackendErrorsTotal.WithLabelValues(c.backend, "health_check_detailed").Inc()
+		}
+		return result, err
+	}
+
+	// Fallback: backend doesn't support detailed health checks
+	// Perform a basic health check and convert to HealthResult
+	start := time.Now()
+	err := c.client.HealthCheck(ctx)
+	duration := time.Since(start)
+
+	result := &types.HealthResult{
+		Healthy:   err == nil,
+		Message:   "Backend does not support detailed health checks",
+		Duration:  duration,
+		CheckedAt: time.Now(),
+		Details:   map[string]string{},
+	}
+
+	if err != nil {
+		result.Message = err.Error()
+		result.Details["error"] = err.Error()
+	}
+
+	return result, err
 }

@@ -15,6 +15,7 @@ import (
 // mockSecretsManager implements the secretsManagerAPI interface for testing
 type mockSecretsManager struct {
 	getSecretValueFunc func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error)
+	listSecretsFunc    func(ctx context.Context, input *secretsmanager.ListSecretsInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error)
 }
 
 func (m *mockSecretsManager) GetSecretValue(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
@@ -22,6 +23,13 @@ func (m *mockSecretsManager) GetSecretValue(ctx context.Context, input *secretsm
 		return m.getSecretValueFunc(ctx, input, opts...)
 	}
 	return &secretsmanager.GetSecretValueOutput{}, nil
+}
+
+func (m *mockSecretsManager) ListSecrets(ctx context.Context, input *secretsmanager.ListSecretsInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error) {
+	if m.listSecretsFunc != nil {
+		return m.listSecretsFunc(ctx, input, opts...)
+	}
+	return &secretsmanager.ListSecretsOutput{}, nil
 }
 
 // newTestClient creates a Client with a mock Secrets Manager for testing
@@ -354,10 +362,12 @@ func TestWatchPrefix(t *testing.T) {
 }
 
 func TestHealthCheck_Success_NotFound(t *testing.T) {
-	// HealthCheck considers ResourceNotFoundException as success (connectivity is working)
+	// HealthCheck uses ListSecrets - empty list is success (connectivity is working)
 	mock := &mockSecretsManager{
-		getSecretValueFunc: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
-			return nil, &types.ResourceNotFoundException{}
+		listSecretsFunc: func(ctx context.Context, input *secretsmanager.ListSecretsInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error) {
+			return &secretsmanager.ListSecretsOutput{
+				SecretList: []types.SecretListEntry{},
+			}, nil
 		},
 	}
 
@@ -370,11 +380,13 @@ func TestHealthCheck_Success_NotFound(t *testing.T) {
 }
 
 func TestHealthCheck_Success_SecretExists(t *testing.T) {
-	// If the secret somehow exists, it's still a success
+	// HealthCheck uses ListSecrets - non-empty list is also success
 	mock := &mockSecretsManager{
-		getSecretValueFunc: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
-			return &secretsmanager.GetSecretValueOutput{
-				SecretString: aws.String("unexpected"),
+		listSecretsFunc: func(ctx context.Context, input *secretsmanager.ListSecretsInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error) {
+			return &secretsmanager.ListSecretsOutput{
+				SecretList: []types.SecretListEntry{
+					{Name: aws.String("test-secret")},
+				},
 			}, nil
 		},
 	}
@@ -388,10 +400,10 @@ func TestHealthCheck_Success_SecretExists(t *testing.T) {
 }
 
 func TestHealthCheck_Error(t *testing.T) {
-	// Non-NotFound errors should be returned
+	// Errors from ListSecrets should be returned
 	expectedErr := errors.New("access denied")
 	mock := &mockSecretsManager{
-		getSecretValueFunc: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+		listSecretsFunc: func(ctx context.Context, input *secretsmanager.ListSecretsInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error) {
 			return nil, expectedErr
 		},
 	}

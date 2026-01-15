@@ -14,6 +14,7 @@ import (
 	"github.com/abtreece/confd/pkg/backends/redis"
 	"github.com/abtreece/confd/pkg/backends/secretsmanager"
 	"github.com/abtreece/confd/pkg/backends/ssm"
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/backends/vault"
 	"github.com/abtreece/confd/pkg/backends/zookeeper"
 	"github.com/abtreece/confd/pkg/log"
@@ -28,6 +29,10 @@ type StoreClient interface {
 	// Returns nil if the connection is healthy, otherwise returns an error.
 	HealthCheck(ctx context.Context) error
 }
+
+// Re-export types for convenience
+type HealthResult = types.HealthResult
+type DetailedHealthChecker = types.DetailedHealthChecker
 
 // New is used to create a storage client based on our configuration.
 func New(config Config) (StoreClient, error) {

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	vaultapi "github.com/hashicorp/vault/api"
 )
@@ -461,4 +462,38 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the vault backend.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	health, err := c.client.Sys().Health()
+
+	duration := time.Since(start)
+	if err != nil {
+		return &types.HealthResult{
+			Healthy:   false,
+			Message:   fmt.Sprintf("Vault health check failed: %s", err.Error()),
+			Duration:  duration,
+			CheckedAt: time.Now(),
+			Details: map[string]string{
+				"error": err.Error(),
+			},
+		}, err
+	}
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "Vault backend is healthy",
+		Duration:  duration,
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"initialized":  fmt.Sprintf("%t", health.Initialized),
+			"sealed":       fmt.Sprintf("%t", health.Sealed),
+			"standby":      fmt.Sprintf("%t", health.Standby),
+			"version":      health.Version,
+			"cluster_name": health.ClusterName,
+		},
+	}, nil
 }

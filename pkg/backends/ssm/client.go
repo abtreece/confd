@@ -7,12 +7,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
 
 // ssmAPI defines the interface for SSM operations used by this client.
@@ -97,7 +98,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 			resp, err = c.getParameter(ctx, key)
 			if err != nil {
 				// Check if it's a ParameterNotFound error
-				var notFoundErr *types.ParameterNotFound
+				var notFoundErr *ssmtypes.ParameterNotFound
 				if !errors.As(err, &notFoundErr) {
 					return vars, err
 				}
@@ -176,4 +177,54 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	logger.InfoContext(ctx, "Backend health check passed",
 		"duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// HealthCheckDetailed provides detailed health information for the SSM backend.
+func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	start := time.Now()
+
+	// Count parameters by recursively listing from root
+	var nextToken *string
+	paramCount := 0
+
+	for {
+		result, err := c.client.GetParametersByPath(ctx, &ssm.GetParametersByPathInput{
+			Path:       aws.String("/"),
+			Recursive:  aws.Bool(true),
+			MaxResults: aws.Int32(10),
+			NextToken:  nextToken,
+		})
+
+		if err != nil {
+			duration := time.Since(start)
+			return &types.HealthResult{
+				Healthy:   false,
+				Message:   fmt.Sprintf("SSM health check failed: %s", err.Error()),
+				Duration:  duration,
+				CheckedAt: time.Now(),
+				Details: map[string]string{
+					"error": err.Error(),
+				},
+			}, err
+		}
+
+		paramCount += len(result.Parameters)
+
+		if result.NextToken == nil {
+			break
+		}
+		nextToken = result.NextToken
+	}
+
+	duration := time.Since(start)
+
+	return &types.HealthResult{
+		Healthy:   true,
+		Message:   "SSM backend is healthy",
+		Duration:  duration,
+		CheckedAt: time.Now(),
+		Details: map[string]string{
+			"parameter_count": fmt.Sprintf("%d", paramCount),
+		},
+	}, nil
 }
