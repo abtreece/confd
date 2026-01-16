@@ -201,6 +201,65 @@ func TestFlatten(t *testing.T) {
 				"/secret/app/level1/level2/level3": "deep_value",
 			},
 		},
+		{
+			name:     "numeric value (integer)",
+			key:      "/secret/port",
+			value:    float64(5432),
+			mount:    "/secret",
+			expected: map[string]string{"/secret/port": "5432"},
+		},
+		{
+			name:     "numeric value (float)",
+			key:      "/secret/ratio",
+			value:    float64(3.14159),
+			mount:    "/secret",
+			expected: map[string]string{"/secret/ratio": "3.14159"},
+		},
+		{
+			name:     "boolean true",
+			key:      "/secret/enabled",
+			value:    true,
+			mount:    "/secret",
+			expected: map[string]string{"/secret/enabled": "true"},
+		},
+		{
+			name:     "boolean false",
+			key:      "/secret/disabled",
+			value:    false,
+			mount:    "/secret",
+			expected: map[string]string{"/secret/disabled": "false"},
+		},
+		{
+			name:     "array value",
+			key:      "/secret/hosts",
+			value:    []interface{}{"host1", "host2", "host3"},
+			mount:    "/secret",
+			expected: map[string]string{"/secret/hosts": `["host1","host2","host3"]`},
+		},
+		{
+			name:     "mixed array",
+			key:      "/secret/mixed",
+			value:    []interface{}{"string", float64(42), true},
+			mount:    "/secret",
+			expected: map[string]string{"/secret/mixed": `["string",42,true]`},
+		},
+		{
+			name: "nested map with mixed types",
+			key:  "/secret/config",
+			value: map[string]interface{}{
+				"host":    "localhost",
+				"port":    float64(5432),
+				"enabled": true,
+				"tags":    []interface{}{"prod", "primary"},
+			},
+			mount: "/secret",
+			expected: map[string]string{
+				"/secret/config/host":    "localhost",
+				"/secret/config/port":    "5432",
+				"/secret/config/enabled": "true",
+				"/secret/config/tags":    `["prod","primary"]`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -214,32 +273,59 @@ func TestFlatten(t *testing.T) {
 	}
 }
 
-func TestFlatten_UnsupportedType(t *testing.T) {
-	// Unsupported types should be ignored (logged as warning)
+func TestFlatten_Nil(t *testing.T) {
+	// Nil values should be silently skipped (valid JSON null)
 	vars := make(map[string]string)
-
-	// Integer type - unsupported
-	flatten("/secret/key", 123, "/secret", vars)
-	if len(vars) != 0 {
-		t.Errorf("flatten() should ignore unsupported int type, got %v", vars)
-	}
-
-	// Boolean type - unsupported
-	flatten("/secret/key", true, "/secret", vars)
-	if len(vars) != 0 {
-		t.Errorf("flatten() should ignore unsupported bool type, got %v", vars)
-	}
-
-	// Slice type - unsupported
-	flatten("/secret/key", []string{"a", "b"}, "/secret", vars)
-	if len(vars) != 0 {
-		t.Errorf("flatten() should ignore unsupported slice type, got %v", vars)
-	}
-
-	// Nil type - unsupported
 	flatten("/secret/key", nil, "/secret", vars)
 	if len(vars) != 0 {
-		t.Errorf("flatten() should ignore nil type, got %v", vars)
+		t.Errorf("flatten() should skip nil values, got %v", vars)
+	}
+}
+
+func TestFlatten_NumericEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    float64
+		expected string
+	}{
+		{"zero", 0, "0"},
+		{"negative int", -42, "-42"},
+		{"large int in range", 9007199254740991, "9007199254740991"}, // 2^53-1, max safe integer in float64
+		{"small float", 0.001, "0.001"},
+		{"negative float", -3.14, "-3.14"},
+		{"clearly beyond int64", 1e19, "10000000000000000000"},
+		{"very large float", 1.7976931348623157e+308, "179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vars := make(map[string]string)
+			flatten("/secret/num", tt.value, "/secret", vars)
+			if vars["/secret/num"] != tt.expected {
+				t.Errorf("flatten() = %q, want %q", vars["/secret/num"], tt.expected)
+			}
+		})
+	}
+}
+
+func TestFlatten_EmptyArray(t *testing.T) {
+	vars := make(map[string]string)
+	flatten("/secret/empty", []interface{}{}, "/secret", vars)
+	if vars["/secret/empty"] != "[]" {
+		t.Errorf("flatten() empty array = %q, want \"[]\"", vars["/secret/empty"])
+	}
+}
+
+func TestFlatten_NestedArray(t *testing.T) {
+	vars := make(map[string]string)
+	nested := []interface{}{
+		[]interface{}{"a", "b"},
+		[]interface{}{float64(1), float64(2)},
+	}
+	flatten("/secret/nested", nested, "/secret", vars)
+	expected := `[["a","b"],[1,2]]`
+	if vars["/secret/nested"] != expected {
+		t.Errorf("flatten() nested array = %q, want %q", vars["/secret/nested"], expected)
 	}
 }
 

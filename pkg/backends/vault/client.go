@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -337,17 +338,38 @@ func getKVVersion(data map[string]interface{}) (string, error) {
 
 // recursively walks on all the keys of a specific secret and set them in the variables map
 func flatten(key string, value interface{}, mount string, vars map[string]string) {
-	switch value.(type) {
+	key = strings.ReplaceAll(key, "data/", "")
+
+	switch v := value.(type) {
 	case string:
-		key = strings.ReplaceAll(key, "data/", "")
-		vars[key] = value.(string)
+		vars[key] = v
 	case map[string]interface{}:
-		inner := value.(map[string]interface{})
-		for innerKey, innerValue := range inner {
-			innerKey = path.Join(key, "/", innerKey)
-			flatten(innerKey, innerValue, mount, vars)
+		for innerKey, innerValue := range v {
+			flatten(path.Join(key, "/", innerKey), innerValue, mount, vars)
 		}
-	default: // we don't know how to handle non string or maps of strings
+	case float64:
+		// JSON numbers are always float64 in Go
+		// Format without trailing zeros for integers
+		if v == float64(int64(v)) {
+			vars[key] = strconv.FormatInt(int64(v), 10)
+		} else {
+			vars[key] = strconv.FormatFloat(v, 'f', -1, 64)
+		}
+	case bool:
+		vars[key] = strconv.FormatBool(v)
+	case []interface{}:
+		// Serialize arrays as JSON
+		js, err := json.Marshal(v)
+		if err != nil {
+			log.Warning("failed to marshal array at '%s': %v", key, err)
+			return
+		}
+		vars[key] = string(js)
+	case nil:
+		// Null values are intentionally skipped
+		// No warning needed - this is valid JSON
+		return
+	default:
 		log.Warning("type of '%s' is not supported (%T)", key, value)
 	}
 }
