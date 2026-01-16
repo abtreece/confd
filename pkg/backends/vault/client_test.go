@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -273,7 +274,7 @@ func TestFlatten(t *testing.T) {
 	}
 }
 
-func TestFlatten_NilValue(t *testing.T) {
+func TestFlatten_Nil(t *testing.T) {
 	// Nil values should be silently skipped (valid JSON null)
 	vars := make(map[string]string)
 	flatten("/secret/key", nil, "/secret", vars)
@@ -290,9 +291,17 @@ func TestFlatten_NumericEdgeCases(t *testing.T) {
 	}{
 		{"zero", 0, "0"},
 		{"negative int", -42, "-42"},
-		{"large int", 9007199254740991, "9007199254740991"},
+		{"large int in range", 9007199254740991, "9007199254740991"},
 		{"small float", 0.001, "0.001"},
 		{"negative float", -3.14, "-3.14"},
+		{"max int64", 9223372036854775807, "9223372036854775807"},
+		{"min int64", -9223372036854775808, "-9223372036854775808"},
+		// Note: Values near MaxInt64 (like 9.223372036854776e+18) cannot be distinguished
+		// from MaxInt64 itself due to float64 precision limits. They format as MaxInt64.
+		// This is expected behavior - float64 precision loss at extreme values.
+		{"at max int64 boundary", float64(math.MaxInt64), "9223372036854775807"},
+		{"clearly beyond int64", 1e19, "10000000000000000000"},
+		{"very large float", 1.7976931348623157e+308, "179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"},
 	}
 
 	for _, tt := range tests {

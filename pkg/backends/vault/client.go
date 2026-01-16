@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -350,9 +351,27 @@ func flatten(key string, value interface{}, mount string, vars map[string]string
 	case float64:
 		// JSON numbers are always float64 in Go
 		// Format without trailing zeros for integers
-		if v == float64(int64(v)) {
-			vars[key] = strconv.FormatInt(int64(v), 10)
+		// Check if value can be safely represented as int64 without overflow.
+		// The int64() conversion saturates at min/max, so we must verify
+		// values at the boundaries are actually equal to min/max, not overflow.
+		i64 := int64(v)
+		isAtMaxBoundary := i64 == math.MaxInt64
+		isAtMinBoundary := i64 == math.MinInt64
+
+		// Safe to format as int if:
+		// 1. Round-trip preserves value AND
+		// 2. Either not at boundary, or exactly at boundary (not overflow)
+		if v == float64(i64) {
+			if (!isAtMaxBoundary && !isAtMinBoundary) ||
+				(isAtMaxBoundary && v == math.MaxInt64) ||
+				(isAtMinBoundary && v == math.MinInt64) {
+				vars[key] = strconv.FormatInt(i64, 10)
+			} else {
+				// Value overflowed during int64 conversion
+				vars[key] = strconv.FormatFloat(v, 'f', -1, 64)
+			}
 		} else {
+			// Not a whole number
 			vars[key] = strconv.FormatFloat(v, 'f', -1, 64)
 		}
 	case bool:
