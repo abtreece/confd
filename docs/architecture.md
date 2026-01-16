@@ -146,7 +146,7 @@ cmd/confd/
 
 pkg/
 ├── backends/        # Backend abstraction layer
-│   ├── client.go    # StoreClient interface & factory
+│   ├── client.go    # StoreClient interface & Factory
 │   ├── config.go    # Backend configuration
 │   ├── types/       # Shared types (HealthResult)
 │   ├── acm/         # AWS ACM backend
@@ -524,7 +524,7 @@ Add functions to `pkg/template/template_funcs.go`:
 
 ```go
 func init() {
-    funcMap["myFunc"] = func(args ...interface{}) string {
+    funcMap["myFunc"] = func(args ...any) string {
         // Implementation
     }
 }
