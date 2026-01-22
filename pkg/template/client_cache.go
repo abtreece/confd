@@ -52,7 +52,20 @@ func getOrCreateClient(cfg backends.Config) (backends.StoreClient, error) {
 
 // configHash generates a unique hash for a backend configuration.
 // This is used as the cache key to identify identical configurations.
+//
+// Operational parameters (timeouts, retry config) are zeroed before hashing
+// because they don't affect client identity - two configs pointing to the
+// same backend should share a client regardless of timeout settings.
 func configHash(cfg backends.Config) string {
+	// Zero operational parameters - they don't affect client identity
+	cfg.DialTimeout = 0
+	cfg.ReadTimeout = 0
+	cfg.WriteTimeout = 0
+	cfg.RetryMaxAttempts = 0
+	cfg.RetryBaseDelay = 0
+	cfg.RetryMaxDelay = 0
+	cfg.IMDSCacheTTL = 0
+
 	// Marshal config to JSON for consistent hashing
 	data, err := json.Marshal(cfg)
 	if err != nil {
