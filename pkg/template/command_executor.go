@@ -90,7 +90,7 @@ func newCommandExecutor(config commandExecutorConfig) (*commandExecutor, error) 
 // staged file path.
 // It returns an error if the check command fails or times out.
 func (e *commandExecutor) executeCheck(stagePath string) error {
-	if e.checkCmd == "" || e.syncOnly || e.checkCmdTmpl == nil {
+	if e.checkCmd == "" || e.syncOnly {
 		return nil
 	}
 
@@ -126,7 +126,7 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 // If minReloadInterval is set, reloads are rate-limited to prevent command spam.
 // It returns nil if the reload is skipped due to rate limiting or if the command succeeds.
 func (e *commandExecutor) executeReload(stagePath, destPath string) error {
-	if e.reloadCmd == "" || e.syncOnly || e.reloadCmdTmpl == nil {
+	if e.reloadCmd == "" || e.syncOnly {
 		return nil
 	}
 
