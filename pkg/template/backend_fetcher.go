@@ -9,7 +9,6 @@ import (
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/abtreece/confd/pkg/memkv"
-	util "github.com/abtreece/confd/pkg/util"
 )
 
 // backendFetcher handles fetching data from backend stores and populating
@@ -18,6 +17,7 @@ type backendFetcher struct {
 	storeClient    backends.StoreClient
 	store          *memkv.Store
 	prefix         string
+	prefixedKeys   []string // Pre-computed keys with prefix applied
 	ctx            context.Context
 	backendTimeout time.Duration
 }
@@ -27,6 +27,7 @@ type backendFetcherConfig struct {
 	StoreClient    backends.StoreClient
 	Store          *memkv.Store
 	Prefix         string
+	PrefixedKeys   []string // Pre-computed keys with prefix applied
 	Ctx            context.Context
 	BackendTimeout time.Duration
 }
@@ -37,19 +38,19 @@ func newBackendFetcher(config backendFetcherConfig) *backendFetcher {
 		storeClient:    config.StoreClient,
 		store:          config.Store,
 		prefix:         config.Prefix,
+		prefixedKeys:   config.PrefixedKeys,
 		ctx:            config.Ctx,
 		backendTimeout: config.BackendTimeout,
 	}
 }
 
-// fetchValues retrieves values for the specified keys from the backend store
+// fetchValues retrieves values for the pre-computed prefixed keys from the backend store
 // and populates the in-memory store with the results.
-// Keys are combined with the configured prefix before fetching.
 // The store is purged before populating with new values.
 // Returns an error if the backend fetch operation fails.
-func (b *backendFetcher) fetchValues(keys []string) error {
+func (b *backendFetcher) fetchValues() error {
 	start := time.Now()
-	logger := log.With("prefix", b.prefix, "key_count", len(keys))
+	logger := log.With("prefix", b.prefix, "key_count", len(b.prefixedKeys))
 	logger.DebugContext(b.ctx, "Starting backend fetch")
 
 	// Use context with timeout if configured
@@ -63,9 +64,9 @@ func (b *backendFetcher) fetchValues(keys []string) error {
 		defer cancel()
 	}
 
-	// Fetch values from backend
+	// Fetch values from backend using pre-computed prefixed keys
 	fetchStart := time.Now()
-	result, err := b.storeClient.GetValues(ctx, util.AppendPrefix(b.prefix, keys))
+	result, err := b.storeClient.GetValues(ctx, b.prefixedKeys)
 	fetchDuration := time.Since(fetchStart)
 
 	if err != nil {

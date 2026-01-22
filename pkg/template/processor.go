@@ -146,8 +146,7 @@ func (p *watchProcessor) Process() {
 		if metrics.Enabled() {
 			totalKeys := 0
 			for _, t := range ts {
-				keys := util.AppendPrefix(t.Prefix, t.Keys)
-				totalKeys += len(keys)
+				totalKeys += len(t.prefixedKeys)
 			}
 			metrics.WatchedKeys.Set(float64(totalKeys))
 		}
@@ -203,7 +202,7 @@ func (p *watchProcessor) Process() {
 
 func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 	defer p.wg.Done()
-	keys := util.AppendPrefix(t.Prefix, t.Keys)
+	keys := t.prefixedKeys
 
 	ctx := p.config.Ctx
 	if ctx == nil {
@@ -318,8 +317,7 @@ func (p *batchWatchProcessor) Process() {
 		if metrics.Enabled() {
 			totalKeys := 0
 			for _, t := range ts {
-				keys := util.AppendPrefix(t.Prefix, t.Keys)
-				totalKeys += len(keys)
+				totalKeys += len(t.prefixedKeys)
 			}
 			metrics.WatchedKeys.Set(float64(totalKeys))
 		}
@@ -380,7 +378,7 @@ func (p *batchWatchProcessor) Process() {
 
 func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
 	defer p.wg.Done()
-	keys := util.AppendPrefix(t.Prefix, t.Keys)
+	keys := t.prefixedKeys
 
 	ctx := p.config.Ctx
 	if ctx == nil {
