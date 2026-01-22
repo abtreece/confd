@@ -87,14 +87,9 @@ func NewIncludeFunc(baseDir string, funcMap template.FuncMap, ctx *IncludeContex
 		}
 		defer ctx.Pop()
 
-		// Create a new function map that includes the include function itself
-		// to support nested includes
-		includeFuncMap := make(template.FuncMap)
-		for k, v := range funcMap {
-			includeFuncMap[k] = v
-		}
-		// Update the include function to use the same context
-		includeFuncMap["include"] = NewIncludeFunc(baseDir, funcMap, ctx)
+		// funcMap already contains "include" - set by template_renderer before execution.
+		// Since maps are reference types in Go, the funcMap captured by this closure
+		// is the same map that gets updated, so no need to copy or recreate.
 
 		// Try cache first
 		var tmpl *template.Template
@@ -112,7 +107,7 @@ func NewIncludeFunc(baseDir string, funcMap template.FuncMap, ctx *IncludeContex
 			}
 
 			// Parse the included template
-			tmpl, err = template.New(filepath.Base(includePath)).Funcs(includeFuncMap).Parse(string(content))
+			tmpl, err = template.New(filepath.Base(includePath)).Funcs(funcMap).Parse(string(content))
 			if err != nil {
 				return "", fmt.Errorf("parse include %s: %w", name, err)
 			}
@@ -120,7 +115,7 @@ func NewIncludeFunc(baseDir string, funcMap template.FuncMap, ctx *IncludeContex
 			PutCachedTemplate(includePath, tmpl, stat.ModTime())
 		} else {
 			// Update funcMap on cached template
-			tmpl = tmpl.Funcs(includeFuncMap)
+			tmpl = tmpl.Funcs(funcMap)
 		}
 
 		// Execute with provided data or nil
