@@ -3,6 +3,9 @@
 
 FROM alpine:3.21
 
+# Platform argument for multi-arch builds
+ARG TARGETPLATFORM
+
 # Create non-root user
 RUN addgroup -g 1000 confd && \
     adduser -u 1000 -G confd -s /bin/sh -D confd
@@ -13,7 +16,8 @@ RUN addgroup -g 1000 confd && \
 RUN apk add --no-cache ca-certificates tzdata
 
 # Copy pre-built binary from GoReleaser
-COPY confd /usr/local/bin/confd
+# GoReleaser places binaries in platform-specific directories (e.g., linux/amd64/confd)
+COPY ${TARGETPLATFORM}/confd /usr/local/bin/confd
 
 # Create configuration directories
 RUN mkdir -p /etc/confd/conf.d /etc/confd/templates && \
