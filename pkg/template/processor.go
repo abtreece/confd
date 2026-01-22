@@ -210,9 +210,14 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 		ctx = context.Background()
 	}
 
-	// Debounce timer management
+	// Debounce timer management - create once and reuse with Reset.
+	// Reset can be safely called on expired timers without draining.
 	var debounceTimer *time.Timer
-	var debounceChan <-chan time.Time
+	if t.debounceDur > 0 {
+		debounceTimer = time.NewTimer(0)
+		debounceTimer.Stop() // Start in stopped state
+		defer debounceTimer.Stop()
+	}
 
 	for {
 		index, err := t.storeClient.WatchPrefix(ctx, t.Prefix, keys, t.lastIndex, p.internalStop)
@@ -231,33 +236,23 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 
 		// Handle debouncing
 		if t.debounceDur > 0 {
-			// Reset or create debounce timer
-			if debounceTimer != nil {
-				debounceTimer.Stop()
-			}
-			debounceTimer = time.NewTimer(t.debounceDur)
-			debounceChan = debounceTimer.C
+			// Reset the debounce timer
+			debounceTimer.Reset(t.debounceDur)
 
 			log.Debug("Debouncing changes for %s (%v)", t.Dest, t.debounceDur)
 
-			// Wait for either debounce timer to fire or more changes
+			// Wait for either debounce timer to fire or shutdown
 			select {
 			case <-ctx.Done():
-				if debounceTimer != nil {
-					debounceTimer.Stop()
-				}
 				log.Debug("Context cancelled, stopping watch for %s", t.Dest)
 				return
-			case <-debounceChan:
+			case <-debounceTimer.C:
 				// Debounce period elapsed, process the template
 				log.Debug("Debounce period elapsed for %s, processing", t.Dest)
 				if err := t.process(); err != nil {
 					p.errChan <- err
 				}
 			case <-p.internalStop:
-				if debounceTimer != nil {
-					debounceTimer.Stop()
-				}
 				return
 			}
 		} else {
