@@ -211,10 +211,10 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 	}
 
 	// Debounce timer management - create once and reuse with Reset.
-	// In Go 1.23+, Reset can be safely called on expired timers without draining.
+	// Reset can be safely called on expired timers without draining.
 	var debounceTimer *time.Timer
 	if t.debounceDur > 0 {
-		debounceTimer = time.NewTimer(t.debounceDur)
+		debounceTimer = time.NewTimer(0)
 		debounceTimer.Stop() // Start in stopped state
 		defer debounceTimer.Stop()
 	}
