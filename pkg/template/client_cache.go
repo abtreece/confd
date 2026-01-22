@@ -57,7 +57,8 @@ func getOrCreateClient(cfg backends.Config) (backends.StoreClient, error) {
 // because they don't affect client identity - two configs pointing to the
 // same backend should share a client regardless of timeout settings.
 func configHash(cfg backends.Config) string {
-	// Zero operational parameters - they don't affect client identity
+	// Zero operational parameters - they don't affect client identity.
+	// cfg is passed by value, so these modifications don't affect the caller.
 	cfg.DialTimeout = 0
 	cfg.ReadTimeout = 0
 	cfg.WriteTimeout = 0
