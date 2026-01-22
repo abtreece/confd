@@ -61,6 +61,7 @@ type TemplateResource struct {
 	Gid               int
 	Group             string
 	Keys              []string
+	prefixedKeys      []string // Cached keys with prefix applied
 	Mode              string
 	OutputFormat      string `toml:"output_format"`       // json, yaml, toml, xml
 	MinReloadInterval string `toml:"min_reload_interval"` // e.g., "30s", "1m"
@@ -263,6 +264,9 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	// Normalize prefix (hierarchical: global + resource)
 	tr.Prefix = normalizePrefix(config.Prefix, tr.Prefix)
 
+	// Pre-compute prefixed keys (avoids repeated computation during process cycles)
+	tr.prefixedKeys = util.AppendPrefix(tr.Prefix, tr.Keys)
+
 	if tr.Src == "" {
 		return nil, ErrEmptySrc
 	}
@@ -316,6 +320,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		StoreClient:    tr.storeClient,
 		Store:          tr.store,
 		Prefix:         tr.Prefix,
+		PrefixedKeys:   tr.prefixedKeys,
 		Ctx:            tr.ctx,
 		BackendTimeout: tr.backendTimeout,
 	})
@@ -344,7 +349,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 
 // setVars sets the Vars for template resource.
 func (t *TemplateResource) setVars() error {
-	return t.bkndFetcher.fetchValues(t.Keys)
+	return t.bkndFetcher.fetchValues()
 }
 
 // createStageFile stages the src configuration file by processing the src

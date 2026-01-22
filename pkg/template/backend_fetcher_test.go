@@ -83,13 +83,14 @@ func TestFetchValues_Success(t *testing.T) {
 	}
 
 	fetcher := newBackendFetcher(backendFetcherConfig{
-		StoreClient: client,
-		Store:       store,
-		Prefix:      "/app",
-		Ctx:         context.Background(),
+		StoreClient:  client,
+		Store:        store,
+		Prefix:       "/app",
+		PrefixedKeys: []string{"/app/database/host", "/app/database/port", "/app/api/key"},
+		Ctx:          context.Background(),
 	})
 
-	err := fetcher.fetchValues([]string{"database/host", "database/port", "api/key"})
+	err := fetcher.fetchValues()
 	if err != nil {
 		t.Errorf("fetchValues() unexpected error: %v", err)
 	}
@@ -116,12 +117,13 @@ func TestFetchValues_BackendError(t *testing.T) {
 	}
 
 	fetcher := newBackendFetcher(backendFetcherConfig{
-		StoreClient: client,
-		Store:       store,
-		Prefix:      "/app",
+		StoreClient:  client,
+		Store:        store,
+		Prefix:       "/app",
+		PrefixedKeys: []string{"/app/key1", "/app/key2"},
 	})
 
-	err := fetcher.fetchValues([]string{"key1", "key2"})
+	err := fetcher.fetchValues()
 	if err == nil {
 		t.Error("fetchValues() expected error, got nil")
 	}
@@ -146,12 +148,13 @@ func TestFetchValues_PurgesExistingData(t *testing.T) {
 	}
 
 	fetcher := newBackendFetcher(backendFetcherConfig{
-		StoreClient: client,
-		Store:       store,
-		Prefix:      "/app",
+		StoreClient:  client,
+		Store:        store,
+		Prefix:       "/app",
+		PrefixedKeys: []string{"/app/new/key"},
 	})
 
-	err := fetcher.fetchValues([]string{"new/key"})
+	err := fetcher.fetchValues()
 	if err != nil {
 		t.Errorf("fetchValues() unexpected error: %v", err)
 	}
@@ -183,12 +186,13 @@ func TestFetchValues_NormalizesKeys(t *testing.T) {
 	}
 
 	fetcher := newBackendFetcher(backendFetcherConfig{
-		StoreClient: client,
-		Store:       store,
-		Prefix:      "/production/app",
+		StoreClient:  client,
+		Store:        store,
+		Prefix:       "/production/app",
+		PrefixedKeys: []string{"/production/app/database/host", "/production/app/database/port"},
 	})
 
-	err := fetcher.fetchValues([]string{"database/host", "database/port"})
+	err := fetcher.fetchValues()
 	if err != nil {
 		t.Errorf("fetchValues() unexpected error: %v", err)
 	}
@@ -216,11 +220,12 @@ func TestFetchValues_WithTimeout(t *testing.T) {
 		StoreClient:    client,
 		Store:          store,
 		Prefix:         "/app",
+		PrefixedKeys:   []string{"/app/key"},
 		Ctx:            context.Background(),
 		BackendTimeout: 5 * time.Second,
 	})
 
-	err := fetcher.fetchValues([]string{"key"})
+	err := fetcher.fetchValues()
 	if err != nil {
 		t.Errorf("fetchValues() unexpected error: %v", err)
 	}
@@ -251,11 +256,12 @@ func TestFetchValues_WithoutTimeout(t *testing.T) {
 		StoreClient:    client,
 		Store:          store,
 		Prefix:         "/app",
+		PrefixedKeys:   []string{"/app/key"},
 		Ctx:            context.Background(),
 		BackendTimeout: 0, // No timeout
 	})
 
-	err := fetcher.fetchValues([]string{"key"})
+	err := fetcher.fetchValues()
 	if err != nil {
 		t.Errorf("fetchValues() unexpected error: %v", err)
 	}
@@ -280,13 +286,14 @@ func TestFetchValues_NilContext(t *testing.T) {
 	}
 
 	fetcher := newBackendFetcher(backendFetcherConfig{
-		StoreClient: client,
-		Store:       store,
-		Prefix:      "/app",
-		Ctx:         nil, // No context provided
+		StoreClient:  client,
+		Store:        store,
+		Prefix:       "/app",
+		PrefixedKeys: []string{"/app/key"},
+		Ctx:          nil, // No context provided
 	})
 
-	err := fetcher.fetchValues([]string{"key"})
+	err := fetcher.fetchValues()
 	if err != nil {
 		t.Errorf("fetchValues() unexpected error: %v", err)
 	}
@@ -326,12 +333,13 @@ func TestFetchValues_EmptyKeys(t *testing.T) {
 	}
 
 	fetcher := newBackendFetcher(backendFetcherConfig{
-		StoreClient: client,
-		Store:       store,
-		Prefix:      "/app",
+		StoreClient:  client,
+		Store:        store,
+		Prefix:       "/app",
+		PrefixedKeys: []string{},
 	})
 
-	err := fetcher.fetchValues([]string{})
+	err := fetcher.fetchValues()
 	if err != nil {
 		t.Errorf("fetchValues() with empty keys should not error: %v", err)
 	}
@@ -350,12 +358,13 @@ func TestFetchValues_EmptyResult(t *testing.T) {
 	}
 
 	fetcher := newBackendFetcher(backendFetcherConfig{
-		StoreClient: client,
-		Store:       store,
-		Prefix:      "/app",
+		StoreClient:  client,
+		Store:        store,
+		Prefix:       "/app",
+		PrefixedKeys: []string{"/app/key"},
 	})
 
-	err := fetcher.fetchValues([]string{"key"})
+	err := fetcher.fetchValues()
 	if err != nil {
 		t.Errorf("fetchValues() unexpected error: %v", err)
 	}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/abtreece/confd/pkg/log"
-	"github.com/abtreece/confd/pkg/util"
 )
 
 // Preflight performs connectivity and configuration checks without processing templates.
@@ -47,8 +46,7 @@ func Preflight(config Config) error {
 	var errors []string
 
 	for _, t := range ts {
-		keys := util.AppendPrefix(t.Prefix, t.Keys)
-		vals, err := config.StoreClient.GetValues(ctx, keys)
+		vals, err := config.StoreClient.GetValues(ctx, t.prefixedKeys)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("%s: backend error: %v", t.Src, err))
 			continue
