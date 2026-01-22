@@ -37,11 +37,7 @@ checksum:
 snapshot:
   version_template: "{{ .Tag }}-dev"
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - '^docs:'
-      - '^test:'
+  disable: true
 
 release:
   prerelease: auto
