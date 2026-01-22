@@ -537,8 +537,8 @@ func (t *TemplateResource) reload() error {
 func (t *TemplateResource) process() error {
 	start := time.Now()
 	var err error
-	defer func() {
-		if metrics.Enabled() {
+	if metrics.Enabled() {
+		defer func() {
 			duration := time.Since(start).Seconds()
 			metrics.TemplateProcessDuration.WithLabelValues(t.Dest).Observe(duration)
 			if err != nil {
@@ -546,8 +546,8 @@ func (t *TemplateResource) process() error {
 			} else {
 				metrics.TemplateProcessTotal.WithLabelValues(t.Dest, "success").Inc()
 			}
-		}
-	}()
+		}()
+	}
 
 	if err = t.setFileMode(); err != nil {
 		return err
