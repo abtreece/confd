@@ -1,7 +1,7 @@
 package util
 
 import (
-	"crypto/md5"
+	"crypto/md5" // #nosec G501 -- MD5 used for change detection, not security
 	"fmt"
 	"io"
 	"os"
