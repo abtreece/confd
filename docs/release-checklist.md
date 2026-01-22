@@ -31,7 +31,7 @@ Update the version in `cmd/confd/version.go`:
 const Version = "0.XX.0"
 ```
 
-**Important**: Do not append `-dev` suffix for releases. The `-dev` suffix is only used between releases.
+**Important**: The version string must exactly match the tag (without the `v` prefix).
 
 ### 3. Update Installation Documentation
 
@@ -85,19 +85,48 @@ Once complete:
 3. Check that all binaries are attached
 4. Review the auto-generated changelog
 
-### 8. Bump to Next Development Version
+## Release Candidate Workflow
 
-After the release is published, bump the version for development:
+For significant releases, use release candidates to allow testing before the final release:
+
+### RC Process
 
 ```bash
-# Update to next version with -dev suffix
-# Edit cmd/confd/version.go
-const Version = "0.XX.0-dev"
+# 1. Update version.go to RC version
+# Edit cmd/confd/version.go: const Version = "0.40.0-rc.1"
 
-git add cmd/confd/version.go
-git commit -m "chore: bump version to 0.XX.0-dev"
-git push origin main
+# 2. Update docs/installation.md with RC version
+
+# 3. Commit and tag
+git add cmd/confd/version.go docs/installation.md
+git commit -m "chore: bump version to 0.40.0-rc.1"
+git tag -a v0.40.0-rc.1 -m "v0.40.0-rc.1"
+git push origin main v0.40.0-rc.1
+
+# 4. If issues are found, fix them, then release rc.2
+git add cmd/confd/version.go docs/installation.md
+git commit -m "chore: bump version to 0.40.0-rc.2"
+git tag -a v0.40.0-rc.2 -m "v0.40.0-rc.2"
+git push origin main v0.40.0-rc.2
+
+# 5. When stable, release final version
+git add cmd/confd/version.go docs/installation.md
+git commit -m "chore: bump version to 0.40.0"
+git tag -a v0.40.0 -m "v0.40.0"
+git push origin main v0.40.0
 ```
+
+### When to Use RCs
+
+- Major version bumps
+- Significant new features
+- Breaking changes
+- Large refactors
+
+### RC vs Standard Release
+
+- **RC tags** (e.g., `v0.40.0-rc.1`) create pre-release builds marked as "Pre-release" on GitHub
+- **Final tags** (e.g., `v0.40.0`) create production releases
 
 ## Manual Release (If Needed)
 

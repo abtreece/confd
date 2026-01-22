@@ -20,17 +20,22 @@ gh pr create --repo abtreece/confd ...
 
 All commits should be authored by the repository owner. Do not include Co-Authored-By lines or AI attribution in commit messages.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for commit message conventions and contribution guidelines.
+
 ## Build Commands
 
 ```bash
 make build          # Build to bin/confd (includes Git SHA via ldflags)
-make test           # Run unit tests
+make lint           # Run golangci-lint
+make test           # Run linter + unit tests
 make integration    # Run integration tests (requires backend services)
 make mod            # Run go mod tidy
 make clean          # Remove build artifacts
 make snapshot       # Build snapshot release via goreleaser
 make release        # Build release via goreleaser
 ```
+
+See [docs/development.md](docs/development.md) for detailed development instructions.
 
 ## Dependency Management
 
@@ -51,7 +56,10 @@ cannot find module providing package X: import lookup disabled by -mod=vendor
 ## Running Tests
 
 ```bash
-# Unit tests
+# Unit tests with linting
+make test
+
+# Unit tests only
 go test ./...
 
 # Unit tests with coverage
@@ -61,7 +69,10 @@ go test ./... -race -coverprofile=coverage.out -covermode=atomic
 go test -run TestFunctionName ./pkg/template/
 
 # Integration tests require running backend services (see .github/workflows/integration-tests.yml)
+make integration
 ```
+
+See [docs/development.md](docs/development.md) for detailed testing instructions.
 
 ## Integration Test Structure
 
@@ -151,6 +162,8 @@ test/integration/backends/etcd/test.sh
 ```
 
 ## Architecture
+
+See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation with diagrams.
 
 ### Package Structure
 
@@ -262,6 +275,8 @@ keys = [
 
 ## Template Functions
 
+See [docs/templates.md](docs/templates.md) for complete template function documentation with examples.
+
 Available functions in templates (defined in `pkg/template/template_funcs.go`):
 
 **String functions**: `base`, `dir`, `split`, `join`, `toUpper`, `toLower`, `contains`, `replace`, `trimSuffix`
@@ -348,6 +363,8 @@ Structured logging provides timing metrics and contextual information for debugg
 
 ## Configuration Timeouts and Retries
 
+See [docs/command-line-flags.md](docs/command-line-flags.md) for complete CLI reference and [docs/configuration-guide.md](docs/configuration-guide.md) for config file options.
+
 confd provides configurable timeouts and retry behavior for production resilience:
 
 ### Timeout Flags
@@ -397,6 +414,8 @@ confd --watch --batch-interval 5s etcd
 - `--batch-interval`: Global, fixed interval for all templates
 
 ## Release Process
+
+See [docs/release-checklist.md](docs/release-checklist.md) for the complete release process.
 
 ### Version Management
 
