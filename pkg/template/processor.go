@@ -495,7 +495,6 @@ func (p *batchWatchProcessor) processBatch() {
 
 func getTemplateResources(config Config) ([]*TemplateResource, error) {
 	var lastError error
-	templates := make([]*TemplateResource, 0)
 	log.Debug("Loading template resources from confdir %s", config.ConfDir)
 	if !util.IsFileExist(config.ConfDir) {
 		log.Warning("Cannot load template resources: confdir '%s' does not exist", config.ConfDir)
@@ -509,6 +508,9 @@ func getTemplateResources(config Config) ([]*TemplateResource, error) {
 	if len(paths) < 1 {
 		log.Warning("Found no templates")
 	}
+
+	// Pre-allocate slice capacity based on discovered template files
+	templates := make([]*TemplateResource, 0, len(paths))
 
 	for _, p := range paths {
 		log.Debug("Found template: %s", p)
