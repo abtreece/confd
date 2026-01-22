@@ -5,6 +5,7 @@
 [![Integration Tests](https://github.com/abtreece/confd/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/abtreece/confd/actions/workflows/integration-tests.yml)
 [![CodeQL](https://github.com/abtreece/confd/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/abtreece/confd/actions/workflows/codeql-analysis.yml)
 [![Codecov](https://codecov.io/gh/abtreece/confd/branch/main/graph/badge.svg?token=bNZ2ngzQO1)](https://codecov.io/gh/abtreece/confd)
+[![Docker](https://img.shields.io/docker/v/abtreece/confd?label=docker&sort=semver)](https://hub.docker.com/r/abtreece/confd)
 
 `confd` is a lightweight configuration management tool focused on:
 
@@ -26,7 +27,29 @@
 - **Resilience**: Configurable timeouts, retries, and failure modes (best-effort/fail-fast)
 - **Performance**: Template caching and backend client pooling
 
-## Building
+## Installation
+
+### Docker
+
+```bash
+# Pull from Docker Hub
+docker pull abtreece/confd:latest
+
+# Or from GitHub Container Registry
+docker pull ghcr.io/abtreece/confd:latest
+
+# Run with env backend
+docker run --rm \
+  -e DATABASE_HOST=db.example.com \
+  -v $(pwd)/conf.d:/etc/confd/conf.d:ro \
+  -v $(pwd)/templates:/etc/confd/templates:ro \
+  -v $(pwd)/output:/output \
+  abtreece/confd:latest env --onetime
+```
+
+See [Docker documentation](docs/docker.md) for complete usage including Docker Compose and Kubernetes.
+
+### Building from Source
 
 Go 1.25+ is required to build confd.
 
@@ -42,6 +65,8 @@ You should now have `confd` in your `bin/` directory:
 ls bin/
 confd
 ```
+
+See [Installation](docs/installation.md) for more options including binary downloads.
 
 ## Quick Start
 
@@ -221,6 +246,7 @@ confd --noop --diff --color etcd
 
 - [Quick Start Guide](docs/quick-start-guide.md)
 - [Installation](docs/installation.md)
+- [Docker](docs/docker.md)
 - [Command Line Flags](docs/command-line-flags.md)
 - [Configuration Guide](docs/configuration-guide.md)
 - [Template Resources](docs/template-resources.md)

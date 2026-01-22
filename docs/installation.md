@@ -38,6 +38,35 @@ Download the appropriate `.zip` file from the [releases page](https://github.com
 
 #### Docker
 
+Official Docker images are available from Docker Hub and GitHub Container Registry:
+
+```bash
+# Pull from Docker Hub
+docker pull abtreece/confd:latest
+
+# Or from GitHub Container Registry
+docker pull ghcr.io/abtreece/confd:latest
+
+# Run with env backend
+docker run --rm \
+  -e MY_VAR=value \
+  -v $(pwd)/conf.d:/etc/confd/conf.d:ro \
+  -v $(pwd)/templates:/etc/confd/templates:ro \
+  -v $(pwd)/output:/output \
+  abtreece/confd:latest env --onetime
+```
+
+Available image tags:
+- `latest` - Latest stable release
+- `v0.40.0` - Specific version
+- `v0.40.0-amd64`, `v0.40.0-arm64` - Architecture-specific images
+
+See [Docker documentation](docker.md) for complete usage examples including Docker Compose and Kubernetes.
+
+#### Installing in Dockerfile
+
+To install confd in your own Docker image:
+
 ```dockerfile
 ARG CONFD_VERSION=0.40.0
 RUN CONFD_ARCH=$(arch | sed s/aarch64/arm64/ | sed s/x86_64/amd64/) \
@@ -52,42 +81,40 @@ make build
 make install
 ```
 
-#### Building from Source for Alpine Linux
+#### Building from Source with Docker
 
-Since many people are using Alpine Linux as their base images for Docker there's support to build Alpine package also. Naturally by using Docker itself. :)
+Build confd using Docker for a reproducible build environment:
 
 ```bash
-docker build -t confd_builder -f Dockerfile.build.alpine .
-docker run -ti --rm -v $(pwd):/app confd_builder make build
+docker build -t confd:local -f docker/Dockerfile.build .
 ```
 
-The above docker commands will produce binary in the local bin directory.
+#### Multi-Stage Build for Custom Images
 
-#### Build for your Image using Multi-Stage build
-
-With multi-stage builds you can keep the whole process contained in your Dockerfile using:
+Include confd in your own Docker image using a multi-stage build:
 
 ```dockerfile
-FROM golang:1.25-alpine as confd
+FROM golang:1.25-alpine AS confd-builder
 
-ARG CONFD_VERSION=0.40.0
+RUN apk add --no-cache git
+WORKDIR /src
+RUN git clone https://github.com/abtreece/confd.git .
+RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o /confd ./cmd/confd
 
-ADD https://github.com/abtreece/confd/archive/v${CONFD_VERSION}.tar.gz /tmp/
+FROM your-base-image:latest
 
-RUN apk add --no-cache \
-    bzip2 \
-    make && \
-  mkdir -p /go/src/github.com/abtreece/confd && \
-  cd /go/src/github.com/abtreece/confd && \
-  tar --strip-components=1 -zxf /tmp/v${CONFD_VERSION}.tar.gz && \
-  go install github.com/abtreece/confd/cmd/confd && \
-  rm -rf /tmp/v${CONFD_VERSION}.tar.gz
+COPY --from=confd-builder /confd /usr/local/bin/confd
 
-FROM tomcat:8.5-jre8-alpine
+# Your application setup...
+```
 
-COPY --from=confd /go/bin/confd /usr/local/bin/confd
+Or use the official image directly:
 
-# Then do other useful things...
+```dockerfile
+FROM abtreece/confd:latest AS confd
+
+FROM your-base-image:latest
+COPY --from=confd /usr/local/bin/confd /usr/local/bin/confd
 ```
 
 ### Next Steps

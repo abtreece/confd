@@ -1,3 +1,41 @@
-bin
-vendor
-pkg
+# Build artifacts
+bin/
+dist/
+
+# Dependencies (use go mod download in container)
+vendor/
+
+# Development files
+.git/
+.github/
+.gitignore
+.golangci.yml
+.goreleaser.yml
+.tool-versions
+
+# Documentation
+docs/
+*.md
+!README.md
+LICENSE
+
+# Test files
+test/
+*_test.go
+coverage.out
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files (avoid recursive copy)
+docker/
+Dockerfile*
+.dockerignore
