@@ -8,10 +8,10 @@ confd ships binaries for OS X, Linux, and Windows for both amd64 and arm64 archi
 
 ```bash
 # For Intel Macs (amd64)
-curl -SL https://github.com/abtreece/confd/releases/download/v0.32.0/confd-v0.32.0-darwin-amd64.tar.gz | tar -xz -C /usr/local/bin/
+curl -SL https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-darwin-amd64.tar.gz | tar -xz -C /usr/local/bin/
 
 # For Apple Silicon (arm64)
-curl -SL https://github.com/abtreece/confd/releases/download/v0.32.0/confd-v0.32.0-darwin-arm64.tar.gz | tar -xz -C /usr/local/bin/
+curl -SL https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-darwin-arm64.tar.gz | tar -xz -C /usr/local/bin/
 ```
 
 #### Linux
@@ -19,16 +19,16 @@ curl -SL https://github.com/abtreece/confd/releases/download/v0.32.0/confd-v0.32
 Download and extract the binary:
 ```bash
 # For amd64
-curl -SL https://github.com/abtreece/confd/releases/download/v0.32.0/confd-v0.32.0-linux-amd64.tar.gz | tar -xz -C /usr/local/bin/
+curl -SL https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-linux-amd64.tar.gz | tar -xz -C /usr/local/bin/
 
 # For arm64
-curl -SL https://github.com/abtreece/confd/releases/download/v0.32.0/confd-v0.32.0-linux-arm64.tar.gz | tar -xz -C /usr/local/bin/
+curl -SL https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-linux-arm64.tar.gz | tar -xz -C /usr/local/bin/
 ```
 
 Or manually:
 ```bash
-wget https://github.com/abtreece/confd/releases/download/v0.32.0/confd-v0.32.0-linux-amd64.tar.gz
-tar -xzf confd-v0.32.0-linux-amd64.tar.gz
+wget https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-linux-amd64.tar.gz
+tar -xzf confd-v0.40.0-linux-amd64.tar.gz
 mv confd /usr/local/bin/
 ```
 
@@ -39,7 +39,7 @@ Download the appropriate `.zip` file from the [releases page](https://github.com
 #### Docker
 
 ```dockerfile
-ARG CONFD_VERSION=0.32.0
+ARG CONFD_VERSION=0.40.0
 RUN CONFD_ARCH=$(arch | sed s/aarch64/arm64/ | sed s/x86_64/amd64/) \
     && curl -SL "https://github.com/abtreece/confd/releases/download/v${CONFD_VERSION}/confd-v${CONFD_VERSION}-linux-${CONFD_ARCH}.tar.gz" | tar -xz -C /usr/local/bin/ \
     && confd --version
@@ -68,9 +68,9 @@ The above docker commands will produce binary in the local bin directory.
 With multi-stage builds you can keep the whole process contained in your Dockerfile using:
 
 ```dockerfile
-FROM golang:1.23-alpine as confd
+FROM golang:1.25-alpine as confd
 
-ARG CONFD_VERSION=0.32.0
+ARG CONFD_VERSION=0.40.0
 
 ADD https://github.com/abtreece/confd/archive/v${CONFD_VERSION}.tar.gz /tmp/
 

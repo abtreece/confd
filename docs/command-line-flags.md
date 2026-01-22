@@ -22,34 +22,51 @@ Usage: confd <command> [flags]
 Manage local config files using templates and data from backends
 
 Flags:
-  -h, --help                    Show context-sensitive help.
-      --confdir="/etc/confd"    confd conf directory
+  -h, --help                         Show context-sensitive help.
+      --confdir="/etc/confd"         confd conf directory
       --config-file="/etc/confd/confd.toml"
-                                confd config file
-      --interval=600            backend polling interval
-      --log-level=""            log level (debug, info, warn, error)
-      --log-format=""           log format (text, json)
-      --noop                    only show pending changes
-      --onetime                 run once and exit
-      --prefix=STRING           key path prefix
-      --sync-only               sync without check_cmd and reload_cmd
-      --watch                   enable watch support
-      --keep-stage-file         keep staged files
-      --srv-domain=STRING       DNS SRV domain
-      --srv-record=STRING       SRV record for backend node discovery
-      --check-config            validate configuration files and exit
-      --preflight               run connectivity checks and exit
-      --validate                validate templates without processing
-      --mock-data=STRING        JSON file with mock data for validation
-      --resource=STRING         specific resource file to validate
-      --diff                    show diff output in noop mode
-      --diff-context=3          lines of context for diff
-      --color                   colorize diff output
-      --debounce=STRING         debounce duration for watch mode
-      --batch-interval=STRING   batch processing interval for watch mode
-      --template-cache          enable template compilation caching (default: true)
-      --no-template-cache       disable template compilation caching
-      --version                 print version and exit
+                                     confd config file
+      --interval=600                 backend polling interval
+      --log-level=""                 log level (debug, info, warn, error)
+      --log-format=""                log format (text, json)
+      --noop                         only show pending changes
+      --onetime                      run once and exit
+      --prefix=STRING                key path prefix
+      --sync-only                    sync without check_cmd and reload_cmd
+      --watch                        enable watch support
+      --failure-mode="best-effort"   error handling mode (best-effort, fail-fast)
+      --keep-stage-file              keep staged files
+      --srv-domain=STRING            DNS SRV domain
+      --srv-record=STRING            SRV record for backend node discovery
+      --check-config                 validate configuration files and exit
+      --preflight                    run connectivity checks and exit
+      --validate                     validate templates without processing
+      --mock-data=STRING             JSON file with mock data for validation
+      --resource=STRING              specific resource file to validate
+      --diff                         show diff output in noop mode
+      --diff-context=3               lines of context for diff
+      --color                        colorize diff output
+      --debounce=STRING              debounce duration for watch mode
+      --batch-interval=STRING        batch processing interval for watch mode
+      --template-cache               enable template compilation caching (default: true)
+      --no-template-cache            disable template compilation caching
+      --stat-cache-ttl=1s            TTL for template file stat cache
+      --backend-timeout=30s          timeout for backend operations
+      --check-cmd-timeout=30s        default timeout for check commands
+      --reload-cmd-timeout=60s       default timeout for reload commands
+      --dial-timeout=5s              connection timeout for backends
+      --read-timeout=1s              read timeout for backend operations
+      --write-timeout=1s             write timeout for backend operations
+      --preflight-timeout=10s        preflight check timeout
+      --watch-error-backoff=2s       backoff after watch errors
+      --retry-max-attempts=3         max retry attempts for connections
+      --retry-base-delay=100ms       initial backoff delay
+      --retry-max-delay=5s           maximum backoff delay
+      --shutdown-timeout=30s         graceful shutdown timeout
+      --systemd-notify               enable systemd sd_notify support
+      --watchdog-interval=0          systemd watchdog ping interval (0=disabled)
+      --metrics-addr=STRING          address for metrics endpoint (e.g., :9100)
+      --version                      print version and exit
 
 Commands:
   consul        Use Consul backend
@@ -138,9 +155,14 @@ confd redis --help
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-n, --node` | Redis server address | - |
+| `-n, --node` | Redis server address | `127.0.0.1:6379` |
+| `--basic-auth` | Use basic authentication | `false` |
+| `--username` | Authentication username | - |
 | `--password` | Redis password | - |
 | `--separator` | Key separator (replaces `/`) | `/` |
+| `--client-cert` | Client certificate file | - |
+| `--client-key` | Client key file | - |
+| `--client-ca-keys` | CA certificate file | - |
 
 ### zookeeper
 
@@ -346,6 +368,135 @@ confd --watch --batch-interval 5s consul
 - `--debounce`: Per-template, waits for individual template changes to settle
 - `--batch-interval`: Global, collects all changes and processes them together
 
+## Timeout Flags
+
+Configure timeouts for various operations:
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--backend-timeout` | Overall timeout for backend operations | `30s` |
+| `--check-cmd-timeout` | Default timeout for check commands | `30s` |
+| `--reload-cmd-timeout` | Default timeout for reload commands | `60s` |
+| `--dial-timeout` | Connection timeout for backends | `5s` |
+| `--read-timeout` | Read timeout for backend operations | `1s` |
+| `--write-timeout` | Write timeout for backend operations | `1s` |
+| `--preflight-timeout` | Timeout for preflight checks | `10s` |
+| `--watch-error-backoff` | Backoff duration after watch errors | `2s` |
+| `--shutdown-timeout` | Graceful shutdown timeout | `30s` |
+
+### Example: Production timeout configuration
+
+```bash
+confd etcd --watch \
+  --backend-timeout 30s \
+  --check-cmd-timeout 30s \
+  --reload-cmd-timeout 60s \
+  --shutdown-timeout 30s
+```
+
+## Retry Flags
+
+Configure retry behavior for backend connections:
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--retry-max-attempts` | Maximum number of retry attempts | `3` |
+| `--retry-base-delay` | Initial backoff delay | `100ms` |
+| `--retry-max-delay` | Maximum backoff delay | `5s` |
+
+Retries use exponential backoff with jitter. The delay doubles after each attempt up to `--retry-max-delay`.
+
+### Example: Resilient retry configuration
+
+```bash
+confd etcd --watch \
+  --retry-max-attempts 5 \
+  --retry-base-delay 200ms \
+  --retry-max-delay 10s
+```
+
+## Failure Mode
+
+### --failure-mode
+
+Controls how confd handles errors when processing multiple templates:
+
+| Value | Behavior |
+|-------|----------|
+| `best-effort` | Continue processing remaining templates when one fails (default) |
+| `fail-fast` | Stop all processing on first template error |
+
+```bash
+# Continue processing other templates even if one fails
+confd --failure-mode best-effort etcd --onetime
+
+# Stop immediately on first error
+confd --failure-mode fail-fast etcd --onetime
+```
+
+## Systemd Integration Flags
+
+Enable systemd service integration for production deployments:
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--systemd-notify` | Enable systemd sd_notify support | `false` |
+| `--watchdog-interval` | Systemd watchdog ping interval (0=disabled) | `0` |
+
+When `--systemd-notify` is enabled, confd sends:
+- `READY=1` when service is ready
+- `RELOADING=1` when reloading configuration (SIGHUP)
+- `STOPPING=1` when shutting down
+- `WATCHDOG=1` heartbeat pings (if `--watchdog-interval` > 0)
+
+### Example: Systemd service configuration
+
+```bash
+confd etcd --watch \
+  --systemd-notify \
+  --watchdog-interval 30s \
+  --shutdown-timeout 30s
+```
+
+See [Service Deployment Guide](service-deployment.md) for complete systemd configuration.
+
+## Metrics and Observability Flags
+
+### --metrics-addr
+
+Enable Prometheus metrics and health check endpoints:
+
+```bash
+confd etcd --watch --metrics-addr :9100
+```
+
+When enabled, the following endpoints are available:
+- `/metrics` - Prometheus metrics
+- `/health` - Basic health check
+- `/ready` - Readiness check
+- `/ready/detailed` - Detailed readiness with diagnostics
+
+Can also be set via environment variable `CONFD_METRICS_ADDR`.
+
+## Performance Flags
+
+### --template-cache / --no-template-cache
+
+Enable or disable template compilation caching (enabled by default):
+
+```bash
+# Disable caching (useful for debugging)
+confd --no-template-cache etcd --onetime
+```
+
+### --stat-cache-ttl
+
+TTL for caching template file stat results. Reduces filesystem calls when templates don't change frequently:
+
+```bash
+confd --stat-cache-ttl 5s etcd --watch
+```
+
 ## Environment Variables
 
 Global configuration can also be set via environment variables with the `CONFD_` prefix:
@@ -356,5 +507,18 @@ Global configuration can also be set via environment variables with the `CONFD_`
 | `CONFD_INTERVAL` | Polling interval |
 | `CONFD_LOG_LEVEL` | Log level |
 | `CONFD_PREFIX` | Key prefix |
+| `CONFD_METRICS_ADDR` | Metrics endpoint address |
+| `CONFD_SYSTEMD_NOTIFY` | Enable systemd notify |
+| `CONFD_CLIENT_CERT` | Client certificate file |
+| `CONFD_CLIENT_KEY` | Client key file |
+| `CONFD_CLIENT_CAKEYS` | CA certificate file |
 
-Backend-specific environment variables are documented in each backend's README.
+Backend-specific environment variables:
+
+| Variable | Backend | Description |
+|----------|---------|-------------|
+| `VAULT_TOKEN` | Vault | Vault authentication token |
+| `ACM_EXPORT_PRIVATE_KEY` | ACM | Enable private key export |
+| `IMDS_ENDPOINT` | IMDS | Custom IMDS endpoint (testing only) |
+
+Backend-specific environment variables are also documented in each backend's README.

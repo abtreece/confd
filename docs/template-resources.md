@@ -11,13 +11,31 @@ Template resources are stored under the `/etc/confd/conf.d` directory by default
 
 ### Optional
 
-* `gid` (int) - The gid that should own the file. Defaults to the effective gid.
-* `mode` (string) - The permission mode of the file.
+**File Ownership and Permissions:**
+
+* `mode` (string) - The permission mode of the file (e.g., `"0644"`, `"0600"`).
 * `uid` (int) - The uid that should own the file. Defaults to the effective uid.
-* `reload_cmd` (string) - The command to reload config. Use `{{.src}}` to reference the rendered source template, or `{{.dest}}` to reference the destination file.
-* `check_cmd` (string) - The command to check config. Use `{{.src}}` to reference the rendered source template.
+* `gid` (int) - The gid that should own the file. Defaults to the effective gid.
+* `owner` (string) - The username that should own the file. Alternative to `uid`. If both are specified, `uid` takes precedence.
+* `group` (string) - The group name that should own the file. Alternative to `gid`. If both are specified, `gid` takes precedence.
+
+**Key Configuration:**
+
 * `prefix` (string) - The string to prefix to keys. When a global prefix is also set in `confd.toml`, the prefixes are concatenated (e.g., global `production` + resource `myapp` = `/production/myapp`).
+
+**Commands:**
+
+* `check_cmd` (string) - The command to check config. Use `{{.src}}` to reference the rendered source template.
+* `check_cmd_timeout` (string) - Timeout for the check command. Uses Go duration format (e.g., `30s`, `1m`). Overrides the global `--check-cmd-timeout` flag.
+* `reload_cmd` (string) - The command to reload config. Use `{{.src}}` to reference the rendered source template, or `{{.dest}}` to reference the destination file.
+* `reload_cmd_timeout` (string) - Timeout for the reload command. Uses Go duration format (e.g., `60s`, `2m`). Overrides the global `--reload-cmd-timeout` flag.
+
+**Validation:**
+
 * `output_format` (string) - Validate the rendered output as a specific format. Supported formats: `json`, `yaml`, `yml`, `toml`, `xml`. If validation fails, the template processing aborts and the destination file is not updated.
+
+**Watch Mode Tuning:**
+
 * `min_reload_interval` (string) - Minimum time between reload command executions for this resource. Uses Go duration format (e.g., `30s`, `1m`, `500ms`). If changes occur more frequently, reloads are throttled and a warning is logged.
 * `debounce` (string) - Wait for changes to settle before processing in watch mode. Uses Go duration format (e.g., `2s`, `500ms`). After detecting a change, confd waits this duration before processing. Additional changes during this period reset the timer. Useful for reducing unnecessary reloads when multiple keys change in rapid succession.
 
@@ -64,6 +82,46 @@ keys = [
 check_cmd = "/usr/sbin/nginx -t -c {{.src}}"
 reload_cmd = "/usr/sbin/service nginx restart"
 ```
+
+## Example with Owner/Group Names
+
+Instead of numeric uid/gid, you can specify owner and group by name:
+
+```TOML
+[template]
+src = "app.conf.tmpl"
+dest = "/etc/myapp/app.conf"
+owner = "myapp"
+group = "myapp"
+mode = "0640"
+keys = [
+  "/myapp/config",
+]
+reload_cmd = "/usr/bin/systemctl reload myapp"
+```
+
+## Example with Command Timeouts
+
+Override the global command timeouts for specific templates that may take longer to validate or reload:
+
+```TOML
+[template]
+src = "database.conf.tmpl"
+dest = "/etc/myapp/database.conf"
+mode = "0600"
+keys = [
+  "/myapp/database",
+]
+check_cmd = "/usr/bin/myapp --validate-config {{.src}}"
+check_cmd_timeout = "60s"
+reload_cmd = "/usr/bin/systemctl reload myapp"
+reload_cmd_timeout = "120s"
+```
+
+This is useful when:
+- The check command performs extensive validation (e.g., database connectivity tests)
+- The reload command triggers a graceful restart that takes time to complete
+- Different services have different timeout requirements
 
 ## Example with Per-Resource Backend
 

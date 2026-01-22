@@ -342,6 +342,181 @@ Wrapper for [os.Hostname](https://golang.org/pkg/os/#Hostname). Retrieves the va
 hostname: {{ hostname }}
 ```
 
+### contains
+
+Alias for [strings.Contains](https://golang.org/pkg/strings/#Contains). Reports whether a substring is within a string.
+
+```
+{{if contains (getv "/app/features") "debug"}}
+debug_mode = true
+{{end}}
+```
+
+### trimSuffix
+
+Alias for [strings.TrimSuffix](https://golang.org/pkg/strings/#TrimSuffix). Removes the suffix from the end of a string.
+
+```
+# Remove .example.com suffix from hostname
+server_name: {{trimSuffix (getv "/app/hostname") ".example.com"}}
+```
+
+### lookupIPV4
+
+Similar to `lookupIP` but returns only IPv4 addresses. Results are sorted alphabetically.
+
+```
+{{range lookupIPV4 "some.host.local"}}
+    server {{.}};
+{{end}}
+```
+
+### lookupIPV6
+
+Similar to `lookupIP` but returns only IPv6 addresses. Results are sorted alphabetically.
+
+```
+{{range lookupIPV6 "some.host.local"}}
+    server [{{.}}];
+{{end}}
+```
+
+### lookupIfaceIPV4
+
+Returns the IPv4 address of a network interface by name.
+
+```
+bind_address: {{lookupIfaceIPV4 "eth0"}}
+```
+
+### lookupIfaceIPV6
+
+Returns the IPv6 address of a network interface by name.
+
+```
+bind_address_v6: {{lookupIfaceIPV6 "eth0"}}
+```
+
+### fileExists
+
+Checks if a file exists at the given path. Returns true if the file exists.
+
+```
+{{if fileExists "/etc/myapp/custom.conf"}}
+include /etc/myapp/custom.conf
+{{end}}
+```
+
+### parseBool
+
+Alias for [strconv.ParseBool](https://golang.org/pkg/strconv/#ParseBool). Parses a string into a boolean value. Accepts: 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
+
+```
+{{if parseBool (getv "/app/debug" "false")}}
+log_level = debug
+{{end}}
+```
+
+### reverse
+
+Reverses the order of elements in an array. Works with `[]string` and `[]KVPair`.
+
+```
+# Reverse order of servers
+{{range reverse (getvs "/servers/*")}}
+    server {{.}};
+{{end}}
+
+# Reverse order of KVPairs
+{{range reverse (gets "/config/*")}}
+    {{.Key}} = {{.Value}}
+{{end}}
+```
+
+### sortByLength
+
+Sorts a string array by the length of each string (shortest first).
+
+```
+{{range sortByLength (getvs "/paths/*")}}
+    location {{.}} { }
+{{end}}
+```
+
+### sortKVByLength
+
+Sorts a KVPair array by the length of each key (shortest first). Useful for ordering paths or prefixes.
+
+```
+{{range sortKVByLength (gets "/routes/*")}}
+    # Key: {{.Key}} (length: {{len .Key}})
+    route {{.Key}} {{.Value}}
+{{end}}
+```
+
+### seq
+
+Creates a sequence of integers, similar to GNU seq. Takes a start and end value (inclusive).
+
+```
+# Generate sequence from 1 to 5: [1, 2, 3, 4, 5]
+{{range seq 1 5}}
+worker_{{.}}:
+    enabled: true
+{{end}}
+
+# Dynamic range based on config value
+{{range seq 1 (atoi (getv "/app/workers" "3"))}}
+    - worker{{.}}
+{{end}}
+```
+
+### Math Functions
+
+Basic arithmetic operations on integers.
+
+#### add
+
+Adds two integers.
+
+```
+port: {{add (atoi (getv "/base_port")) 1}}
+```
+
+#### sub
+
+Subtracts the second integer from the first.
+
+```
+max_connections: {{sub (atoi (getv "/total_connections")) 10}}
+```
+
+#### mul
+
+Multiplies two integers.
+
+```
+buffer_size: {{mul (atoi (getv "/buffer_kb")) 1024}}
+```
+
+#### div
+
+Divides the first integer by the second.
+
+```
+workers_per_core: {{div (atoi (getv "/total_workers")) 4}}
+```
+
+#### mod
+
+Returns the remainder of dividing the first integer by the second.
+
+```
+{{if eq (mod $index 2) 0}}
+# Even index
+{{end}}
+```
+
 ### include
 
 Includes another template file. The included template has access to all the same functions and can also use `include` for nested includes (up to 10 levels deep). Cycle detection prevents infinite loops.
