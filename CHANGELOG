@@ -1,3 +1,78 @@
+### v0.40.0
+
+This release represents a significant evolution of confd with major architectural improvements, new features, and performance optimizations. The version jump from v0.33.0 to v0.40.0 reflects the scope of these changes.
+
+**BREAKING CHANGES**:
+
+* **CLI migrated to Kong with backend subcommands**: The CLI now uses `confd <backend> [flags]` syntax instead of `confd --backend=<backend>`. For example, `confd --backend=etcd --node=http://localhost:2379` becomes `confd etcd --node=http://localhost:2379`. (#357)
+
+* **Logging migrated from logrus to slog**: confd now uses Go's standard library `log/slog` for structured logging. Log output format has changed. Use `--log-format=json` for machine-parseable logs. (#420)
+
+* **Redis client migrated from redigo to go-redis/v9**: Internal implementation change that may affect connection behavior. (#376)
+
+**New Features**:
+
+* feat: Add AWS EC2 IMDS backend for Instance Metadata Service v2 (#431)
+* feat: Add Prometheus metrics and observability instrumentation (`--metrics-addr`) (#416)
+* feat: Add health check endpoints (`/health`, `/ready`, `/ready/detailed`) (#429)
+* feat: Standardize HealthCheck implementations across all backends (#427)
+* feat: Add error aggregation and failure modes (`--failure-mode=best-effort|fail-fast`) (#426)
+* feat: Extract hardcoded timeouts and retry delays to configuration flags (#425)
+* feat: Add `templates_loaded` and `watched_keys` gauge metrics (#424)
+* feat: Add structured logging with timing metrics to critical paths (#420)
+* feat: Add template compilation caching for improved performance (#368)
+* feat: Add per-resource backend configuration support (#359)
+* feat: Add configuration validation, template enhancements, and watch mode improvements (#360)
+* feat(redis): Implement exponential backoff for connection retries (#405)
+
+**Performance Improvements**:
+
+* perf: Use conditional defer in process() to avoid overhead when metrics disabled (#462)
+* perf: Pool map allocations in memkv List/ListDir operations (#461)
+* perf: Optimize IsConfigChanged to reduce syscalls (#460)
+* perf: Avoid FuncMap copy on every include call (#459)
+* perf: Add TTL-based caching for template file stat checks (#458)
+* perf: Cache prefixed keys on TemplateResource initialization (#457)
+* perf: Pre-compile command templates in CommandExecutor (#456)
+* perf: Pre-allocate template slice in getTemplateResources (#454)
+
+**Bug Fixes**:
+
+* fix: Exclude timeout fields from client cache hash (#455)
+* fix(vault): Improve flatten() function type safety (#433)
+* fix(redis): Add automatic reconnection for PubSub watch mode (#408)
+* fix: Improve code quality and fix potential issues (#380)
+
+**Refactoring**:
+
+* refactor: Refactor TemplateResource to follow Single Responsibility Principle (#409)
+* refactor: Propagate context.Context through backend calls (#379)
+* refactor: Internalize memkv package from abandoned upstream (#369)
+* refactor: Standardize error wrapping across codebase (#423)
+* refactor(vault): Replace panic-based error handling with explicit error returns (#378)
+* refactor(vault): Consolidate duplicate recursive listing functions (#404)
+
+**Testing**:
+
+* Comprehensive integration test suite reorganized into categorical structure (#432)
+* Test coverage improved significantly across all backends
+* Added integration tests for health, metrics, failure modes, includes, and signals (#430)
+
+**Infrastructure**:
+
+* Update Go version to 1.25 (#415)
+* Numerous dependency updates for security and compatibility
+
+### v0.33.0
+
+* feat: Add AWS Secrets Manager backend support (#356)
+* feat: Migrate AWS backends from SDK v1 to v2 (#355)
+* feat: Add private key export support for ACM backend (#329)
+* feat: Add AWS ACM backend support (#328)
+* chore: Add benchmark suite for template and backend performance (#353)
+* chore: Code quality cleanup and godoc improvements (#352)
+* fix: Update Makefile for goreleaser v2 compatibility
+
 ### v0.32.0
 
 **BREAKING CHANGE**: The global `prefix` setting in `confd.toml` is now concatenated with resource-level `prefix` values in template resource files (`conf.d/*.toml`) instead of overriding them. For example, if `confd.toml` has `prefix = "production"` and a resource has `prefix = "myapp"`, the effective prefix is now `/production/myapp` instead of `/production`. To restore the previous behavior, remove the `prefix` setting from your template resource files. (#324)
