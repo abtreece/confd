@@ -42,6 +42,9 @@ jobs:
           # Create test configuration
           mkdir -p test-conf/conf.d test-conf/templates test-output
 
+          # Make output writable by container user (UID 1000)
+          chmod 777 test-output
+
           cat > test-conf/conf.d/test.toml << 'EOF'
           [template]
           src = "test.tmpl"
