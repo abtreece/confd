@@ -9,11 +9,25 @@ import (
 	"sync"
 )
 
+// seenPoolCapacity is the initial capacity for maps in seenPool.
+// Sized for typical List/ListDir usage where templates iterate over
+// hierarchical key structures. A capacity of 64 balances avoiding
+// reallocations for common workloads against over-allocating memory.
+const seenPoolCapacity = 64
+
 var (
 	// ErrNotExist is returned when a key does not exist in the store.
 	ErrNotExist = errors.New("key does not exist")
 	// ErrNoMatch is returned when no keys match a pattern.
 	ErrNoMatch = errors.New("no keys match")
+
+	// seenPool is a pool of maps used by List and ListDir to track unique entries.
+	// This reduces allocations during high-frequency template processing.
+	seenPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string]struct{}, seenPoolCapacity)
+		},
+	}
 )
 
 // KeyError wraps an error with the associated key.
@@ -140,7 +154,12 @@ func (s *Store) List(filePath string) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	seen := make(map[string]struct{})
+	seen := seenPool.Get().(map[string]struct{})
+	defer func() {
+		clear(seen)
+		seenPool.Put(seen)
+	}()
+
 	prefix := pathToTerms(filePath)
 
 	for _, kv := range s.m {
@@ -173,7 +192,12 @@ func (s *Store) ListDir(filePath string) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	seen := make(map[string]struct{})
+	seen := seenPool.Get().(map[string]struct{})
+	defer func() {
+		clear(seen)
+		seenPool.Put(seen)
+	}()
+
 	prefix := pathToTerms(filePath)
 
 	for _, kv := range s.m {

@@ -2,6 +2,7 @@ package memkv
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 )
@@ -306,5 +307,75 @@ func TestKVPairs_Sort(t *testing.T) {
 	pairs.Swap(0, 1)
 	if pairs[0].Key != "/a" || pairs[1].Key != "/c" {
 		t.Error("Swap() did not swap correctly")
+	}
+}
+
+// setupBenchmarkStore creates a store with a hierarchical key structure for benchmarking.
+// Creates exactly numKeys keys in the structure: /app/service{i}/config/key{j}
+func setupBenchmarkStore(numKeys int) *Store {
+	s := New()
+	created := 0
+	// Create a hierarchical structure: /app/service{i}/config/key{j}
+	for i := 0; created < numKeys; i++ {
+		for j := 0; j < 10 && created < numKeys; j++ {
+			key := fmt.Sprintf("/app/service%d/config/key%d", i, j)
+			s.Set(key, fmt.Sprintf("value%d", j))
+			created++
+		}
+	}
+	return s
+}
+
+func BenchmarkList(b *testing.B) {
+	s := setupBenchmarkStore(100)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s.List("/app")
+	}
+}
+
+func BenchmarkList_HighFrequency(b *testing.B) {
+	s := setupBenchmarkStore(100)
+	b.ResetTimer()
+	// Simulate high-frequency calls as would happen in watch mode
+	for i := 0; i < b.N; i++ {
+		s.List("/app")
+		s.List("/app/service0")
+		s.List("/app/service1")
+	}
+}
+
+func BenchmarkListDir(b *testing.B) {
+	s := setupBenchmarkStore(100)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s.ListDir("/app")
+	}
+}
+
+func BenchmarkListDir_HighFrequency(b *testing.B) {
+	s := setupBenchmarkStore(100)
+	b.ResetTimer()
+	// Simulate high-frequency calls as would happen in watch mode
+	for i := 0; i < b.N; i++ {
+		s.ListDir("/app")
+		s.ListDir("/app/service0")
+		s.ListDir("/app/service1")
+	}
+}
+
+func BenchmarkList_LargeStore(b *testing.B) {
+	s := setupBenchmarkStore(1000)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s.List("/app")
+	}
+}
+
+func BenchmarkListDir_LargeStore(b *testing.B) {
+	s := setupBenchmarkStore(1000)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s.ListDir("/app")
 	}
 }
