@@ -1,3 +1,15 @@
+### v0.40.0-rc.1
+
+Release candidate for v0.40.0 with Docker container support.
+
+**New in this RC**:
+
+* feat: Add official Docker images published to Docker Hub and GHCR
+* feat: Multi-architecture support (linux/amd64, linux/arm64)
+* feat: Add workflow_dispatch for manual release triggers
+
+Docker images: `abtreece/confd:v0.40.0-rc.1` or `ghcr.io/abtreece/confd:v0.40.0-rc.1`
+
 ### v0.40.0
 
 This release represents a significant evolution of confd with major architectural improvements, new features, and performance optimizations. The version jump from v0.33.0 to v0.40.0 reflects the scope of these changes.
