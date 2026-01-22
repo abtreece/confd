@@ -266,7 +266,7 @@ debounce = "500ms"
 	}
 
 	// Make 5 rapid changes within debounce window
-	time.Sleep(500 * time.Millisecond) // Redis PubSub needs more time to settle
+	time.Sleep(300 * time.Millisecond) // Redis PubSub needs time to settle but stay within debounce window
 	for i := 1; i <= 5; i++ {
 		if err := env.SetBackendValue(containerCtx, "/test/value", fmt.Sprintf("v%d", i)); err != nil {
 			t.Fatalf("Failed to set value v%d: %v", i, err)

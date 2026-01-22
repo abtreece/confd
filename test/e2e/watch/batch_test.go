@@ -250,7 +250,7 @@ prefix = "/"
 	}
 
 	// Make multiple changes within batch interval
-	time.Sleep(500 * time.Millisecond) // Redis PubSub needs more time
+	time.Sleep(250 * time.Millisecond) // Redis PubSub needs some time, but stay within batch interval
 	for i := 1; i <= 3; i++ {
 		if err := env.SetBackendValue(containerCtx, "/test/value", fmt.Sprintf("batch%d", i)); err != nil {
 			t.Fatalf("Failed to set value batch%d: %v", i, err)
