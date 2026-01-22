@@ -3,6 +3,7 @@ package template
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
@@ -257,5 +258,65 @@ func TestGetOrCreateClientInvalidBackend(t *testing.T) {
 	_, err := getOrCreateClient(cfg)
 	if err == nil {
 		t.Error("Expected error for invalid backend")
+	}
+}
+
+func TestConfigHashExcludesTimeouts(t *testing.T) {
+	log.SetLevel("warn")
+
+	cfg1 := backends.Config{
+		Backend:      "consul",
+		BackendNodes: []string{"node1:8500"},
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: 1 * time.Second,
+	}
+	cfg2 := backends.Config{
+		Backend:      "consul",
+		BackendNodes: []string{"node1:8500"},
+		DialTimeout:  30 * time.Second,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+	if configHash(cfg1) != configHash(cfg2) {
+		t.Error("Timeout differences should not affect hash")
+	}
+}
+
+func TestConfigHashExcludesRetryConfig(t *testing.T) {
+	log.SetLevel("warn")
+
+	cfg1 := backends.Config{
+		Backend:          "vault",
+		BackendNodes:     []string{"vault:8200"},
+		RetryMaxAttempts: 3,
+		RetryBaseDelay:   100 * time.Millisecond,
+		RetryMaxDelay:    5 * time.Second,
+	}
+	cfg2 := backends.Config{
+		Backend:          "vault",
+		BackendNodes:     []string{"vault:8200"},
+		RetryMaxAttempts: 10,
+		RetryBaseDelay:   1 * time.Second,
+		RetryMaxDelay:    30 * time.Second,
+	}
+	if configHash(cfg1) != configHash(cfg2) {
+		t.Error("Retry config differences should not affect hash")
+	}
+}
+
+func TestConfigHashExcludesIMDSCacheTTL(t *testing.T) {
+	log.SetLevel("warn")
+
+	cfg1 := backends.Config{
+		Backend:      "imds",
+		IMDSCacheTTL: 30 * time.Second,
+	}
+	cfg2 := backends.Config{
+		Backend:      "imds",
+		IMDSCacheTTL: 5 * time.Minute,
+	}
+	if configHash(cfg1) != configHash(cfg2) {
+		t.Error("IMDSCacheTTL differences should not affect hash")
 	}
 }
