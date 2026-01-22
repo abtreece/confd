@@ -1,0 +1,26 @@
+name: Update Docker Hub Description
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docs/docker.md
+      - .github/workflows/dockerhub-description.yml
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update Docker Hub Description
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: abtreece/confd
+          readme-filepath: docs/docker.md
+          short-description: "Lightweight configuration management tool"
+          enable-url-completion: true
