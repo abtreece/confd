@@ -68,17 +68,17 @@ jobs:
               next
             }
             found { print }
-          ' CHANGELOG > release_notes.md
+          ' CHANGELOG > /tmp/release_notes.md
 
           echo "Extracted release notes:"
-          cat release_notes.md
+          cat /tmp/release_notes.md
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --release-notes=release_notes.md
+          args: release --clean --release-notes=/tmp/release_notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ inputs.tag || github.ref_name }}
