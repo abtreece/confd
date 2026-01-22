@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.40.0-rc.1)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -17,6 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -44,9 +51,13 @@ jobs:
 
       - name: Extract release notes from CHANGELOG
         id: release_notes
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           # Get version from tag (remove 'v' prefix)
-          VERSION="${GITHUB_REF_NAME#v}"
+          # Use input tag for workflow_dispatch, otherwise use GITHUB_REF_NAME
+          TAG="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
 
           # Extract section for this version from CHANGELOG
           # Matches from "### vX.Y.Z" until the next "### v" or end of file
@@ -70,3 +81,4 @@ jobs:
           args: release --clean --release-notes=release_notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ inputs.tag || github.ref_name }}
