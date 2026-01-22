@@ -41,3 +41,61 @@ changelog:
 
 release:
   prerelease: auto
+
+dockers:
+  - image_templates:
+      - "abtreece/confd:{{ .Tag }}-amd64"
+      - "ghcr.io/abtreece/confd:{{ .Tag }}-amd64"
+    dockerfile: docker/Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title=confd"
+      - "--label=org.opencontainers.image.description=Lightweight configuration management tool"
+      - "--label=org.opencontainers.image.url=https://github.com/abtreece/confd"
+      - "--label=org.opencontainers.image.source=https://github.com/abtreece/confd"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+    goarch: amd64
+
+  - image_templates:
+      - "abtreece/confd:{{ .Tag }}-arm64"
+      - "ghcr.io/abtreece/confd:{{ .Tag }}-arm64"
+    dockerfile: docker/Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title=confd"
+      - "--label=org.opencontainers.image.description=Lightweight configuration management tool"
+      - "--label=org.opencontainers.image.url=https://github.com/abtreece/confd"
+      - "--label=org.opencontainers.image.source=https://github.com/abtreece/confd"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "abtreece/confd:{{ .Tag }}"
+    image_templates:
+      - "abtreece/confd:{{ .Tag }}-amd64"
+      - "abtreece/confd:{{ .Tag }}-arm64"
+
+  - name_template: "ghcr.io/abtreece/confd:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/abtreece/confd:{{ .Tag }}-amd64"
+      - "ghcr.io/abtreece/confd:{{ .Tag }}-arm64"
+
+  - name_template: "abtreece/confd:latest"
+    skip_push: auto
+    image_templates:
+      - "abtreece/confd:{{ .Tag }}-amd64"
+      - "abtreece/confd:{{ .Tag }}-arm64"
+
+  - name_template: "ghcr.io/abtreece/confd:latest"
+    skip_push: auto
+    image_templates:
+      - "ghcr.io/abtreece/confd:{{ .Tag }}-amd64"
+      - "ghcr.io/abtreece/confd:{{ .Tag }}-arm64"

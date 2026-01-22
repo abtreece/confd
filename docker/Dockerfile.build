@@ -1,0 +1,47 @@
+# Multi-stage build Dockerfile for CI testing
+# Builds confd from source and produces a minimal runtime image
+
+FROM golang:1.25-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make
+
+WORKDIR /src
+
+# Copy go module files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build binary
+RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o /confd ./cmd/confd
+
+# Runtime image
+FROM alpine:3.21
+
+# Create non-root user
+RUN addgroup -g 1000 confd && \
+    adduser -u 1000 -G confd -s /bin/sh -D confd
+
+# Install runtime dependencies
+# - ca-certificates: TLS backends (Vault, Consul, etcd)
+# - tzdata: timezone support for datetime template function
+RUN apk add --no-cache ca-certificates tzdata
+
+# Copy binary from builder
+COPY --from=builder /confd /usr/local/bin/confd
+
+# Create configuration directories
+RUN mkdir -p /etc/confd/conf.d /etc/confd/templates && \
+    chown -R confd:confd /etc/confd
+
+# Run as non-root user
+USER confd:confd
+
+# Set working directory
+WORKDIR /etc/confd
+
+# Default entrypoint
+ENTRYPOINT ["/usr/local/bin/confd"]
