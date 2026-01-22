@@ -14,6 +14,14 @@ var (
 	ErrNotExist = errors.New("key does not exist")
 	// ErrNoMatch is returned when no keys match a pattern.
 	ErrNoMatch = errors.New("no keys match")
+
+	// seenPool is a pool of maps used by List and ListDir to track unique entries.
+	// This reduces allocations during high-frequency template processing.
+	seenPool = sync.Pool{
+		New: func() interface{} {
+			return make(map[string]struct{}, 64)
+		},
+	}
 )
 
 // KeyError wraps an error with the associated key.
@@ -140,7 +148,12 @@ func (s *Store) List(filePath string) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	seen := make(map[string]struct{})
+	seen := seenPool.Get().(map[string]struct{})
+	defer func() {
+		clear(seen)
+		seenPool.Put(seen)
+	}()
+
 	prefix := pathToTerms(filePath)
 
 	for _, kv := range s.m {
@@ -173,7 +186,12 @@ func (s *Store) ListDir(filePath string) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	seen := make(map[string]struct{})
+	seen := seenPool.Get().(map[string]struct{})
+	defer func() {
+		clear(seen)
+		seenPool.Put(seen)
+	}()
+
 	prefix := pathToTerms(filePath)
 
 	for _, kv := range s.m {
