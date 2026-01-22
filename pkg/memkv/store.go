@@ -9,6 +9,12 @@ import (
 	"sync"
 )
 
+// seenPoolCapacity is the initial capacity for maps in seenPool.
+// Sized for typical List/ListDir usage where templates iterate over
+// hierarchical key structures. A capacity of 64 balances avoiding
+// reallocations for common workloads against over-allocating memory.
+const seenPoolCapacity = 64
+
 var (
 	// ErrNotExist is returned when a key does not exist in the store.
 	ErrNotExist = errors.New("key does not exist")
@@ -19,7 +25,7 @@ var (
 	// This reduces allocations during high-frequency template processing.
 	seenPool = sync.Pool{
 		New: func() interface{} {
-			return make(map[string]struct{}, 64)
+			return make(map[string]struct{}, seenPoolCapacity)
 		},
 	}
 )

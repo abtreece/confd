@@ -311,13 +311,16 @@ func TestKVPairs_Sort(t *testing.T) {
 }
 
 // setupBenchmarkStore creates a store with a hierarchical key structure for benchmarking.
+// Creates exactly numKeys keys in the structure: /app/service{i}/config/key{j}
 func setupBenchmarkStore(numKeys int) *Store {
 	s := New()
+	created := 0
 	// Create a hierarchical structure: /app/service{i}/config/key{j}
-	for i := 0; i < numKeys/10; i++ {
-		for j := 0; j < 10; j++ {
+	for i := 0; created < numKeys; i++ {
+		for j := 0; j < 10 && created < numKeys; j++ {
 			key := fmt.Sprintf("/app/service%d/config/key%d", i, j)
 			s.Set(key, fmt.Sprintf("value%d", j))
+			created++
 		}
 	}
 	return s
