@@ -1,6 +1,7 @@
 package template
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"text/template"
@@ -267,4 +268,138 @@ func BenchmarkNewFuncMap(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		newFuncMap()
 	}
+}
+
+// Benchmark include function at various depths
+
+func BenchmarkInclude_Shallow(b *testing.B) {
+	// Single include (depth 1)
+	tmpDir := b.TempDir()
+
+	// Create a simple template to include
+	leafContent := `Hello from leaf`
+	if err := writeFile(tmpDir, "leaf.tmpl", leafContent); err != nil {
+		b.Fatalf("Failed to create leaf template: %v", err)
+	}
+
+	funcMap := newFuncMap()
+	ctx := NewIncludeContext()
+	funcMap["include"] = NewIncludeFunc(tmpDir, funcMap, ctx)
+
+	// Create the main template that includes the leaf
+	mainContent := `{{ include "leaf.tmpl" }}`
+	tmpl, err := template.New("main").Funcs(funcMap).Parse(mainContent)
+	if err != nil {
+		b.Fatalf("Failed to parse main template: %v", err)
+	}
+
+	var buf strings.Builder
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		// Reset context for each iteration
+		ctx = NewIncludeContext()
+		funcMap["include"] = NewIncludeFunc(tmpDir, funcMap, ctx)
+		tmpl = tmpl.Funcs(funcMap)
+		if err := tmpl.Execute(&buf, nil); err != nil {
+			b.Fatalf("Failed to execute template: %v", err)
+		}
+	}
+}
+
+func BenchmarkInclude_Nested(b *testing.B) {
+	// 5 levels of nested includes
+	tmpDir := b.TempDir()
+
+	// Create nested templates: level5 -> level4 -> level3 -> level2 -> level1 -> leaf
+	if err := writeFile(tmpDir, "leaf.tmpl", "Leaf content"); err != nil {
+		b.Fatalf("Failed to create template: %v", err)
+	}
+	for i := 1; i <= 5; i++ {
+		var content string
+		if i == 1 {
+			content = `Level1: {{ include "leaf.tmpl" }}`
+		} else {
+			content = "Level" + string(rune('0'+i)) + `: {{ include "level` + string(rune('0'+i-1)) + `.tmpl" }}`
+		}
+		if err := writeFile(tmpDir, "level"+string(rune('0'+i))+".tmpl", content); err != nil {
+			b.Fatalf("Failed to create template: %v", err)
+		}
+	}
+
+	funcMap := newFuncMap()
+	ctx := NewIncludeContext()
+	funcMap["include"] = NewIncludeFunc(tmpDir, funcMap, ctx)
+
+	// Main template includes level5
+	mainContent := `{{ include "level5.tmpl" }}`
+	tmpl, err := template.New("main").Funcs(funcMap).Parse(mainContent)
+	if err != nil {
+		b.Fatalf("Failed to parse main template: %v", err)
+	}
+
+	var buf strings.Builder
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		ctx = NewIncludeContext()
+		funcMap["include"] = NewIncludeFunc(tmpDir, funcMap, ctx)
+		tmpl = tmpl.Funcs(funcMap)
+		if err := tmpl.Execute(&buf, nil); err != nil {
+			b.Fatalf("Failed to execute template: %v", err)
+		}
+	}
+}
+
+func BenchmarkInclude_DeepNested(b *testing.B) {
+	// 10 levels (max depth)
+	tmpDir := b.TempDir()
+
+	// Create nested templates from depth 10 down to leaf
+	if err := writeFile(tmpDir, "leaf.tmpl", "Leaf content"); err != nil {
+		b.Fatalf("Failed to create template: %v", err)
+	}
+	for i := 1; i <= 9; i++ {
+		var content string
+		if i == 1 {
+			content = `L1: {{ include "leaf.tmpl" }}`
+		} else {
+			content = "L" + string(rune('0'+i)) + `: {{ include "l` + string(rune('0'+i-1)) + `.tmpl" }}`
+		}
+		if err := writeFile(tmpDir, "l"+string(rune('0'+i))+".tmpl", content); err != nil {
+			b.Fatalf("Failed to create template: %v", err)
+		}
+	}
+	// Level 9 needs special handling for two-digit level 10
+	if err := writeFile(tmpDir, "l9.tmpl", `L9: {{ include "l8.tmpl" }}`); err != nil {
+		b.Fatalf("Failed to create template: %v", err)
+	}
+
+	funcMap := newFuncMap()
+	ctx := NewIncludeContext()
+	funcMap["include"] = NewIncludeFunc(tmpDir, funcMap, ctx)
+
+	// Main template includes l9 (which chains down to leaf = 10 levels total)
+	mainContent := `{{ include "l9.tmpl" }}`
+	tmpl, err := template.New("main").Funcs(funcMap).Parse(mainContent)
+	if err != nil {
+		b.Fatalf("Failed to parse main template: %v", err)
+	}
+
+	var buf strings.Builder
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		ctx = NewIncludeContext()
+		funcMap["include"] = NewIncludeFunc(tmpDir, funcMap, ctx)
+		tmpl = tmpl.Funcs(funcMap)
+		if err := tmpl.Execute(&buf, nil); err != nil {
+			b.Fatalf("Failed to execute template: %v", err)
+		}
+	}
+}
+
+// writeFile is a helper for creating test template files
+func writeFile(dir, name, content string) error {
+	return os.WriteFile(dir+"/"+name, []byte(content), 0644)
 }
