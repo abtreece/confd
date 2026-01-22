@@ -491,3 +491,161 @@ func TestIsConfigChanged_DestNotExist(t *testing.T) {
 		t.Error("IsConfigChanged() = false when dest doesn't exist, want true")
 	}
 }
+
+func TestIsConfigChanged_DifferentSize(t *testing.T) {
+	log.SetLevel("warn")
+	src, err := os.CreateTemp("", "src")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(src.Name())
+	src.WriteString("short")
+	src.Close()
+
+	dest, err := os.CreateTemp("", "dest")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(dest.Name())
+	dest.WriteString("this is a much longer string")
+	dest.Close()
+
+	// Different sizes should trigger short-circuit and return true
+	changed, err := IsConfigChanged(src.Name(), dest.Name())
+	if err != nil {
+		t.Errorf("IsConfigChanged() unexpected error: %v", err)
+	}
+	if !changed {
+		t.Error("IsConfigChanged() = false for different sizes, want true")
+	}
+}
+
+func TestIsConfigChanged_DifferentMode(t *testing.T) {
+	log.SetLevel("warn")
+	src, err := os.CreateTemp("", "src")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(src.Name())
+	src.WriteString("content")
+	src.Close()
+	os.Chmod(src.Name(), 0755)
+
+	dest, err := os.CreateTemp("", "dest")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(dest.Name())
+	dest.WriteString("content")
+	dest.Close()
+	os.Chmod(dest.Name(), 0644)
+
+	// Different modes should trigger short-circuit and return true
+	changed, err := IsConfigChanged(src.Name(), dest.Name())
+	if err != nil {
+		t.Errorf("IsConfigChanged() unexpected error: %v", err)
+	}
+	if !changed {
+		t.Error("IsConfigChanged() = false for different modes, want true")
+	}
+}
+
+// Benchmark tests for IsConfigChanged
+
+func BenchmarkIsConfigChanged_Identical(b *testing.B) {
+	// Setup: create identical files
+	content := strings.Repeat("benchmark test content\n", 100)
+	src, err := os.CreateTemp("", "bench_src")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(src.Name())
+	src.WriteString(content)
+	src.Close()
+
+	dest, err := os.CreateTemp("", "bench_dest")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(dest.Name())
+	dest.WriteString(content)
+	dest.Close()
+
+	// Ensure same mode
+	os.Chmod(src.Name(), 0644)
+	os.Chmod(dest.Name(), 0644)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		IsConfigChanged(src.Name(), dest.Name())
+	}
+}
+
+func BenchmarkIsConfigChanged_DifferentSize(b *testing.B) {
+	// Setup: create files with different sizes
+	src, err := os.CreateTemp("", "bench_src")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(src.Name())
+	src.WriteString("short content")
+	src.Close()
+
+	dest, err := os.CreateTemp("", "bench_dest")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(dest.Name())
+	dest.WriteString(strings.Repeat("longer content for benchmark\n", 100))
+	dest.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		IsConfigChanged(src.Name(), dest.Name())
+	}
+}
+
+func BenchmarkIsConfigChanged_DifferentMode(b *testing.B) {
+	// Setup: create files with different modes but same content
+	content := strings.Repeat("benchmark test content\n", 100)
+	src, err := os.CreateTemp("", "bench_src")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(src.Name())
+	src.WriteString(content)
+	src.Close()
+	os.Chmod(src.Name(), 0755)
+
+	dest, err := os.CreateTemp("", "bench_dest")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(dest.Name())
+	dest.WriteString(content)
+	dest.Close()
+	os.Chmod(dest.Name(), 0644)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		IsConfigChanged(src.Name(), dest.Name())
+	}
+}
+
+func BenchmarkIsConfigChanged_DestNotExist(b *testing.B) {
+	// Setup: create source file, no destination
+	src, err := os.CreateTemp("", "bench_src")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(src.Name())
+	src.WriteString("content")
+	src.Close()
+
+	destPath := "/nonexistent/benchmark/dest/file"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		IsConfigChanged(src.Name(), destPath)
+	}
+}

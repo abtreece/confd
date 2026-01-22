@@ -1,4 +1,4 @@
-// +build !windows
+//go:build !windows
 
 package util
 
@@ -10,6 +10,21 @@ import (
 	"os"
 	"syscall"
 )
+
+// checkOwnership compares uid/gid between source and dest stats.
+// Returns (changed bool, reason string).
+func checkOwnership(srcStat, destStat os.FileInfo, destPath string) (bool, string) {
+	srcSys := srcStat.Sys().(*syscall.Stat_t)
+	destSys := destStat.Sys().(*syscall.Stat_t)
+
+	if destSys.Uid != srcSys.Uid {
+		return true, fmt.Sprintf("%s has UID %d should be %d", destPath, destSys.Uid, srcSys.Uid)
+	}
+	if destSys.Gid != srcSys.Gid {
+		return true, fmt.Sprintf("%s has GID %d should be %d", destPath, destSys.Gid, srcSys.Gid)
+	}
+	return false, ""
+}
 
 // filestat return a FileInfo describing the named file.
 func FileStat(name string) (fi FileInfo, err error) {
