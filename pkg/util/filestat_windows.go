@@ -1,3 +1,5 @@
+//go:build windows
+
 package util
 
 import (
@@ -7,6 +9,11 @@ import (
 	"io"
 	"os"
 )
+
+// checkOwnership is a no-op on Windows (no uid/gid concept).
+func checkOwnership(srcStat, destStat os.FileInfo, destPath string) (bool, string) {
+	return false, ""
+}
 
 // filestat return a FileInfo describing the named file.
 func FileStat(name string) (fi FileInfo, err error) {

@@ -1,7 +1,9 @@
 package util
 
 import (
+	"crypto/md5" // #nosec G501 -- MD5 used for change detection, not security
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -58,35 +60,78 @@ func IsFileExist(fpath string) bool {
 // IsConfigChanged reports whether src and dest config files are equal.
 // Two config files are equal when they have the same file contents and
 // Unix permissions. The owner, group, and mode must match.
-// It return false in other cases.
+// It returns false in other cases.
+//
+// This function is optimized to minimize syscalls by short-circuiting on
+// metadata differences (size, mode, uid/gid) before computing MD5 hashes.
 func IsConfigChanged(src, dest string) (bool, error) {
-	if !IsFileExist(dest) {
+	// Single stat for dest, handle not-exist case
+	destStat, err := os.Stat(dest)
+	if os.IsNotExist(err) {
 		return true, nil
 	}
-	d, err := FileStat(dest)
 	if err != nil {
-		return true, err
+		return false, err
 	}
-	s, err := FileStat(src)
+
+	// Single stat for src
+	srcStat, err := os.Stat(src)
 	if err != nil {
-		return true, err
+		return false, err
 	}
-	if d.Uid != s.Uid {
-		log.Info("%s has UID %d should be %d", dest, d.Uid, s.Uid)
-	}
-	if d.Gid != s.Gid {
-		log.Info("%s has GID %d should be %d", dest, d.Gid, s.Gid)
-	}
-	if d.Mode != s.Mode {
-		log.Info("%s has mode %s should be %s", dest, os.FileMode(d.Mode), os.FileMode(s.Mode))
-	}
-	if d.Md5 != s.Md5 {
-		log.Info("%s has md5sum %s should be %s", dest, d.Md5, s.Md5)
-	}
-	if d.Uid != s.Uid || d.Gid != s.Gid || d.Mode != s.Mode || d.Md5 != s.Md5 {
+
+	// Short-circuit: size differs = content differs
+	if destStat.Size() != srcStat.Size() {
+		log.Info("%s has size %d should be %d", dest, destStat.Size(), srcStat.Size())
 		return true, nil
 	}
+
+	// Short-circuit: mode differs
+	if destStat.Mode() != srcStat.Mode() {
+		log.Info("%s has mode %s should be %s", dest, destStat.Mode(), srcStat.Mode())
+		return true, nil
+	}
+
+	// Platform-specific: check uid/gid (POSIX only, no-op on Windows)
+	if changed, reason := checkOwnership(srcStat, destStat, dest); changed {
+		log.Info("%s", reason)
+		return true, nil
+	}
+
+	// Only compute MD5 if all metadata matches
+	srcMD5, err := computeMD5(src)
+	if err != nil {
+		return false, err
+	}
+	destMD5, err := computeMD5(dest)
+	if err != nil {
+		return false, err
+	}
+
+	if srcMD5 != destMD5 {
+		log.Info("%s has md5sum %s should be %s", dest, destMD5, srcMD5)
+		return true, nil
+	}
+
 	return false, nil
+}
+
+// computeMD5 computes the MD5 hash of a file and returns it as a hex string.
+// Note: MD5 is used here for fast change detection in non-adversarial scenarios,
+// not for cryptographic security. This is appropriate for detecting accidental
+// file modifications where collision resistance is not required.
+func computeMD5(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := md5.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
 func IsDirectory(path string) (bool, error) {
