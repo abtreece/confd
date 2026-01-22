@@ -149,6 +149,33 @@ func (e *E2ETestEnv) CreateWatchProcessor(ctx context.Context) (template.Process
 	return processor, stopChan, doneChan, errChan, nil
 }
 
+// CreateConfigWithBatch creates a template.Config with batch interval for batch processor tests.
+func (e *E2ETestEnv) CreateConfigWithBatch(ctx context.Context, batchInterval time.Duration) (template.Config, error) {
+	config, err := e.CreateConfig(ctx)
+	if err != nil {
+		return template.Config{}, err
+	}
+	config.BatchInterval = batchInterval
+	return config, nil
+}
+
+// CreateBatchWatchProcessor creates and returns a BatchWatchProcessor for the test.
+func (e *E2ETestEnv) CreateBatchWatchProcessor(ctx context.Context, batchInterval time.Duration) (template.Processor, chan bool, chan bool, chan error, error) {
+	config, err := e.CreateConfigWithBatch(ctx, batchInterval)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	stopChan := make(chan bool)
+	doneChan := make(chan bool)
+	errChan := make(chan error, 10)
+	reloadChan := make(chan struct{})
+
+	processor := template.BatchWatchProcessor(config, stopChan, doneChan, errChan, reloadChan)
+
+	return processor, stopChan, doneChan, errChan, nil
+}
+
 // WaitForFile waits for a file to exist and optionally contain expected content.
 func WaitForFile(t *testing.T, path string, timeout time.Duration, expectedContent string) error {
 	t.Helper()
