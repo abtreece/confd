@@ -117,6 +117,9 @@ func IsConfigChanged(src, dest string) (bool, error) {
 }
 
 // computeMD5 computes the MD5 hash of a file and returns it as a hex string.
+// Note: MD5 is used here for fast change detection in non-adversarial scenarios,
+// not for cryptographic security. This is appropriate for detecting accidental
+// file modifications where collision resistance is not required.
 func computeMD5(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {

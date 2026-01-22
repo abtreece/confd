@@ -499,7 +499,9 @@ func TestIsConfigChanged_DifferentSize(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(src.Name())
-	src.WriteString("short")
+	if _, err := src.WriteString("short"); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
 	src.Close()
 
 	dest, err := os.CreateTemp("", "dest")
@@ -507,7 +509,9 @@ func TestIsConfigChanged_DifferentSize(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(dest.Name())
-	dest.WriteString("this is a much longer string")
+	if _, err := dest.WriteString("this is a much longer string"); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
 	dest.Close()
 
 	// Different sizes should trigger short-circuit and return true
@@ -527,7 +531,9 @@ func TestIsConfigChanged_DifferentMode(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(src.Name())
-	src.WriteString("content")
+	if _, err := src.WriteString("content"); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
 	src.Close()
 	os.Chmod(src.Name(), 0755)
 
@@ -536,7 +542,9 @@ func TestIsConfigChanged_DifferentMode(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(dest.Name())
-	dest.WriteString("content")
+	if _, err := dest.WriteString("content"); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
 	dest.Close()
 	os.Chmod(dest.Name(), 0644)
 
@@ -560,7 +568,9 @@ func BenchmarkIsConfigChanged_Identical(b *testing.B) {
 		b.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(src.Name())
-	src.WriteString(content)
+	if _, err := src.WriteString(content); err != nil {
+		b.Fatalf("Failed to write to temp file: %v", err)
+	}
 	src.Close()
 
 	dest, err := os.CreateTemp("", "bench_dest")
@@ -568,7 +578,9 @@ func BenchmarkIsConfigChanged_Identical(b *testing.B) {
 		b.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(dest.Name())
-	dest.WriteString(content)
+	if _, err := dest.WriteString(content); err != nil {
+		b.Fatalf("Failed to write to temp file: %v", err)
+	}
 	dest.Close()
 
 	// Ensure same mode
@@ -588,7 +600,9 @@ func BenchmarkIsConfigChanged_DifferentSize(b *testing.B) {
 		b.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(src.Name())
-	src.WriteString("short content")
+	if _, err := src.WriteString("short content"); err != nil {
+		b.Fatalf("Failed to write to temp file: %v", err)
+	}
 	src.Close()
 
 	dest, err := os.CreateTemp("", "bench_dest")
@@ -596,7 +610,9 @@ func BenchmarkIsConfigChanged_DifferentSize(b *testing.B) {
 		b.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(dest.Name())
-	dest.WriteString(strings.Repeat("longer content for benchmark\n", 100))
+	if _, err := dest.WriteString(strings.Repeat("longer content for benchmark\n", 100)); err != nil {
+		b.Fatalf("Failed to write to temp file: %v", err)
+	}
 	dest.Close()
 
 	b.ResetTimer()
@@ -613,7 +629,9 @@ func BenchmarkIsConfigChanged_DifferentMode(b *testing.B) {
 		b.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(src.Name())
-	src.WriteString(content)
+	if _, err := src.WriteString(content); err != nil {
+		b.Fatalf("Failed to write to temp file: %v", err)
+	}
 	src.Close()
 	os.Chmod(src.Name(), 0755)
 
@@ -622,7 +640,9 @@ func BenchmarkIsConfigChanged_DifferentMode(b *testing.B) {
 		b.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(dest.Name())
-	dest.WriteString(content)
+	if _, err := dest.WriteString(content); err != nil {
+		b.Fatalf("Failed to write to temp file: %v", err)
+	}
 	dest.Close()
 	os.Chmod(dest.Name(), 0644)
 
@@ -639,7 +659,9 @@ func BenchmarkIsConfigChanged_DestNotExist(b *testing.B) {
 		b.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(src.Name())
-	src.WriteString("content")
+	if _, err := src.WriteString("content"); err != nil {
+		b.Fatalf("Failed to write to temp file: %v", err)
+	}
 	src.Close()
 
 	destPath := "/nonexistent/benchmark/dest/file"
@@ -647,5 +669,92 @@ func BenchmarkIsConfigChanged_DestNotExist(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		IsConfigChanged(src.Name(), destPath)
+	}
+}
+
+func TestIsConfigChanged_SrcNotExist(t *testing.T) {
+	log.SetLevel("warn")
+	dest, err := os.CreateTemp("", "dest")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(dest.Name())
+	if _, err := dest.WriteString("content"); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	dest.Close()
+
+	// Source doesn't exist - should return error
+	_, err = IsConfigChanged("/nonexistent/src/file", dest.Name())
+	if err == nil {
+		t.Error("IsConfigChanged() expected error when src doesn't exist, got nil")
+	}
+}
+
+func TestIsConfigChanged_SameContentDifferentMD5Check(t *testing.T) {
+	log.SetLevel("warn")
+	// Create two files with same size, mode, but different content
+	// This tests that MD5 comparison works correctly
+	src, err := os.CreateTemp("", "src")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(src.Name())
+	if _, err := src.WriteString("content_a"); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	src.Close()
+
+	dest, err := os.CreateTemp("", "dest")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(dest.Name())
+	if _, err := dest.WriteString("content_b"); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	dest.Close()
+
+	// Ensure same mode
+	os.Chmod(src.Name(), 0644)
+	os.Chmod(dest.Name(), 0644)
+
+	// Same size (9 bytes), same mode, but different content
+	changed, err := IsConfigChanged(src.Name(), dest.Name())
+	if err != nil {
+		t.Errorf("IsConfigChanged() unexpected error: %v", err)
+	}
+	if !changed {
+		t.Error("IsConfigChanged() = false for same size but different content, want true")
+	}
+}
+
+func TestComputeMD5(t *testing.T) {
+	// Test computeMD5 with a known file
+	tmpFile, err := os.CreateTemp("", "md5test")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	if _, err := tmpFile.WriteString("hello world"); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	md5sum, err := computeMD5(tmpFile.Name())
+	if err != nil {
+		t.Errorf("computeMD5() unexpected error: %v", err)
+	}
+	// MD5 of "hello world" is 5eb63bbbe01eeed093cb22bb8f5acdc3
+	expected := "5eb63bbbe01eeed093cb22bb8f5acdc3"
+	if md5sum != expected {
+		t.Errorf("computeMD5() = %s, want %s", md5sum, expected)
+	}
+}
+
+func TestComputeMD5_FileNotExist(t *testing.T) {
+	_, err := computeMD5("/nonexistent/file/path")
+	if err == nil {
+		t.Error("computeMD5() expected error for non-existent file, got nil")
 	}
 }
