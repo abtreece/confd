@@ -2,6 +2,7 @@ package template
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
@@ -320,9 +321,9 @@ func BenchmarkInclude_Nested(b *testing.B) {
 		if i == 1 {
 			content = `Level1: {{ include "leaf.tmpl" }}`
 		} else {
-			content = "Level" + string(rune('0'+i)) + `: {{ include "level` + string(rune('0'+i-1)) + `.tmpl" }}`
+			content = "Level" + strconv.Itoa(i) + `: {{ include "level` + strconv.Itoa(i-1) + `.tmpl" }}`
 		}
-		if err := writeFile(tmpDir, "level"+string(rune('0'+i))+".tmpl", content); err != nil {
+		if err := writeFile(tmpDir, "level"+strconv.Itoa(i)+".tmpl", content); err != nil {
 			b.Fatalf("Failed to create template: %v", err)
 		}
 	}
@@ -364,15 +365,11 @@ func BenchmarkInclude_DeepNested(b *testing.B) {
 		if i == 1 {
 			content = `L1: {{ include "leaf.tmpl" }}`
 		} else {
-			content = "L" + string(rune('0'+i)) + `: {{ include "l` + string(rune('0'+i-1)) + `.tmpl" }}`
+			content = "L" + strconv.Itoa(i) + `: {{ include "l` + strconv.Itoa(i-1) + `.tmpl" }}`
 		}
-		if err := writeFile(tmpDir, "l"+string(rune('0'+i))+".tmpl", content); err != nil {
+		if err := writeFile(tmpDir, "l"+strconv.Itoa(i)+".tmpl", content); err != nil {
 			b.Fatalf("Failed to create template: %v", err)
 		}
-	}
-	// Level 9 needs special handling for two-digit level 10
-	if err := writeFile(tmpDir, "l9.tmpl", `L9: {{ include "l8.tmpl" }}`); err != nil {
-		b.Fatalf("Failed to create template: %v", err)
 	}
 
 	funcMap := newFuncMap()
