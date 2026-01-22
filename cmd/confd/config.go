@@ -54,7 +54,8 @@ type TOMLConfig struct {
 	SecretsManagerNoFlatten      bool   `toml:"secretsmanager_no_flatten"`
 
 	// Performance settings
-	TemplateCache *bool `toml:"template_cache"` // Pointer to distinguish unset from false
+	TemplateCache *bool  `toml:"template_cache"` // Pointer to distinguish unset from false
+	StatCacheTTL  string `toml:"stat_cache_ttl"`
 
 	// Connection timeouts
 	DialTimeout  string `toml:"dial_timeout"`
@@ -130,6 +131,14 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	// Template cache: TOML can only disable (CLI default is true)
 	if tomlCfg.TemplateCache != nil && !*tomlCfg.TemplateCache {
 		cli.TemplateCache = false
+	}
+	// Stat cache TTL
+	if tomlCfg.StatCacheTTL != "" {
+		if d, err := time.ParseDuration(tomlCfg.StatCacheTTL); err == nil {
+			if cli.StatCacheTTL == DefaultStatCacheTTL {
+				cli.StatCacheTTL = d
+			}
+		}
 	}
 	if cli.SRVDomain == "" && tomlCfg.SRVDomain != "" {
 		cli.SRVDomain = tomlCfg.SRVDomain
