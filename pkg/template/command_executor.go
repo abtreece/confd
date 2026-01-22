@@ -15,9 +15,12 @@ import (
 
 // commandExecutor handles execution of check and reload commands.
 // It encapsulates command template parsing, execution, and rate limiting.
+// Command templates are pre-compiled at construction time for efficiency.
 type commandExecutor struct {
 	checkCmd          string
 	reloadCmd         string
+	checkCmdTmpl      *template.Template // pre-compiled check command template
+	reloadCmdTmpl     *template.Template // pre-compiled reload command template
 	minReloadInterval time.Duration
 	lastReloadTime    *time.Time // pointer to share state with TemplateResource
 	syncOnly          bool
@@ -41,12 +44,15 @@ type commandExecutorConfig struct {
 }
 
 // newCommandExecutor creates a new commandExecutor instance.
-func newCommandExecutor(config commandExecutorConfig) *commandExecutor {
+// It pre-compiles command templates for efficiency and returns an error if
+// template parsing fails, enabling early detection of invalid command templates.
+func newCommandExecutor(config commandExecutorConfig) (*commandExecutor, error) {
 	ctx := config.Ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return &commandExecutor{
+
+	e := &commandExecutor{
 		checkCmd:          config.CheckCmd,
 		reloadCmd:         config.ReloadCmd,
 		minReloadInterval: config.MinReloadInterval,
@@ -57,6 +63,26 @@ func newCommandExecutor(config commandExecutorConfig) *commandExecutor {
 		reloadCmdTimeout:  config.ReloadCmdTimeout,
 		dest:              config.Dest,
 	}
+
+	// Pre-compile check command template
+	if e.checkCmd != "" {
+		tmpl, err := template.New("checkcmd").Parse(e.checkCmd)
+		if err != nil {
+			return nil, fmt.Errorf("invalid check_cmd template: %w", err)
+		}
+		e.checkCmdTmpl = tmpl
+	}
+
+	// Pre-compile reload command template
+	if e.reloadCmd != "" {
+		tmpl, err := template.New("reloadcmd").Parse(e.reloadCmd)
+		if err != nil {
+			return nil, fmt.Errorf("invalid reload_cmd template: %w", err)
+		}
+		e.reloadCmdTmpl = tmpl
+	}
+
+	return e, nil
 }
 
 // executeCheck executes the check command to validate the staged configuration.
@@ -71,11 +97,7 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 	start := time.Now()
 	var cmdBuffer bytes.Buffer
 	data := map[string]string{"src": stagePath}
-	tmpl, err := template.New("checkcmd").Parse(e.checkCmd)
-	if err != nil {
-		return err
-	}
-	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
+	if err := e.checkCmdTmpl.Execute(&cmdBuffer, data); err != nil {
 		return err
 	}
 
@@ -121,11 +143,7 @@ func (e *commandExecutor) executeReload(stagePath, destPath string) error {
 	start := time.Now()
 	var cmdBuffer bytes.Buffer
 	data := map[string]string{"src": stagePath, "dest": destPath}
-	tmpl, err := template.New("reloadcmd").Parse(e.reloadCmd)
-	if err != nil {
-		return err
-	}
-	if err := tmpl.Execute(&cmdBuffer, data); err != nil {
+	if err := e.reloadCmdTmpl.Execute(&cmdBuffer, data); err != nil {
 		return err
 	}
 
