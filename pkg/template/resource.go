@@ -292,7 +292,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tr.Src = filepath.Join(config.TemplateDir, tr.Src)
 
 	// Initialize command executor
-	tr.cmdExecutor = newCommandExecutor(commandExecutorConfig{
+	cmdExec, err := newCommandExecutor(commandExecutorConfig{
 		CheckCmd:          tr.CheckCmd,
 		ReloadCmd:         tr.ReloadCmd,
 		MinReloadInterval: tr.minReloadIntervalDur,
@@ -303,6 +303,10 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 		ReloadCmdTimeout:  tr.reloadCmdTimeoutDur,
 		Dest:              tr.Dest,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("template resource %s: %w", tr.Dest, err)
+	}
+	tr.cmdExecutor = cmdExec
 
 	// Initialize format validator
 	tr.fmtValidator = newFormatValidator(tr.OutputFormat)
@@ -470,7 +474,7 @@ func (t *TemplateResource) sync() error {
 func (t *TemplateResource) check() error {
 	// Initialize cmdExecutor if not already set (for backward compatibility with tests)
 	if t.cmdExecutor == nil {
-		t.cmdExecutor = newCommandExecutor(commandExecutorConfig{
+		cmdExec, err := newCommandExecutor(commandExecutorConfig{
 			CheckCmd:          t.CheckCmd,
 			ReloadCmd:         t.ReloadCmd,
 			MinReloadInterval: t.minReloadIntervalDur,
@@ -481,6 +485,10 @@ func (t *TemplateResource) check() error {
 			ReloadCmdTimeout:  t.reloadCmdTimeoutDur,
 			Dest:              t.Dest,
 		})
+		if err != nil {
+			return err
+		}
+		t.cmdExecutor = cmdExec
 	}
 	return t.cmdExecutor.executeCheck(t.StageFile.Name())
 }
@@ -496,7 +504,7 @@ func (t *TemplateResource) check() error {
 func (t *TemplateResource) reload() error {
 	// Initialize cmdExecutor if not already set (for backward compatibility with tests)
 	if t.cmdExecutor == nil {
-		t.cmdExecutor = newCommandExecutor(commandExecutorConfig{
+		cmdExec, err := newCommandExecutor(commandExecutorConfig{
 			CheckCmd:          t.CheckCmd,
 			ReloadCmd:         t.ReloadCmd,
 			MinReloadInterval: t.minReloadIntervalDur,
@@ -507,6 +515,10 @@ func (t *TemplateResource) reload() error {
 			ReloadCmdTimeout:  t.reloadCmdTimeoutDur,
 			Dest:              t.Dest,
 		})
+		if err != nil {
+			return err
+		}
+		t.cmdExecutor = cmdExec
 	}
 	return t.cmdExecutor.executeReload(t.StageFile.Name(), t.Dest)
 }
