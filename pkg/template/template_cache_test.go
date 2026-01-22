@@ -16,24 +16,24 @@ func TestInitTemplateCache(t *testing.T) {
 	log.SetLevel("warn")
 
 	// Test enabling cache
-	InitTemplateCache(true)
+	InitTemplateCache(true, time.Second)
 	if !TemplateCacheEnabled() {
 		t.Error("Expected cache to be enabled")
 	}
 
 	// Test disabling cache
-	InitTemplateCache(false)
+	InitTemplateCache(false, 0)
 	if TemplateCacheEnabled() {
 		t.Error("Expected cache to be disabled")
 	}
 
 	// Re-enable for other tests
-	InitTemplateCache(true)
+	InitTemplateCache(true, time.Second)
 }
 
 func TestGetCachedTemplateMiss(t *testing.T) {
 	log.SetLevel("warn")
-	InitTemplateCache(true)
+	InitTemplateCache(true, time.Second)
 	ClearTemplateCache()
 
 	// Non-existent path should return miss
@@ -48,7 +48,7 @@ func TestGetCachedTemplateMiss(t *testing.T) {
 
 func TestPutAndGetCachedTemplate(t *testing.T) {
 	log.SetLevel("warn")
-	InitTemplateCache(true)
+	InitTemplateCache(true, time.Second)
 	ClearTemplateCache()
 
 	// Create a temp file for mtime checking
@@ -86,7 +86,7 @@ func TestPutAndGetCachedTemplate(t *testing.T) {
 
 func TestCachedTemplateMtimeInvalidation(t *testing.T) {
 	log.SetLevel("warn")
-	InitTemplateCache(true)
+	InitTemplateCache(true, 0) // Disable stat TTL for this test
 	ClearTemplateCache()
 
 	// Create a temp file
@@ -124,7 +124,7 @@ func TestCachedTemplateMtimeInvalidation(t *testing.T) {
 
 func TestClearTemplateCache(t *testing.T) {
 	log.SetLevel("warn")
-	InitTemplateCache(true)
+	InitTemplateCache(true, time.Second)
 
 	// Create a temp file
 	tmpDir := t.TempDir()
@@ -160,7 +160,7 @@ func TestClearTemplateCache(t *testing.T) {
 
 func TestCacheDisabled(t *testing.T) {
 	log.SetLevel("warn")
-	InitTemplateCache(false)
+	InitTemplateCache(false, 0)
 
 	// Create a temp file
 	tmpDir := t.TempDir()
@@ -214,12 +214,12 @@ func TestCacheNilGlobalCache(t *testing.T) {
 	}
 
 	// Restore for other tests
-	InitTemplateCache(true)
+	InitTemplateCache(true, time.Second)
 }
 
 func TestCacheConcurrency(t *testing.T) {
 	log.SetLevel("warn")
-	InitTemplateCache(true)
+	InitTemplateCache(true, time.Second)
 	ClearTemplateCache()
 
 	// Create temp files
@@ -281,7 +281,7 @@ func TestCacheConcurrency(t *testing.T) {
 
 func TestCacheFileStatError(t *testing.T) {
 	log.SetLevel("warn")
-	InitTemplateCache(true)
+	InitTemplateCache(true, 0) // Disable stat TTL to ensure stat is called
 	ClearTemplateCache()
 
 	// Cache a template for a file that will be deleted
@@ -305,4 +305,118 @@ func TestCacheFileStatError(t *testing.T) {
 	if hit {
 		t.Error("Expected cache miss when file is deleted")
 	}
+}
+
+func TestStatCacheTTL(t *testing.T) {
+	log.SetLevel("warn")
+
+	t.Run("stat skipped within TTL", func(t *testing.T) {
+		// Use a long TTL so stat is skipped
+		InitTemplateCache(true, 10*time.Second)
+		ClearTemplateCache()
+
+		// Create a temp file
+		tmpDir := t.TempDir()
+		tmpFile := filepath.Join(tmpDir, "test.tmpl")
+		if err := os.WriteFile(tmpFile, []byte("{{.}}"), 0644); err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+
+		stat, _ := os.Stat(tmpFile)
+		mtime := stat.ModTime()
+
+		// Cache template
+		tmpl, _ := template.New("test").Parse("{{.}}")
+		PutCachedTemplate(tmpFile, tmpl, mtime)
+
+		// First get should hit (stat performed)
+		_, hit := GetCachedTemplate(tmpFile)
+		if !hit {
+			t.Error("Expected cache hit on first get")
+		}
+
+		// Modify file (change mtime)
+		time.Sleep(10 * time.Millisecond)
+		if err := os.WriteFile(tmpFile, []byte("{{.}} modified"), 0644); err != nil {
+			t.Fatalf("Failed to modify temp file: %v", err)
+		}
+
+		// Second get should still hit because stat is skipped (within TTL)
+		_, hit = GetCachedTemplate(tmpFile)
+		if !hit {
+			t.Error("Expected cache hit (stat skipped within TTL)")
+		}
+	})
+
+	t.Run("stat performed after TTL expires", func(t *testing.T) {
+		// Use a very short TTL
+		InitTemplateCache(true, 10*time.Millisecond)
+		ClearTemplateCache()
+
+		// Create a temp file
+		tmpDir := t.TempDir()
+		tmpFile := filepath.Join(tmpDir, "test.tmpl")
+		if err := os.WriteFile(tmpFile, []byte("{{.}}"), 0644); err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+
+		stat, _ := os.Stat(tmpFile)
+		mtime := stat.ModTime()
+
+		// Cache template
+		tmpl, _ := template.New("test").Parse("{{.}}")
+		PutCachedTemplate(tmpFile, tmpl, mtime)
+
+		// Wait for TTL to expire
+		time.Sleep(20 * time.Millisecond)
+
+		// Modify file (change mtime)
+		if err := os.WriteFile(tmpFile, []byte("{{.}} modified"), 0644); err != nil {
+			t.Fatalf("Failed to modify temp file: %v", err)
+		}
+
+		// Get should miss because TTL expired and mtime changed
+		_, hit := GetCachedTemplate(tmpFile)
+		if hit {
+			t.Error("Expected cache miss after TTL expired and file modified")
+		}
+	})
+
+	t.Run("TTL zero always performs stat", func(t *testing.T) {
+		// TTL=0 means always stat
+		InitTemplateCache(true, 0)
+		ClearTemplateCache()
+
+		// Create a temp file
+		tmpDir := t.TempDir()
+		tmpFile := filepath.Join(tmpDir, "test.tmpl")
+		if err := os.WriteFile(tmpFile, []byte("{{.}}"), 0644); err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+
+		stat, _ := os.Stat(tmpFile)
+		mtime := stat.ModTime()
+
+		// Cache template
+		tmpl, _ := template.New("test").Parse("{{.}}")
+		PutCachedTemplate(tmpFile, tmpl, mtime)
+
+		// First get should hit
+		_, hit := GetCachedTemplate(tmpFile)
+		if !hit {
+			t.Error("Expected cache hit on first get")
+		}
+
+		// Modify file (change mtime)
+		time.Sleep(10 * time.Millisecond)
+		if err := os.WriteFile(tmpFile, []byte("{{.}} modified"), 0644); err != nil {
+			t.Fatalf("Failed to modify temp file: %v", err)
+		}
+
+		// Second get should miss because TTL=0 means stat is always performed
+		_, hit = GetCachedTemplate(tmpFile)
+		if hit {
+			t.Error("Expected cache miss (TTL=0 always performs stat)")
+		}
+	})
 }

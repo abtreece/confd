@@ -26,6 +26,7 @@ var (
 	TemplateProcessTotal    *prometheus.CounterVec
 	TemplateCacheHits       prometheus.Counter
 	TemplateCacheMisses     prometheus.Counter
+	TemplateStatCacheHits   prometheus.Counter
 	TemplatesLoaded         prometheus.Gauge
 	WatchedKeys             prometheus.Gauge
 )
@@ -141,6 +142,15 @@ func Initialize() {
 		},
 	)
 	Registry.MustRegister(TemplateCacheMisses)
+
+	TemplateStatCacheHits = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "template_stat_cache_hits_total",
+			Help:      "Total number of template stat cache hits (stat syscall skipped).",
+		},
+	)
+	Registry.MustRegister(TemplateStatCacheHits)
 
 	TemplatesLoaded = prometheus.NewGauge(
 		prometheus.GaugeOpts{

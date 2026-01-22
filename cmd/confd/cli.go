@@ -23,14 +23,15 @@ import (
 
 // Default timeout and retry values
 const (
-	DefaultDialTimeout        = 5 * time.Second
-	DefaultReadTimeout        = 1 * time.Second
-	DefaultWriteTimeout       = 1 * time.Second
-	DefaultRetryMaxAttempts   = 3
-	DefaultRetryBaseDelay     = 100 * time.Millisecond
-	DefaultRetryMaxDelay      = 5 * time.Second
-	DefaultWatchErrorBackoff  = 2 * time.Second
-	DefaultPreflightTimeout   = 10 * time.Second
+	DefaultDialTimeout       = 5 * time.Second
+	DefaultReadTimeout       = 1 * time.Second
+	DefaultWriteTimeout      = 1 * time.Second
+	DefaultRetryMaxAttempts  = 3
+	DefaultRetryBaseDelay    = 100 * time.Millisecond
+	DefaultRetryMaxDelay     = 5 * time.Second
+	DefaultWatchErrorBackoff = 2 * time.Second
+	DefaultPreflightTimeout  = 10 * time.Second
+	DefaultStatCacheTTL      = 1 * time.Second
 )
 
 // CLI is the root command structure
@@ -69,6 +70,7 @@ type CLI struct {
 
 	// Performance flags
 	TemplateCache    bool          `name:"template-cache" help:"enable template compilation caching" default:"true" negatable:""`
+	StatCacheTTL     time.Duration `name:"stat-cache-ttl" help:"TTL for template file stat cache (e.g., 1s, 500ms)" default:"1s"`
 	BackendTimeout   time.Duration `name:"backend-timeout" help:"timeout for backend operations (e.g., 30s, 1m)" default:"30s"`
 	CheckCmdTimeout  time.Duration `name:"check-cmd-timeout" help:"default timeout for check commands (e.g., 30s)" default:"30s"`
 	ReloadCmdTimeout time.Duration `name:"reload-cmd-timeout" help:"default timeout for reload commands (e.g., 60s)" default:"60s"`
@@ -436,7 +438,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	log.Info("Backend set to %s", backendCfg.Backend)
 
 	// Initialize template cache
-	template.InitTemplateCache(cli.TemplateCache)
+	template.InitTemplateCache(cli.TemplateCache, cli.StatCacheTTL)
 
 	// Create store client
 	storeClient, err := backends.New(backendCfg)
