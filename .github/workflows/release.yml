@@ -54,17 +54,20 @@ jobs:
         env:
           INPUT_TAG: ${{ inputs.tag }}
         run: |
-          # Get version from tag (remove 'v' prefix)
-          # Use input tag for workflow_dispatch, otherwise use GITHUB_REF_NAME
+          # Get tag from input or ref
           TAG="${INPUT_TAG:-$GITHUB_REF_NAME}"
-          VERSION="${TAG#v}"
+          echo "Tag: $TAG"
+
+          # Debug: show first 20 lines of CHANGELOG
+          echo "CHANGELOG head:"
+          head -20 CHANGELOG
 
           # Extract section for this version from CHANGELOG
-          # Matches from "### vX.Y.Z" until the next "### v" or end of file
-          awk -v ver="$VERSION" '
+          # Matches from "### vX.Y.Z" (with v prefix) until the next "### v" or end of file
+          awk -v tag="$TAG" '
             /^### v/ {
               if (found) exit
-              if (index($0, "### v" ver) == 1) found=1
+              if ($0 == "### " tag) found=1
               next
             }
             found { print }
@@ -72,6 +75,11 @@ jobs:
 
           echo "Extracted release notes:"
           cat /tmp/release_notes.md
+
+          # Warn if empty
+          if [[ ! -s /tmp/release_notes.md ]]; then
+            echo "::warning::No release notes found for $TAG in CHANGELOG"
+          fi
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
