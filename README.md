@@ -225,7 +225,9 @@ confd --noop --diff --color etcd
 - [Configuration Guide](docs/configuration-guide.md)
 - [Template Resources](docs/template-resources.md)
 - [Template Functions](docs/templates.md)
+- [Service Deployment](docs/service-deployment.md)
 - [Logging](docs/logging.md)
+- [Architecture](docs/architecture.md)
 
 ## Supported Backends
 
@@ -246,20 +248,25 @@ confd --noop --diff --color etcd
 
 ## Development
 
-### Running tests
+See the [Development Guide](docs/development.md) for detailed instructions on setting up your environment, running tests, and adding new features.
+
+### Quick Start
 
 ```bash
-# Unit tests
+# Build
+make build
+
+# Run tests
 make test
 
-# With coverage
-go test ./... -race -coverprofile=coverage.out -covermode=atomic
+# Run linter
+make lint
 
 # Integration tests (requires backend services)
 make integration
 ```
 
-### Building releases
+### Building Releases
 
 ```bash
 # Snapshot build
@@ -268,6 +275,16 @@ make snapshot
 # Release build
 make release
 ```
+
+See [Release Checklist](docs/release-checklist.md) for the full release process.
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+
+- Code style and commit conventions
+- Pull request process
+- Adding new backends or template functions
 
 ## License
 
