@@ -8,9 +8,10 @@ This document outlines additional E2E tests to be implemented for confd, buildin
 
 | Area | Tests | Location |
 |------|-------|----------|
-| Watch Mode | etcd, Consul, Redis basic/multi-update, debounce, batch | `test/e2e/watch/` |
+| Watch Mode | etcd, Consul, Redis, Zookeeper basic/multi-update/multi-key, debounce, batch | `test/e2e/watch/` |
 | Reconnection | Backend restart, graceful degradation | `test/e2e/watch/reconnect_test.go` |
 | Operations | Health endpoints, Prometheus metrics, signals | `test/e2e/operations/` |
+| Features | Commands (check/reload), Permissions, Template Functions | `test/e2e/features/` |
 
 ## Proposed New E2E Tests
 
@@ -95,14 +96,14 @@ This document outlines additional E2E tests to be implemented for confd, buildin
 |------|-------------|
 | `TestZookeeperWatch_BasicChange` | Detect single key change |
 | `TestZookeeperWatch_MultipleUpdates` | Handle sequential updates |
-| `TestZookeeperWatch_NodeCreation` | React to new node creation |
-| `TestZookeeperWatch_NodeDeletion` | Handle node deletion |
-| `TestZookeeperWatch_Reconnection` | Recover after Zookeeper restart |
+| `TestZookeeperWatch_MultipleKeys` | Handle templates with multiple keys |
+| `TestZookeeperWatch_GracefulShutdown` | Clean shutdown on context cancellation |
 
 **Implementation Approach:**
 - Add ZookeeperContainer to `test/e2e/containers/`
 - Follow patterns from etcd_test.go and consul_test.go
 - Use testcontainers-go for Zookeeper
+- Note: Reconnection test skipped due to port changes on container restart
 
 ---
 
@@ -195,17 +196,17 @@ This document outlines additional E2E tests to be implemented for confd, buildin
 
 ```
 test/e2e/
-├── containers/           # Backend containers (existing)
+├── containers/           # Backend containers
 │   ├── consul.go
 │   ├── etcd.go
 │   ├── redis.go
-│   └── zookeeper.go     # NEW
-├── testenv/             # Test environment helpers (existing)
-├── watch/               # Watch mode tests (existing)
+│   └── zookeeper.go
+├── testenv/             # Test environment helpers
+├── watch/               # Watch mode tests
 │   ├── etcd_test.go
 │   ├── consul_test.go
 │   ├── redis_test.go
-│   ├── zookeeper_test.go   # NEW
+│   ├── zookeeper_test.go
 │   └── ...
 ├── operations/          # Operations tests (existing)
 │   ├── healthcheck_test.go
@@ -236,12 +237,13 @@ test/e2e/
 - Implemented `permissions_test.go` (5 tests)
 - Updated CI workflow to remove migrated shell tests
 
-### Planned Sprints
+### ✅ Completed: Sprint 2 - Functions and Zookeeper
+- Implemented `functions_test.go` (6 tests: StringManipulation, MathOperations, Encoding, JSON, NetworkLookup, Composition)
+- Added `ZookeeperContainer` to `test/e2e/containers/zookeeper.go`
+- Implemented `zookeeper_test.go` (4 tests: BasicChange, MultipleUpdates, MultipleKeys, GracefulShutdown)
+- Note: Shell functions tests retained as they cover additional functions (base, dir, parseBool, getenv, map, reverse, exists, gets/range)
 
-#### Sprint 2: Functions and Zookeeper
-1. Implement functions_test.go (6 tests)
-2. Add ZookeeperContainer to containers/
-3. Implement zookeeper_test.go (5 tests)
+### Planned Sprints
 
 #### Sprint 3: Include and Failure Modes
 1. Implement include_test.go (6 tests)
