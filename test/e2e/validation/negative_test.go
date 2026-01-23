@@ -44,7 +44,7 @@ func TestNegative_NonExistentConfdir(t *testing.T) {
 	defer cancel()
 
 	confd := operations.NewConfdBinary(t)
-	err := confd.Start(ctx, "env", "--onetime", "--log-level", "warn", "--confdir", "/nonexistent/path/that/does/not/exist")
+	err := confd.Start(ctx, "env", "--onetime", "--log-level", "warn", "--confdir", "/nonexistent")
 	if err != nil {
 		t.Fatalf("Failed to start confd: %v", err)
 	}
@@ -187,11 +187,11 @@ func TestNegative_NonExistentKey(t *testing.T) {
 mode = "0644"
 src = "test.tmpl"
 dest = "`+destPath+`"
-keys = ["/nonexistent/key/that/does/not/exist"]
+keys = ["/nonexistent/key"]
 `)
 
 	// Write template that uses the non-existent key
-	env.WriteTemplate("test.tmpl", `value: {{ getv "/nonexistent/key/that/does/not/exist" }}
+	env.WriteTemplate("test.tmpl", `value: {{ getv "/nonexistent/key" }}
 `)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

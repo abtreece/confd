@@ -779,7 +779,8 @@ first_service_key: {{ (index $services 0).Key }}
 first_service_value: {{ (index $services 0).Value }}
 `)
 
-	// Write config - note we need to specify the prefix keys
+	// Write config - the env backend requires explicit key declarations;
+	// wildcards in gets (e.g. "/services/*") only work at template render time
 	env.WriteConfig("gets-funcs.toml", fmt.Sprintf(`[template]
 src = "gets-funcs.tmpl"
 dest = "%s"
