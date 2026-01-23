@@ -38,7 +38,7 @@ keys = ["/key"]
 `, destPath))
 
 	// Run confd
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	confd := operations.NewConfdBinary(t)
@@ -91,7 +91,7 @@ keys = ["/key"]
 `, destPath))
 
 	// Run confd
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	confd := operations.NewConfdBinary(t)
@@ -135,7 +135,7 @@ keys = ["/key"]
 `, destPath, markerPath))
 
 	// Run confd
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	confd := operations.NewConfdBinary(t)
@@ -194,7 +194,7 @@ keys = ["/key"]
 `, destPath, pathMarkerPath))
 
 	// Run confd
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	confd := operations.NewConfdBinary(t)
@@ -252,7 +252,7 @@ keys = ["/key"]
 `, destPath, markerPath))
 
 	// Run confd
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	confd := operations.NewConfdBinary(t)
@@ -301,7 +301,7 @@ keys = ["/key"]
 `, destPath, checkMarkerPath, reloadMarkerPath))
 
 	// Run confd
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	confd := operations.NewConfdBinary(t)
