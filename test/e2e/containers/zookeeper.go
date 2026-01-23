@@ -63,32 +63,30 @@ func (z *ZookeeperContainer) Start(ctx context.Context) error {
 
 	z.endpoint = fmt.Sprintf("%s:%s", host, mappedPort.Port())
 
-	// Create Zookeeper connection with retries
-	var conn *zk.Conn
-	for i := 0; i < 10; i++ {
-		conn, _, err = zk.Connect([]string{z.endpoint}, 5*time.Second)
-		if err == nil {
-			break
+	// Give Zookeeper a moment to fully initialize after binding to port
+	time.Sleep(1 * time.Second)
+
+	// Create Zookeeper connection with retries and verify connectivity
+	for i := 0; i < 15; i++ {
+		conn, _, err := zk.Connect([]string{z.endpoint}, 5*time.Second)
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
 		}
+
+		// Verify connection by checking root node
+		exists, _, verifyErr := conn.Exists("/")
+		if verifyErr == nil && exists {
+			z.conn = conn
+			return nil
+		}
+
+		// Connection established but verification failed - close and retry
+		conn.Close()
 		time.Sleep(500 * time.Millisecond)
 	}
-	if err != nil {
-		return fmt.Errorf("failed to connect to zookeeper: %w", err)
-	}
-	z.conn = conn
 
-	// Verify connection by checking root node
-	exists, _, err := z.conn.Exists("/")
-	if err != nil {
-		z.conn.Close()
-		return fmt.Errorf("failed to verify zookeeper connection: %w", err)
-	}
-	if !exists {
-		z.conn.Close()
-		return fmt.Errorf("zookeeper root node does not exist")
-	}
-
-	return nil
+	return fmt.Errorf("failed to verify zookeeper connection: %w", err)
 }
 
 // Stop stops the Zookeeper container and closes the connection.
