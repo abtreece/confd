@@ -114,7 +114,11 @@ keys = ["/service/name"]
 	}
 
 	// Trigger a health check to populate backend metrics
-	http.Get(fmt.Sprintf("http://%s/ready", addr))
+	readyResp, err := http.Get(fmt.Sprintf("http://%s/ready", addr))
+	if err != nil {
+		t.Fatalf("Failed to GET /ready: %v", err)
+	}
+	readyResp.Body.Close()
 	time.Sleep(100 * time.Millisecond)
 
 	// Fetch metrics
@@ -241,7 +245,11 @@ keys = ["/service/name"]
 	}
 
 	// Trigger a health check to populate backend metrics
-	http.Get(fmt.Sprintf("http://%s/ready", addr))
+	readyResp, err := http.Get(fmt.Sprintf("http://%s/ready", addr))
+	if err != nil {
+		t.Fatalf("Failed to GET /ready: %v", err)
+	}
+	readyResp.Body.Close()
 	time.Sleep(100 * time.Millisecond)
 
 	// Fetch metrics
