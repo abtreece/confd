@@ -381,7 +381,7 @@ func TestConcurrent_LargeTemplateOutput(t *testing.T) {
 	destPath := env.DestPath("large.conf")
 
 	// Create a template that generates a large output using range
-	// Each line is about 50 chars, 1000 lines = ~50KB
+	// Each line is about 25 bytes, 1000 lines ≈ 25KB
 	env.WriteTemplate("large.tmpl", `# Large configuration file
 {{ $prefix := getv "/prefix" }}
 {{ range $i := seq 1 1000 }}
@@ -420,7 +420,7 @@ keys = ["/prefix"]
 		t.Fatalf("Large output not created: %v", err)
 	}
 
-	// Should be at least 20KB (1000 lines * ~20 bytes each)
+	// Should be at least 20KB total for approximately 1000 lines of output
 	if info.Size() < 20000 {
 		t.Errorf("Output file too small: %d bytes (expected >20000)", info.Size())
 	}
