@@ -108,6 +108,75 @@ func (e *EtcdContainer) Stop(ctx context.Context) error {
 	return nil
 }
 
+// Restart stops and restarts the etcd container, reinitializing the client.
+// Note: etcd data is ephemeral and will be lost on restart.
+func (e *EtcdContainer) Restart(ctx context.Context) error {
+	if e.container == nil {
+		return fmt.Errorf("etcd container not started")
+	}
+
+	// Close the existing client
+	if e.client != nil {
+		if err := e.client.Close(); err != nil {
+			return fmt.Errorf("failed to close etcd client: %w", err)
+		}
+		e.client = nil
+	}
+
+	// Stop the container (don't terminate)
+	timeout := 10 * time.Second
+	if err := e.container.Stop(ctx, &timeout); err != nil {
+		return fmt.Errorf("failed to stop etcd container: %w", err)
+	}
+
+	// Start the container again
+	if err := e.container.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start etcd container: %w", err)
+	}
+
+	// Re-fetch the endpoint in case port mapping changed
+	mappedPort, err := e.container.MappedPort(ctx, "2379")
+	if err != nil {
+		return fmt.Errorf("failed to get mapped port after restart: %w", err)
+	}
+	host, err := e.container.Host(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get container host after restart: %w", err)
+	}
+	e.endpoint = fmt.Sprintf("%s:%s", host, mappedPort.Port())
+
+	// Wait for etcd to be ready - the container wait strategy should handle this,
+	// but we add extra time for port mapping to stabilize
+	time.Sleep(3 * time.Second)
+
+	// Recreate etcd client with fresh connection
+	for i := 0; i < 15; i++ {
+		e.client, err = clientv3.New(clientv3.Config{
+			Endpoints:   []string{e.endpoint},
+			DialTimeout: 3 * time.Second,
+		})
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		// Verify connection
+		healthCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		_, err = e.client.Status(healthCtx, e.endpoint)
+		cancel()
+		if err == nil {
+			return nil
+		}
+
+		// Close failed client and retry
+		e.client.Close()
+		e.client = nil
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("failed to verify etcd connection after restart: %w", err)
+}
+
 // Endpoint returns the etcd connection endpoint.
 func (e *EtcdContainer) Endpoint(ctx context.Context) (string, error) {
 	if e.endpoint == "" {

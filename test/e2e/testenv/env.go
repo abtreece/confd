@@ -89,6 +89,12 @@ func (e *E2ETestEnv) DeleteBackendValue(ctx context.Context, key string) error {
 	return e.container.DeleteValue(ctx, key)
 }
 
+// RestartBackend restarts the backend container to test reconnection behavior.
+// Note: Backend data may be lost on restart depending on the backend type.
+func (e *E2ETestEnv) RestartBackend(ctx context.Context) error {
+	return e.container.Restart(ctx)
+}
+
 // ReadDest reads the content of a destination file.
 func (e *E2ETestEnv) ReadDest(name string) (string, error) {
 	e.t.Helper()

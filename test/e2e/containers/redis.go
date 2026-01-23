@@ -100,6 +100,72 @@ func (r *RedisContainer) Stop(ctx context.Context) error {
 	return nil
 }
 
+// Restart stops and restarts the Redis container, reinitializing the client.
+// Note: Redis data is ephemeral and will be lost on restart.
+func (r *RedisContainer) Restart(ctx context.Context) error {
+	if r.container == nil {
+		return fmt.Errorf("redis container not started")
+	}
+
+	// Close the existing client
+	if r.client != nil {
+		if err := r.client.Close(); err != nil {
+			return fmt.Errorf("failed to close redis client: %w", err)
+		}
+		r.client = nil
+	}
+
+	// Stop the container (don't terminate)
+	timeout := 10 * time.Second
+	if err := r.container.Stop(ctx, &timeout); err != nil {
+		return fmt.Errorf("failed to stop redis container: %w", err)
+	}
+
+	// Start the container again
+	if err := r.container.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start redis container: %w", err)
+	}
+
+	// Re-fetch the endpoint in case port mapping changed
+	mappedPort, err := r.container.MappedPort(ctx, "6379")
+	if err != nil {
+		return fmt.Errorf("failed to get mapped port after restart: %w", err)
+	}
+	host, err := r.container.Host(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get container host after restart: %w", err)
+	}
+	r.endpoint = fmt.Sprintf("%s:%s", host, mappedPort.Port())
+
+	// Wait for Redis to be ready
+	time.Sleep(3 * time.Second)
+
+	// Recreate Redis client with retries
+	for i := 0; i < 15; i++ {
+		r.client = redis.NewClient(&redis.Options{
+			Addr:         r.endpoint,
+			DialTimeout:  3 * time.Second,
+			ReadTimeout:  3 * time.Second,
+			WriteTimeout: 3 * time.Second,
+		})
+
+		// Verify connection
+		healthCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		err = r.client.Ping(healthCtx).Err()
+		cancel()
+		if err == nil {
+			return nil
+		}
+
+		// Close failed client and retry
+		r.client.Close()
+		r.client = nil
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("failed to verify redis connection after restart: %w", err)
+}
+
 // Endpoint returns the Redis connection endpoint.
 func (r *RedisContainer) Endpoint(ctx context.Context) (string, error) {
 	if r.endpoint == "" {
