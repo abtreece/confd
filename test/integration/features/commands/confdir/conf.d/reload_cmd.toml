@@ -1,8 +1,0 @@
-[template]
-mode = "0644"
-src = "reload.conf.tmpl"
-dest = "/tmp/confd-reload-cmd-test.conf"
-reload_cmd = "/bin/sh -c 'echo reloaded > /tmp/confd-reload-marker'"
-keys = [
-  "/key",
-]

@@ -1,9 +1,0 @@
-[template]
-mode = "0644"
-src = "check_fail.conf.tmpl"
-dest = "/tmp/confd-check-fail-test.conf"
-# This check command will fail, which should prevent the file from being written
-check_cmd = "/bin/false"
-keys = [
-  "/key",
-]

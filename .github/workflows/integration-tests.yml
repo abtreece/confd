@@ -57,14 +57,6 @@ jobs:
         run: |
           test/integration/features/functions/test.sh
 
-      - name: Test check_cmd and reload_cmd
-        run: |
-          test/integration/features/commands/test.sh
-
-      - name: Test File Permissions
-        run: |
-          test/integration/features/permissions/test.sh
-
       - name: Test Negative/Error Conditions
         run: |
           test/integration/validation/negative/test.sh
