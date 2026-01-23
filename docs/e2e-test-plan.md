@@ -10,8 +10,9 @@ This document outlines additional E2E tests to be implemented for confd, buildin
 |------|-------|----------|
 | Watch Mode | etcd, Consul, Redis, Zookeeper basic/multi-update/multi-key, debounce, batch | `test/e2e/watch/` |
 | Reconnection | Backend restart, graceful degradation | `test/e2e/watch/reconnect_test.go` |
-| Operations | Health endpoints, Prometheus metrics, signals | `test/e2e/operations/` |
-| Features | Commands, Permissions, Functions, Includes, Failure Modes | `test/e2e/features/` |
+| Operations | Health endpoints, Prometheus metrics, signals, SIGHUP reload | `test/e2e/operations/` |
+| Features | Commands, Permissions, Functions, Includes, Failure Modes, Per-Resource Backend | `test/e2e/features/` |
+| Resilience | Command timeouts, global/per-resource timeout precedence | `test/e2e/resilience/` |
 
 ## Proposed New E2E Tests
 
@@ -247,12 +248,18 @@ test/e2e/
 - Implemented `include_test.go` (6 tests: BasicInclude, SubdirectoryInclude, NestedInclude, CycleDetection, MaxDepth, MissingTemplate)
 - Implemented `failuremode_test.go` (4 tests: BestEffort_ContinuesOnError, FailFast_StopsOnError, ExitCodes, ErrorAggregation)
 
+### ✅ Completed: Sprint 4 - Advanced Scenarios
+- Implemented `per_resource_backend_test.go` (3 tests: OverrideGlobal, MixedBackends, Precedence)
+- Created `test/e2e/resilience/` package with `doc.go`
+- Implemented `timeout_test.go` (6 tests: CheckCmd_EnforcesTimeout, ReloadCmd_EnforcesTimeout, CheckCmd_GlobalDefault, PerResourceOverridesGlobal, CheckCmd_ZeroMeansNoTimeout, MultipleTemplates_IndependentTimeouts)
+- Implemented `reload_test.go` (5 tests: AddNewTemplate, UpdatedTemplateReprocessed, RemovedTemplateStopsProcessing, ModifiedConfigReprocessed, MultipleSIGHUPs)
+
 ### Planned Sprints
 
-#### Sprint 4: Advanced Scenarios
-1. Implement per_resource_backend_test.go (3 tests)
-2. Implement timeout_test.go
-3. Implement reload_test.go
+#### Sprint 5: Concurrency (Optional)
+1. Implement concurrent_test.go (multiple templates updating simultaneously)
+2. File lock handling tests
+3. Template cache consistency under load
 
 ## Shared Test Helpers
 
