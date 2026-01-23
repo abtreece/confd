@@ -11,7 +11,7 @@ This document outlines additional E2E tests to be implemented for confd, buildin
 | Watch Mode | etcd, Consul, Redis, Zookeeper basic/multi-update/multi-key, debounce, batch | `test/e2e/watch/` |
 | Reconnection | Backend restart, graceful degradation | `test/e2e/watch/reconnect_test.go` |
 | Operations | Health endpoints, Prometheus metrics, signals | `test/e2e/operations/` |
-| Features | Commands (check/reload), Permissions, Template Functions | `test/e2e/features/` |
+| Features | Commands, Permissions, Functions, Includes, Failure Modes | `test/e2e/features/` |
 
 ## Proposed New E2E Tests
 
@@ -243,11 +243,11 @@ test/e2e/
 - Implemented `zookeeper_test.go` (4 tests: BasicChange, MultipleUpdates, MultipleKeys, GracefulShutdown)
 - Note: Shell functions tests retained as they cover additional functions (base, dir, parseBool, getenv, map, reverse, exists, gets/range)
 
-### Planned Sprints
+### ✅ Completed: Sprint 3 - Include and Failure Modes
+- Implemented `include_test.go` (6 tests: BasicInclude, SubdirectoryInclude, NestedInclude, CycleDetection, MaxDepth, MissingTemplate)
+- Implemented `failuremode_test.go` (4 tests: BestEffort_ContinuesOnError, FailFast_StopsOnError, ExitCodes, ErrorAggregation)
 
-#### Sprint 3: Include and Failure Modes
-1. Implement include_test.go (6 tests)
-2. Implement failuremode_test.go (4 tests)
+### Planned Sprints
 
 #### Sprint 4: Advanced Scenarios
 1. Implement per_resource_backend_test.go (3 tests)
