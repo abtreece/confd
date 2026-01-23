@@ -1,7 +1,0 @@
-[template]
-mode = "0644"
-src = "valid.conf.tmpl"
-dest = "/tmp/confd-negative-valid.conf"
-keys = [
-  "/key",
-]

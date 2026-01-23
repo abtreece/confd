@@ -11,7 +11,8 @@ This document outlines additional E2E tests to be implemented for confd, buildin
 | Watch Mode | etcd, Consul, Redis, Zookeeper basic/multi-update/multi-key, debounce, batch | `test/e2e/watch/` |
 | Reconnection | Backend restart, graceful degradation | `test/e2e/watch/reconnect_test.go` |
 | Operations | Health endpoints, Prometheus metrics, signals, SIGHUP reload | `test/e2e/operations/` |
-| Features | Commands, Permissions, Functions, Includes, Failure Modes, Per-Resource Backend | `test/e2e/features/` |
+| Features | Commands, Permissions, Functions (11 tests), Includes, Failure Modes, Per-Resource Backend | `test/e2e/features/` |
+| Validation | Invalid backends, malformed TOML, syntax errors, missing files, bad keys, error handling | `test/e2e/validation/` |
 | Resilience | Command timeouts, global/per-resource timeout precedence | `test/e2e/resilience/` |
 | Concurrency | Many templates, parallel instances, cache consistency, large output, watch mode | `test/e2e/concurrency/` |
 
@@ -209,26 +210,51 @@ test/e2e/
 │   ├── consul_test.go
 │   ├── redis_test.go
 │   ├── zookeeper_test.go
-│   └── ...
-├── operations/          # Operations tests (existing)
+│   ├── batch_test.go
+│   ├── debounce_test.go
+│   └── reconnect_test.go
+├── operations/          # Operations tests
+│   ├── binary.go        # ConfdBinary and TestEnv helpers
 │   ├── healthcheck_test.go
 │   ├── metrics_test.go
 │   ├── signals_test.go
-│   └── reload_test.go      # NEW
-├── features/            # NEW - Feature-specific tests
+│   └── reload_test.go
+├── features/            # Feature-specific tests
 │   ├── doc.go
 │   ├── commands_test.go
 │   ├── permissions_test.go
-│   ├── functions_test.go
+│   ├── functions_test.go    # 11 tests for all template functions
 │   ├── include_test.go
 │   ├── failuremode_test.go
 │   └── per_resource_backend_test.go
-├── resilience/          # NEW - Resilience/fault tolerance tests
+├── validation/          # Error handling and validation tests
+│   ├── doc.go
+│   └── negative_test.go     # 9 tests for error conditions
+├── resilience/          # Resilience/fault tolerance tests
 │   ├── doc.go
 │   └── timeout_test.go
-└── concurrency/         # NEW - Concurrency tests
+└── concurrency/         # Concurrency tests
     ├── doc.go
     └── concurrent_test.go
+
+test/integration/
+├── backends/            # Backend-specific tests (requires real services)
+│   ├── acm/
+│   ├── consul/
+│   ├── dynamodb/
+│   ├── env/
+│   ├── etcd/
+│   ├── file/
+│   ├── imds/
+│   ├── redis/
+│   ├── secretsmanager/
+│   ├── ssm/
+│   ├── vault/
+│   └── zookeeper/
+└── shared/              # Shared test resources
+    ├── confdir/
+    ├── data/
+    └── expect/
 ```
 
 ## Implementation Status
@@ -243,7 +269,6 @@ test/e2e/
 - Implemented `functions_test.go` (6 tests: StringManipulation, MathOperations, Encoding, JSON, NetworkLookup, Composition)
 - Added `ZookeeperContainer` to `test/e2e/containers/zookeeper.go`
 - Implemented `zookeeper_test.go` (4 tests: BasicChange, MultipleUpdates, MultipleKeys, GracefulShutdown)
-- Note: Shell functions tests retained as they cover additional functions (base, dir, parseBool, getenv, map, reverse, exists, gets/range)
 
 ### ✅ Completed: Sprint 3 - Include and Failure Modes
 - Implemented `include_test.go` (6 tests: BasicInclude, SubdirectoryInclude, NestedInclude, CycleDetection, MaxDepth, MissingTemplate)
@@ -259,9 +284,18 @@ test/e2e/
 - Created `test/e2e/concurrency/` package with `doc.go`
 - Implemented `concurrent_test.go` (7 tests: ManyTemplatesProcessing, ParallelConfdInstances, RapidTemplateUpdates, TemplatesWithSharedKeys, TemplateCacheConsistency, LargeTemplateOutput, FileBackendWatchMode)
 
+### ✅ Completed: Sprint 6 - Complete Migration
+- Extended `functions_test.go` with 5 additional tests: PathOperations, DataUtilities, SortingAndReverse, ExistsAndConditional, GetsAndRange (total: 11 function tests)
+- Created `test/e2e/validation/` package with `doc.go`
+- Implemented `negative_test.go` (9 tests: InvalidBackendType, NonExistentConfdir, MalformedTOML, TemplateSyntaxError, MissingTemplateFile, NonExistentKey, InvalidModeFormat, EmptyConfdir, ValidConfigAfterErrors)
+- Removed redundant shell tests: `test/integration/features/` and `test/integration/validation/`
+- Updated CI workflow to run E2E tests instead of shell tests
+
 ### All Sprints Complete
 
-The E2E test implementation plan is now fully complete with 52 tests across 5 sprints.
+The E2E test implementation plan is now fully complete with 66 tests across 6 sprints.
+
+Shell tests remaining (`test/integration/backends/`) require real backend services and are intentionally kept.
 
 ## Shared Test Helpers
 
@@ -294,10 +328,14 @@ func (e *FeatureTestEnv) GetFileMode(path string) os.FileMode
 
 ## Migration from Shell Tests
 
-After E2E tests are verified:
-1. Remove corresponding shell tests from `test/integration/features/`
-2. Update `integration-tests.yml` workflow
-3. Update documentation
+**Migration Complete:**
+1. ✅ Removed shell tests from `test/integration/features/` (failuremode, functions, include, per-resource-backend)
+2. ✅ Removed shell tests from `test/integration/validation/` (negative)
+3. ✅ Updated `integration-tests.yml` workflow to run E2E tests
+4. ✅ Updated this documentation
+
+**Remaining Shell Tests:**
+- `test/integration/backends/` - Intentionally kept; these require real backend services (AWS, Vault, Consul, etc.) that are set up in CI with service containers
 
 ## Notes
 

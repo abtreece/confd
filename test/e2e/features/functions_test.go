@@ -441,3 +441,401 @@ keys = ["/data/input", "/data/numbers"]
 		}
 	}
 }
+
+// TestFunctions_PathOperations verifies path manipulation functions work correctly.
+// Tests: base (basename), dir (directory)
+func TestFunctions_PathOperations(t *testing.T) {
+	t.Parallel()
+
+	env := operations.NewTestEnv(t)
+	destPath := env.DestPath("path-funcs.txt")
+
+	// Write template using path functions
+	env.WriteTemplate("path-funcs.tmpl", `# Path operations on: {{ getv "/data/path" }}
+base_result: {{ base (getv "/data/path") }}
+dir_result: {{ dir (getv "/data/path") }}
+# Nested path
+nested_base: {{ base (getv "/data/nested") }}
+nested_dir: {{ dir (getv "/data/nested") }}
+# Pipeline style
+piped_base: {{ "/database/host" | base }}
+piped_dir: {{ "/database/host" | dir }}
+`)
+
+	// Write config
+	env.WriteConfig("path-funcs.toml", fmt.Sprintf(`[template]
+src = "path-funcs.tmpl"
+dest = "%s"
+keys = ["/data/path", "/data/nested"]
+`, destPath))
+
+	// Run confd
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	confd := operations.NewConfdBinary(t)
+	confd.SetEnv("DATA_PATH", "/etc/confd/config.toml")
+	confd.SetEnv("DATA_NESTED", "/a/b/c/d/file.txt")
+	err := confd.Start(ctx, "env", "--onetime", "--confdir", env.ConfDir, "--log-level", "error")
+	if err != nil {
+		t.Fatalf("Failed to start confd: %v", err)
+	}
+
+	exitCode, err := confd.Wait()
+	if err != nil {
+		t.Fatalf("Error waiting for confd: %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", exitCode)
+	}
+
+	// Verify output
+	content, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatalf("Failed to read output file: %v", err)
+	}
+
+	output := string(content)
+
+	checks := []struct {
+		name     string
+		expected string
+	}{
+		{"base_result", "base_result: config.toml"},
+		{"dir_result", "dir_result: /etc/confd"},
+		{"nested_base", "nested_base: file.txt"},
+		{"nested_dir", "nested_dir: /a/b/c/d"},
+		{"piped_base", "piped_base: host"},
+		{"piped_dir", "piped_dir: /database"},
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(output, check.expected) {
+			t.Errorf("%s: expected %q in output, got:\n%s", check.name, check.expected, output)
+		}
+	}
+}
+
+// TestFunctions_DataUtilities verifies data utility functions work correctly.
+// Tests: getenv, map, parseBool
+func TestFunctions_DataUtilities(t *testing.T) {
+	t.Parallel()
+
+	env := operations.NewTestEnv(t)
+	destPath := env.DestPath("data-utils.txt")
+
+	// Write template using data utility functions
+	env.WriteTemplate("data-utils.tmpl", `# Data utility functions
+# getenv - read from environment
+hostname: {{ getenv "HOSTNAME" }}
+custom_env: {{ getenv "MY_CUSTOM_VAR" }}
+# map - create key-value map
+{{- $mymap := map "key1" "value1" "key2" "value2" "key3" "value3" }}
+map_key1: {{ index $mymap "key1" }}
+map_key2: {{ index $mymap "key2" }}
+map_key3: {{ index $mymap "key3" }}
+# parseBool - parse boolean strings
+bool_true: {{ if parseBool "true" }}yes{{ else }}no{{ end }}
+bool_false: {{ if parseBool "false" }}yes{{ else }}no{{ end }}
+bool_one: {{ if parseBool "1" }}yes{{ else }}no{{ end }}
+bool_zero: {{ if parseBool "0" }}yes{{ else }}no{{ end }}
+bool_TRUE: {{ if parseBool "TRUE" }}yes{{ else }}no{{ end }}
+`)
+
+	// Write config
+	env.WriteConfig("data-utils.toml", fmt.Sprintf(`[template]
+src = "data-utils.tmpl"
+dest = "%s"
+keys = ["/data/dummy"]
+`, destPath))
+
+	// Run confd
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	confd := operations.NewConfdBinary(t)
+	confd.SetEnv("HOSTNAME", "test-host.local")
+	confd.SetEnv("MY_CUSTOM_VAR", "custom-value-123")
+	confd.SetEnv("DATA_DUMMY", "dummy")
+	err := confd.Start(ctx, "env", "--onetime", "--confdir", env.ConfDir, "--log-level", "error")
+	if err != nil {
+		t.Fatalf("Failed to start confd: %v", err)
+	}
+
+	exitCode, err := confd.Wait()
+	if err != nil {
+		t.Fatalf("Error waiting for confd: %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", exitCode)
+	}
+
+	// Verify output
+	content, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatalf("Failed to read output file: %v", err)
+	}
+
+	output := string(content)
+
+	checks := []struct {
+		name     string
+		expected string
+	}{
+		{"hostname", "hostname: test-host.local"},
+		{"custom_env", "custom_env: custom-value-123"},
+		{"map_key1", "map_key1: value1"},
+		{"map_key2", "map_key2: value2"},
+		{"map_key3", "map_key3: value3"},
+		{"bool_true", "bool_true: yes"},
+		{"bool_false", "bool_false: no"},
+		{"bool_one", "bool_one: yes"},
+		{"bool_zero", "bool_zero: no"},
+		{"bool_TRUE", "bool_TRUE: yes"},
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(output, check.expected) {
+			t.Errorf("%s: expected %q in output, got:\n%s", check.name, check.expected, output)
+		}
+	}
+}
+
+// TestFunctions_SortingAndReverse verifies sorting and reverse functions work correctly.
+// Tests: reverse
+func TestFunctions_SortingAndReverse(t *testing.T) {
+	t.Parallel()
+
+	env := operations.NewTestEnv(t)
+	destPath := env.DestPath("sorting-funcs.txt")
+
+	// Write template using sorting/reverse functions
+	env.WriteTemplate("sorting-funcs.tmpl", `# Sorting and reverse functions
+{{- $items := split (getv "/data/items") ":" }}
+original: {{ join $items ":" }}
+{{- $reversed := reverse $items }}
+reversed: {{ join $reversed ":" }}
+# Reverse a different list
+{{- $parts := split (getv "/data/parts") "," }}
+parts_original: {{ join $parts "," }}
+{{- $parts_rev := reverse $parts }}
+parts_reversed: {{ join $parts_rev "," }}
+# Access reversed items individually
+first_reversed: {{ index $reversed 0 }}
+last_reversed: {{ index $reversed 2 }}
+`)
+
+	// Write config
+	env.WriteConfig("sorting-funcs.toml", fmt.Sprintf(`[template]
+src = "sorting-funcs.tmpl"
+dest = "%s"
+keys = ["/data/items", "/data/parts"]
+`, destPath))
+
+	// Run confd
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	confd := operations.NewConfdBinary(t)
+	confd.SetEnv("DATA_ITEMS", "alpha:beta:gamma")
+	confd.SetEnv("DATA_PARTS", "one,two,three,four")
+	err := confd.Start(ctx, "env", "--onetime", "--confdir", env.ConfDir, "--log-level", "error")
+	if err != nil {
+		t.Fatalf("Failed to start confd: %v", err)
+	}
+
+	exitCode, err := confd.Wait()
+	if err != nil {
+		t.Fatalf("Error waiting for confd: %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", exitCode)
+	}
+
+	// Verify output
+	content, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatalf("Failed to read output file: %v", err)
+	}
+
+	output := string(content)
+
+	checks := []struct {
+		name     string
+		expected string
+	}{
+		{"original", "original: alpha:beta:gamma"},
+		{"reversed", "reversed: gamma:beta:alpha"},
+		{"parts_original", "parts_original: one,two,three,four"},
+		{"parts_reversed", "parts_reversed: four,three,two,one"},
+		{"first_reversed", "first_reversed: gamma"},
+		{"last_reversed", "last_reversed: alpha"},
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(output, check.expected) {
+			t.Errorf("%s: expected %q in output, got:\n%s", check.name, check.expected, output)
+		}
+	}
+}
+
+// TestFunctions_ExistsAndConditional verifies the exists function works correctly.
+// Tests: exists (checking if keys exist in backend)
+func TestFunctions_ExistsAndConditional(t *testing.T) {
+	t.Parallel()
+
+	env := operations.NewTestEnv(t)
+	destPath := env.DestPath("exists-funcs.txt")
+
+	// Write template using exists function
+	env.WriteTemplate("exists-funcs.tmpl", `# Exists function tests
+# Check existing key
+exists_key: {{ if exists "/data/present" }}found{{ else }}missing{{ end }}
+# Check non-existent key
+exists_fake: {{ if exists "/nonexistent/key" }}found{{ else }}missing{{ end }}
+# Use exists with getv safely
+safe_value: {{ if exists "/data/present" }}{{ getv "/data/present" }}{{ else }}default{{ end }}
+safe_missing: {{ if exists "/data/missing" }}{{ getv "/data/missing" }}{{ else }}default{{ end }}
+# Nested exists checks
+{{- if exists "/data/present" }}
+conditional_block: present key exists
+{{- else }}
+conditional_block: present key missing
+{{- end }}
+`)
+
+	// Write config
+	env.WriteConfig("exists-funcs.toml", fmt.Sprintf(`[template]
+src = "exists-funcs.tmpl"
+dest = "%s"
+keys = ["/data/present"]
+`, destPath))
+
+	// Run confd
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	confd := operations.NewConfdBinary(t)
+	confd.SetEnv("DATA_PRESENT", "actual-value")
+	// Note: DATA_MISSING is intentionally not set
+	err := confd.Start(ctx, "env", "--onetime", "--confdir", env.ConfDir, "--log-level", "error")
+	if err != nil {
+		t.Fatalf("Failed to start confd: %v", err)
+	}
+
+	exitCode, err := confd.Wait()
+	if err != nil {
+		t.Fatalf("Error waiting for confd: %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", exitCode)
+	}
+
+	// Verify output
+	content, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatalf("Failed to read output file: %v", err)
+	}
+
+	output := string(content)
+
+	checks := []struct {
+		name     string
+		expected string
+	}{
+		{"exists_key", "exists_key: found"},
+		{"exists_fake", "exists_fake: missing"},
+		{"safe_value", "safe_value: actual-value"},
+		{"safe_missing", "safe_missing: default"},
+		{"conditional_block", "conditional_block: present key exists"},
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(output, check.expected) {
+			t.Errorf("%s: expected %q in output, got:\n%s", check.name, check.expected, output)
+		}
+	}
+}
+
+// TestFunctions_GetsAndRange verifies the gets function works correctly with range iteration.
+// Tests: gets (get multiple keys with prefix), range iteration over key-value pairs
+func TestFunctions_GetsAndRange(t *testing.T) {
+	t.Parallel()
+
+	env := operations.NewTestEnv(t)
+	destPath := env.DestPath("gets-funcs.txt")
+
+	// Write template using gets function with range
+	env.WriteTemplate("gets-funcs.tmpl", `# Gets and range iteration
+all_services:
+{{- range gets "/services/*" }}
+  - {{ .Key }}: {{ .Value }}
+{{- end }}
+# Count services
+{{- $services := gets "/services/*" }}
+service_count: {{ len $services }}
+# Access specific service by iteration
+first_service_key: {{ (index $services 0).Key }}
+first_service_value: {{ (index $services 0).Value }}
+`)
+
+	// Write config - the env backend requires explicit key declarations;
+	// wildcards in gets (e.g. "/services/*") only work at template render time
+	env.WriteConfig("gets-funcs.toml", fmt.Sprintf(`[template]
+src = "gets-funcs.tmpl"
+dest = "%s"
+keys = ["/services/web", "/services/api", "/services/db"]
+`, destPath))
+
+	// Run confd
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	confd := operations.NewConfdBinary(t)
+	confd.SetEnv("SERVICES_WEB", "10.0.1.1:80")
+	confd.SetEnv("SERVICES_API", "10.0.1.2:8080")
+	confd.SetEnv("SERVICES_DB", "10.0.1.3:5432")
+	err := confd.Start(ctx, "env", "--onetime", "--confdir", env.ConfDir, "--log-level", "error")
+	if err != nil {
+		t.Fatalf("Failed to start confd: %v", err)
+	}
+
+	exitCode, err := confd.Wait()
+	if err != nil {
+		t.Fatalf("Error waiting for confd: %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("Expected exit code 0, got %d", exitCode)
+	}
+
+	// Verify output
+	content, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatalf("Failed to read output file: %v", err)
+	}
+
+	output := string(content)
+
+	// Verify that gets/range produced correct output
+	// Note: Order may vary based on backend, so check each key-value pair separately
+	checks := []struct {
+		name     string
+		expected string
+	}{
+		{"web_service", "/services/web: 10.0.1.1:80"},
+		{"api_service", "/services/api: 10.0.1.2:8080"},
+		{"db_service", "/services/db: 10.0.1.3:5432"},
+		{"service_count", "service_count: 3"},
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(output, check.expected) {
+			t.Errorf("%s: expected %q in output, got:\n%s", check.name, check.expected, output)
+		}
+	}
+
+	// Verify the first service key exists (order may vary)
+	if !strings.Contains(output, "first_service_key: /services/") {
+		t.Errorf("Expected first_service_key to contain '/services/' prefix, got:\n%s", output)
+	}
+}
