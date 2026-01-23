@@ -143,10 +143,7 @@ func (z *ZookeeperContainer) Restart(ctx context.Context) error {
 	}
 	z.endpoint = fmt.Sprintf("%s:%s", host, mappedPort.Port())
 
-	// Wait for Zookeeper to be ready
-	time.Sleep(3 * time.Second)
-
-	// Recreate connection with retries
+	// Recreate connection with retries (retry loop handles waiting)
 	for i := 0; i < 15; i++ {
 		z.conn, _, err = zk.Connect([]string{z.endpoint}, 5*time.Second)
 		if err != nil {
