@@ -1,7 +1,0 @@
-[template]
-mode = "0600"
-src = "simple.conf.tmpl"
-dest = "/tmp/confd-perm-600.conf"
-keys = [
-  "/key",
-]
