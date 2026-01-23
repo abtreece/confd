@@ -13,6 +13,7 @@ This document outlines additional E2E tests to be implemented for confd, buildin
 | Operations | Health endpoints, Prometheus metrics, signals, SIGHUP reload | `test/e2e/operations/` |
 | Features | Commands, Permissions, Functions, Includes, Failure Modes, Per-Resource Backend | `test/e2e/features/` |
 | Resilience | Command timeouts, global/per-resource timeout precedence | `test/e2e/resilience/` |
+| Concurrency | Many templates, parallel instances, cache consistency, large output, watch mode | `test/e2e/concurrency/` |
 
 ## Proposed New E2E Tests
 
@@ -254,12 +255,13 @@ test/e2e/
 - Implemented `timeout_test.go` (6 tests: CheckCmd_EnforcesTimeout, ReloadCmd_EnforcesTimeout, CheckCmd_GlobalDefault, PerResourceOverridesGlobal, CheckCmd_ZeroMeansNoTimeout, MultipleTemplates_IndependentTimeouts)
 - Implemented `reload_test.go` (5 tests: AddNewTemplate, UpdatedTemplateReprocessed, RemovedTemplateStopsProcessing, ModifiedConfigReprocessed, MultipleSIGHUPs)
 
-### Planned Sprints
+### ✅ Completed: Sprint 5 - Concurrency
+- Created `test/e2e/concurrency/` package with `doc.go`
+- Implemented `concurrent_test.go` (7 tests: ManyTemplatesProcessing, ParallelConfdInstances, RapidTemplateUpdates, TemplatesWithSharedKeys, TemplateCacheConsistency, LargeTemplateOutput, FileBackendWatchMode)
 
-#### Sprint 5: Concurrency (Optional)
-1. Implement concurrent_test.go (multiple templates updating simultaneously)
-2. File lock handling tests
-3. Template cache consistency under load
+### All Sprints Complete
+
+The E2E test implementation plan is now fully complete with 52 tests across 5 sprints.
 
 ## Shared Test Helpers
 
