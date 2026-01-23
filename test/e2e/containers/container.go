@@ -14,6 +14,10 @@ type BackendContainer interface {
 	// Stop stops and removes the container.
 	Stop(ctx context.Context) error
 
+	// Restart stops and restarts the container, reinitializing the client connection.
+	// This is used to test reconnection behavior of the watch processor.
+	Restart(ctx context.Context) error
+
 	// Endpoint returns the connection endpoint for the backend.
 	// For example, "localhost:2379" for etcd.
 	Endpoint(ctx context.Context) (string, error)

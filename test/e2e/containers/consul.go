@@ -98,6 +98,66 @@ func (c *ConsulContainer) Stop(ctx context.Context) error {
 	return nil
 }
 
+// Restart stops and restarts the Consul container, reinitializing the client.
+// Note: Consul data is ephemeral and will be lost on restart.
+func (c *ConsulContainer) Restart(ctx context.Context) error {
+	if c.container == nil {
+		return fmt.Errorf("consul container not started")
+	}
+
+	// Consul API client doesn't have a Close method
+	c.client = nil
+
+	// Stop the container (don't terminate)
+	timeout := 10 * time.Second
+	if err := c.container.Stop(ctx, &timeout); err != nil {
+		return fmt.Errorf("failed to stop consul container: %w", err)
+	}
+
+	// Start the container again
+	if err := c.container.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start consul container: %w", err)
+	}
+
+	// Re-fetch the endpoint in case port mapping changed
+	mappedPort, err := c.container.MappedPort(ctx, "8500")
+	if err != nil {
+		return fmt.Errorf("failed to get mapped port after restart: %w", err)
+	}
+	host, err := c.container.Host(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get container host after restart: %w", err)
+	}
+	c.endpoint = fmt.Sprintf("%s:%s", host, mappedPort.Port())
+
+	// Wait for Consul to be ready
+	time.Sleep(3 * time.Second)
+
+	// Recreate Consul client with retries
+	for i := 0; i < 15; i++ {
+		config := api.DefaultConfig()
+		config.Address = c.endpoint
+		c.client, err = api.NewClient(config)
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		// Verify connection
+		healthCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		opts := &api.QueryOptions{}
+		opts = opts.WithContext(healthCtx)
+		_, _, err = c.client.KV().List("", opts)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("failed to verify consul connection after restart: %w", err)
+}
+
 // Endpoint returns the Consul connection endpoint.
 func (c *ConsulContainer) Endpoint(ctx context.Context) (string, error) {
 	if c.endpoint == "" {
