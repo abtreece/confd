@@ -20,12 +20,12 @@ func TestPermissions_Mode0644(t *testing.T) {
 	destPath := env.DestPath("perm-644.conf")
 
 	// Write template
-	env.WriteTemplate("perm.tmpl", `key: {{ getv "/key" }}`)
+	env.WriteTemplate("perm-644.tmpl", `key: {{ getv "/key" }}`)
 
 	// Write config with mode 0644
 	env.WriteConfig("perm-644.toml", fmt.Sprintf(`[template]
 mode = "0644"
-src = "perm.tmpl"
+src = "perm-644.tmpl"
 dest = "%s"
 keys = ["/key"]
 `, destPath))
@@ -70,12 +70,12 @@ func TestPermissions_Mode0600(t *testing.T) {
 	destPath := env.DestPath("perm-600.conf")
 
 	// Write template
-	env.WriteTemplate("perm600.tmpl", `secret: {{ getv "/key" }}`)
+	env.WriteTemplate("perm-600.tmpl", `secret: {{ getv "/key" }}`)
 
 	// Write config with mode 0600
 	env.WriteConfig("perm-600.toml", fmt.Sprintf(`[template]
 mode = "0600"
-src = "perm600.tmpl"
+src = "perm-600.tmpl"
 dest = "%s"
 keys = ["/key"]
 `, destPath))

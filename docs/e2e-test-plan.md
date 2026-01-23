@@ -228,24 +228,26 @@ test/e2e/
     └── concurrent_test.go
 ```
 
-## Implementation Order
+## Implementation Status
 
-### Sprint 1: Commands and Permissions
-1. Create `test/e2e/features/` package with doc.go
-2. Implement commands_test.go (6 tests)
-3. Implement permissions_test.go (5 tests)
-4. Update CI workflow if needed
+### ✅ Completed: Sprint 1 - Commands and Permissions
+- Created `test/e2e/features/` package with doc.go
+- Implemented `commands_test.go` (6 tests)
+- Implemented `permissions_test.go` (5 tests)
+- Updated CI workflow to remove migrated shell tests
 
-### Sprint 2: Functions and Zookeeper
+### Planned Sprints
+
+#### Sprint 2: Functions and Zookeeper
 1. Implement functions_test.go (6 tests)
 2. Add ZookeeperContainer to containers/
 3. Implement zookeeper_test.go (5 tests)
 
-### Sprint 3: Include and Failure Modes
+#### Sprint 3: Include and Failure Modes
 1. Implement include_test.go (6 tests)
 2. Implement failuremode_test.go (4 tests)
 
-### Sprint 4: Advanced Scenarios
+#### Sprint 4: Advanced Scenarios
 1. Implement per_resource_backend_test.go (3 tests)
 2. Implement timeout_test.go
 3. Implement reload_test.go

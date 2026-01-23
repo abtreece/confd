@@ -33,7 +33,7 @@ check_cmd: success
 mode = "0644"
 src = "check.tmpl"
 dest = "%s"
-check_cmd = "/bin/sh -c 'test -f {{.src}} && grep -q key: {{.src}}'"
+check_cmd = "/bin/sh -c 'test -f {{.src}} && grep -q \"key:\" {{.src}}'"
 keys = ["/key"]
 `, destPath))
 
