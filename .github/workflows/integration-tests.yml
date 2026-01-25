@@ -206,7 +206,9 @@ jobs:
           VAULT_TOKEN: "super-secret-token"
 
   # Tests requiring AWS services (LocalStack)
+  # Skip for dependabot PRs since secrets aren't available
   aws-tests:
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     container: ubuntu:22.04
     services:
