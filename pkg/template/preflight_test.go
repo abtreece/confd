@@ -288,3 +288,138 @@ keys = ["/app/test"]
 		t.Error("Expected error for invalid template resource, got nil")
 	}
 }
+
+func TestPreflight_PerResourceBackend(t *testing.T) {
+	log.SetLevel("warn")
+
+	// Create temp directory structure
+	tmpDir, err := os.MkdirTemp("", "confd-preflight-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	confDir := filepath.Join(tmpDir, "conf.d")
+	templateDir := filepath.Join(tmpDir, "templates")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(confDir, 0755); err != nil {
+		t.Fatalf("Failed to create conf.d: %v", err)
+	}
+	if err := os.MkdirAll(templateDir, 0755); err != nil {
+		t.Fatalf("Failed to create templates: %v", err)
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatalf("Failed to create dest: %v", err)
+	}
+
+	// Create template file
+	if err := os.WriteFile(filepath.Join(templateDir, "test.tmpl"), []byte("test content"), 0644); err != nil {
+		t.Fatalf("Failed to create template: %v", err)
+	}
+
+	// Create a data file for the per-resource file backend
+	dataDir := filepath.Join(tmpDir, "data")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatalf("Failed to create data dir: %v", err)
+	}
+	// Create YAML file with test data
+	dataContent := `app:
+  test: "value from per-resource backend"
+`
+	if err := os.WriteFile(filepath.Join(dataDir, "config.yaml"), []byte(dataContent), 0644); err != nil {
+		t.Fatalf("Failed to create data file: %v", err)
+	}
+
+	// Create resource file with per-resource backend (file backend)
+	// Keys exist in the file backend but NOT in the global backend
+	resourceContent := `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+
+[backend]
+backend = "file"
+file = ["` + filepath.Join(dataDir, "config.yaml") + `"]
+`
+	if err := os.WriteFile(filepath.Join(confDir, "test.toml"), []byte(resourceContent), 0644); err != nil {
+		t.Fatalf("Failed to create resource: %v", err)
+	}
+
+	// Global backend returns empty values (simulating keys not in global backend)
+	// If preflight incorrectly uses the global backend, it will warn about missing keys
+	// and return an empty vals map, but the test should pass because keys exist in
+	// the per-resource backend
+	config := Config{
+		StoreClient: &mockStoreClient{
+			values: map[string]string{}, // Empty - keys not in global backend
+		},
+		ConfDir:     tmpDir,
+		ConfigDir:   confDir,
+		TemplateDir: templateDir,
+	}
+
+	// Preflight should succeed because it uses the per-resource backend
+	// which has the keys, not the global backend which is empty
+	err = Preflight(config)
+	if err != nil {
+		t.Errorf("Expected no error when per-resource backend has keys, got: %v", err)
+	}
+}
+
+func TestPreflight_PerResourceBackendHealthCheckFailure(t *testing.T) {
+	log.SetLevel("warn")
+
+	// Create temp directory structure
+	tmpDir, err := os.MkdirTemp("", "confd-preflight-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	confDir := filepath.Join(tmpDir, "conf.d")
+	templateDir := filepath.Join(tmpDir, "templates")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(confDir, 0755); err != nil {
+		t.Fatalf("Failed to create conf.d: %v", err)
+	}
+	if err := os.MkdirAll(templateDir, 0755); err != nil {
+		t.Fatalf("Failed to create templates: %v", err)
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatalf("Failed to create dest: %v", err)
+	}
+
+	// Create template file
+	if err := os.WriteFile(filepath.Join(templateDir, "test.tmpl"), []byte("test content"), 0644); err != nil {
+		t.Fatalf("Failed to create template: %v", err)
+	}
+
+	// Create resource file with per-resource backend pointing to non-existent file
+	resourceContent := `[template]
+src = "test.tmpl"
+dest = "` + filepath.Join(destDir, "test.conf") + `"
+keys = ["/app/test"]
+
+[backend]
+backend = "file"
+file = ["/nonexistent/path/to/config.yaml"]
+`
+	if err := os.WriteFile(filepath.Join(confDir, "test.toml"), []byte(resourceContent), 0644); err != nil {
+		t.Fatalf("Failed to create resource: %v", err)
+	}
+
+	config := Config{
+		StoreClient: &mockStoreClient{
+			values: map[string]string{"/app/test": "value"},
+		},
+		ConfDir:     tmpDir,
+		ConfigDir:   confDir,
+		TemplateDir: templateDir,
+	}
+
+	// Preflight should fail because per-resource backend health check fails
+	err = Preflight(config)
+	if err == nil {
+		t.Error("Expected error for per-resource backend health check failure, got nil")
+	}
+}
