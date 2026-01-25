@@ -213,7 +213,7 @@ func NewRedisClient(machines []string, password string, separator string, dialTi
 		password:     password,
 		separator:    separator,
 		db:           db,
-		pscChan:      make(chan watchResponse),
+		pscChan:      make(chan watchResponse, 1),
 		retryConfig:  retryConfig,
 		dialTimeout:  dialTimeout,
 		readTimeout:  readTimeout,
@@ -341,22 +341,36 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 		return respChan.waitIndex, respChan.err
 	}
 
+	// Derive cancellable context from passed context
+	watchCtx, cancel := context.WithCancel(ctx)
+	cancelRoutine := make(chan struct{})
+	defer cancel()
+	defer close(cancelRoutine)
+
+	// Monitor goroutine: cancel context when stopChan fires
 	go func() {
-		if c.pubsub == nil {
-			go c.watchWithReconnect(ctx, prefix)
+		select {
+		case <-stopChan:
+			cancel()
+		case <-cancelRoutine:
+			return
 		}
 	}()
 
+	// Start watch goroutine if not already running
+	if c.pubsub == nil {
+		go c.watchWithReconnect(watchCtx, prefix)
+	}
+
 	select {
-	case <-ctx.Done():
+	case <-watchCtx.Done():
 		if c.pubsub != nil {
 			c.pubsub.Close()
 			c.pubsub = nil
 		}
-		return waitIndex, ctx.Err()
-	case <-stopChan:
-		if c.pubsub != nil {
-			c.pubsub.PUnsubscribe(ctx)
+		// Return original context error if it was cancelled, otherwise nil for stopChan
+		if ctx.Err() != nil {
+			return waitIndex, ctx.Err()
 		}
 		return waitIndex, nil
 	case r := <-c.pscChan:
