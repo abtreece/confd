@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/abtreece/confd/pkg/backends/types"
@@ -72,6 +73,7 @@ type Client struct {
 	separator    string
 	db           int
 	pubsub       *redis.PubSub
+	pubsubMu     sync.Mutex // protects pubsub field
 	pscChan      chan watchResponse
 	retryConfig  RetryConfig
 	dialTimeout  time.Duration
@@ -358,16 +360,21 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	}()
 
 	// Start watch goroutine if not already running
-	if c.pubsub == nil {
+	c.pubsubMu.Lock()
+	needsWatch := c.pubsub == nil
+	c.pubsubMu.Unlock()
+	if needsWatch {
 		go c.watchWithReconnect(watchCtx, prefix)
 	}
 
 	select {
 	case <-watchCtx.Done():
+		c.pubsubMu.Lock()
 		if c.pubsub != nil {
 			c.pubsub.Close()
 			c.pubsub = nil
 		}
+		c.pubsubMu.Unlock()
 		// Return original context error if it was cancelled, otherwise nil for stopChan
 		if ctx.Err() != nil {
 			return waitIndex, ctx.Err()
@@ -393,10 +400,12 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 	}
 
 	defer func() {
+		c.pubsubMu.Lock()
 		if c.pubsub != nil {
 			c.pubsub.Close()
 			c.pubsub = nil
 		}
+		c.pubsubMu.Unlock()
 		if rClient != nil {
 			rClient.Close()
 		}
@@ -442,8 +451,10 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 
 		// Subscribe to keyspace notifications pattern
 		pattern := "__keyspace@" + strconv.Itoa(db) + "__:" + c.transform(prefix) + "*"
+		c.pubsubMu.Lock()
 		c.pubsub = rClient.PSubscribe(ctx, pattern)
 		ch := c.pubsub.Channel()
+		c.pubsubMu.Unlock()
 		log.Debug("Redis PubSub subscribed to pattern: %s", pattern)
 
 		// Process messages until channel closes or context is cancelled
@@ -459,10 +470,12 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 					channelClosed = true
 
 					// Clean up current connection before reconnecting
+					c.pubsubMu.Lock()
 					if c.pubsub != nil {
 						c.pubsub.Close()
 						c.pubsub = nil
 					}
+					c.pubsubMu.Unlock()
 					if rClient != nil {
 						rClient.Close()
 						rClient = nil
@@ -560,12 +573,14 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 
 // Close closes the Redis client connections.
 func (c *Client) Close() error {
+	c.pubsubMu.Lock()
 	if c.pubsub != nil {
 		if err := c.pubsub.Close(); err != nil {
 			log.Warning("Failed to close Redis pubsub: %v", err)
 		}
 		c.pubsub = nil
 	}
+	c.pubsubMu.Unlock()
 
 	if c.client != nil {
 		if err := c.client.Close(); err != nil {
