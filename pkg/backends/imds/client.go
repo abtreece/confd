@@ -156,7 +156,10 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 
 		// Cache and filter results
 		for k, v := range values {
-			fullPath := category + "/" + k
+			fullPath := category
+			if k != "" {
+				fullPath += "/" + k
+			}
 			c.cache.set(fullPath, v)
 
 			// Only include values that match the requested key prefix

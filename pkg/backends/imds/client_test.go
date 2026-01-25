@@ -212,6 +212,48 @@ func TestGetValues_UserData(t *testing.T) {
 	}
 }
 
+func TestGetValues_UserData_CacheHit(t *testing.T) {
+	var callCount int
+	userData := "#!/bin/bash\necho 'Hello World'"
+	mock := &mockIMDS{
+		getUserDataFunc: func(ctx context.Context, params *imds.GetUserDataInput, optFns ...func(*imds.Options)) (*imds.GetUserDataOutput, error) {
+			callCount++
+			return mockUserDataResponse(userData), nil
+		},
+	}
+
+	client := newTestClient(mock)
+	ctx := context.Background()
+
+	// First call - should hit IMDS
+	values, err := client.GetValues(ctx, []string{"/user-data"})
+	if err != nil {
+		t.Fatalf("First GetValues failed: %v", err)
+	}
+
+	if values["/user-data"] != userData {
+		t.Errorf("Expected user data, got %s", values["/user-data"])
+	}
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 IMDS call after first request, got %d", callCount)
+	}
+
+	// Second call - should hit cache, not IMDS
+	values, err = client.GetValues(ctx, []string{"/user-data"})
+	if err != nil {
+		t.Fatalf("Second GetValues failed: %v", err)
+	}
+
+	if values["/user-data"] != userData {
+		t.Errorf("Expected user data from cache, got %s", values["/user-data"])
+	}
+
+	if callCount != 1 {
+		t.Errorf("Expected 1 IMDS call (second should hit cache), got %d", callCount)
+	}
+}
+
 func TestGetValues_MultipleKeys(t *testing.T) {
 	mock := &mockIMDS{
 		getMetadataFunc: func(ctx context.Context, params *imds.GetMetadataInput, optFns ...func(*imds.Options)) (*imds.GetMetadataOutput, error) {
