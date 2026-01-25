@@ -126,7 +126,7 @@ func (c *ConsulClient) WatchPrefix(ctx context.Context, prefix string, keys []st
 	logger := log.With("backend", "consul", "prefix", prefix, "wait_index", waitIndex)
 	logger.DebugContext(ctx, "Starting watch on prefix")
 
-	respChan := make(chan watchResponse)
+	respChan := make(chan watchResponse, 1)
 	go func() {
 		watchStart := time.Now()
 		opts := &api.QueryOptions{
