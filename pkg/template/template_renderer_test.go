@@ -1,9 +1,11 @@
 package template
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/abtreece/confd/pkg/memkv"
@@ -400,10 +402,12 @@ func TestRender_ConcurrentRenders(t *testing.T) {
 	const iterations = 100
 
 	errChan := make(chan error, goroutines*iterations)
-	done := make(chan struct{})
+	var wg sync.WaitGroup
 
 	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
 		go func(id int) {
+			defer wg.Done()
 			for j := 0; j < iterations; j++ {
 				// Each goroutine creates its own store and renderer
 				localStore := memkv.New()
@@ -417,58 +421,28 @@ func TestRender_ConcurrentRenders(t *testing.T) {
 					Store:       localStore,
 				})
 
-				result, err := localRenderer.render(tmplPath)
-				if err != nil {
-					errChan <- err
+				result, renderErr := localRenderer.render(tmplPath)
+				if renderErr != nil {
+					errChan <- renderErr
 					continue
 				}
 				if string(result) != "goroutine" {
-					errChan <- err
+					errChan <- fmt.Errorf("expected 'goroutine', got '%s'", string(result))
 				}
 			}
 		}(i)
 	}
 
-	// Wait for completion with timeout
-	go func() {
-		for i := 0; i < goroutines; i++ {
-			// Each goroutine will finish after iterations
-		}
-		close(done)
-	}()
+	// Wait for all goroutines to complete
+	wg.Wait()
+	close(errChan)
 
 	// Collect any errors
 	var errors []error
-	timeout := make(chan struct{})
-	go func() {
-		// Allow time for goroutines to complete
-		<-done
-		close(timeout)
-	}()
-
-	// Give goroutines time to complete
-	for {
-		select {
-		case err := <-errChan:
-			if err != nil {
-				errors = append(errors, err)
-			}
-		case <-timeout:
-			// Check for any remaining errors
-			for {
-				select {
-				case err := <-errChan:
-					if err != nil {
-						errors = append(errors, err)
-					}
-				default:
-					goto checkErrors
-				}
-			}
-		}
+	for err := range errChan {
+		errors = append(errors, err)
 	}
 
-checkErrors:
 	if len(errors) > 0 {
 		t.Errorf("Concurrent renders produced %d errors, first: %v", len(errors), errors[0])
 	}
