@@ -382,7 +382,7 @@ func (t *TemplateResource) createStageFile() error {
 
 	// Validate output format if specified
 	if err := t.fmtValidator.validate(temp.Name()); err != nil {
-		temp.Close()
+		// temp is already closed by fileStgr.createStageFile()
 		os.Remove(temp.Name())
 		return err
 	}
