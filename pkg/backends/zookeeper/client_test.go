@@ -530,6 +530,41 @@ func TestWatch_Cancel(t *testing.T) {
 	}
 }
 
+func TestGetValues_RecursiveError(t *testing.T) {
+	// Test that errors from recursive nodeWalk calls are properly propagated
+	expectedErr := errors.New("nested node error")
+	mock := &mockZkConn{
+		existsFunc: func(path string) (bool, *zk.Stat, error) {
+			switch path {
+			case "/app":
+				return true, &zk.Stat{NumChildren: 1}, nil
+			case "/app/config":
+				return true, &zk.Stat{NumChildren: 1}, nil
+			case "/app/config/db":
+				return true, &zk.Stat{NumChildren: 0}, nil
+			}
+			return true, &zk.Stat{}, nil
+		},
+		childrenFunc: func(path string) ([]string, *zk.Stat, error) {
+			switch path {
+			case "/app":
+				return []string{"config"}, &zk.Stat{NumChildren: 1}, nil
+			case "/app/config":
+				// Error occurs in recursive call
+				return nil, nil, expectedErr
+			}
+			return []string{}, &zk.Stat{NumChildren: 0}, nil
+		},
+	}
+
+	client := &Client{client: mock}
+
+	_, err := client.GetValues(context.Background(), []string{"/app"})
+	if err != expectedErr {
+		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
+	}
+}
+
 func TestHealthCheck_Success(t *testing.T) {
 	mock := &mockZkConn{
 		existsFunc: func(path string) (bool, *zk.Stat, error) {
