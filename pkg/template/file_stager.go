@@ -113,7 +113,9 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 	// Close the file before returning - content is flushed to disk
 	// The file handle remains valid for Name() calls
 	if err := temp.Close(); err != nil {
-		os.Remove(temp.Name())
+		if removeErr := os.Remove(temp.Name()); removeErr != nil {
+			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
+		}
 		return nil, fmt.Errorf("failed to close stage file: %w", err)
 	}
 
