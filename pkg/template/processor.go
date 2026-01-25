@@ -3,6 +3,7 @@ package template
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/abtreece/confd/pkg/log"
@@ -107,14 +108,14 @@ func (p *intervalProcessor) Process() {
 }
 
 type watchProcessor struct {
-	config         Config
-	stopChan       chan bool
-	doneChan       chan bool
-	errChan        chan error
-	wg             sync.WaitGroup
-	reloadChan     <-chan struct{}
-	internalStop   chan bool
-	reloadRequested bool
+	config          Config
+	stopChan        chan bool
+	doneChan        chan bool
+	errChan         chan error
+	wg              sync.WaitGroup
+	reloadChan      <-chan struct{}
+	internalStop    chan bool
+	reloadRequested atomic.Bool
 }
 
 // WatchProcessor creates a processor that watches for backend changes continuously.
@@ -153,7 +154,7 @@ func (p *watchProcessor) Process() {
 
 		// Reset internal stop channel for this iteration
 		p.internalStop = make(chan bool)
-		p.reloadRequested = false
+		p.reloadRequested.Store(false)
 
 		// Start a goroutine to monitor for reload/stop signals
 		stopMonitor := make(chan bool)
@@ -169,7 +170,7 @@ func (p *watchProcessor) Process() {
 				close(stopMonitor)
 			case <-p.reloadChan:
 				log.Info("Reloading template resources (watch processor)")
-				p.reloadRequested = true
+				p.reloadRequested.Store(true)
 				close(p.internalStop)
 				close(stopMonitor)
 			case <-ctx.Done():
@@ -192,7 +193,7 @@ func (p *watchProcessor) Process() {
 		<-stopMonitor
 
 		// If it was a real stop (not reload), exit
-		if !p.reloadRequested {
+		if !p.reloadRequested.Load() {
 			return
 		}
 		// Otherwise, loop to reload templates and restart watches
@@ -282,7 +283,7 @@ type batchWatchProcessor struct {
 	wg              sync.WaitGroup
 	reloadChan      <-chan struct{}
 	internalStop    chan bool
-	reloadRequested bool
+	reloadRequested atomic.Bool
 }
 
 // BatchWatchProcessor creates a processor that batches changes before processing.
@@ -325,7 +326,7 @@ func (p *batchWatchProcessor) Process() {
 		// Reset internal stop channel and change channel for this iteration
 		p.internalStop = make(chan bool)
 		p.changeChan = make(chan *TemplateResource, 100)
-		p.reloadRequested = false
+		p.reloadRequested.Store(false)
 
 		// Start a goroutine to monitor for reload/stop signals
 		stopMonitor := make(chan bool)
@@ -340,7 +341,7 @@ func (p *batchWatchProcessor) Process() {
 				close(stopMonitor)
 			case <-p.reloadChan:
 				log.Info("Reloading template resources (batch watch processor)")
-				p.reloadRequested = true
+				p.reloadRequested.Store(true)
 				close(p.internalStop)
 				close(stopMonitor)
 			case <-ctx.Done():
@@ -368,7 +369,7 @@ func (p *batchWatchProcessor) Process() {
 		<-stopMonitor
 
 		// If it was a real stop (not reload), exit
-		if !p.reloadRequested {
+		if !p.reloadRequested.Load() {
 			return
 		}
 		// Otherwise, loop to reload templates and restart watches
