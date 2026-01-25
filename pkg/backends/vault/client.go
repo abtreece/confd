@@ -443,7 +443,12 @@ func recursiveListSecretWithLogical(logical vaultLogical, basePath string, key s
 
 
 func getMount(path string) string {
-	split := strings.Split(path, string(os.PathSeparator))
+	// Vault paths always use forward slashes regardless of OS
+	split := strings.Split(path, "/")
+	// Expect paths like "/secret/..." - split[0] is empty, split[1] is mount
+	if len(split) < 2 || split[1] == "" {
+		return "/" // Fallback for malformed paths
+	}
 	return "/" + split[1]
 }
 

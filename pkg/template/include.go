@@ -114,8 +114,12 @@ func NewIncludeFunc(baseDir string, funcMap template.FuncMap, ctx *IncludeContex
 
 			PutCachedTemplate(includePath, tmpl, stat.ModTime())
 		} else {
-			// Update funcMap on cached template
-			tmpl = tmpl.Funcs(funcMap)
+			// Clone the cached template to avoid concurrent Funcs() race
+			cloned, cloneErr := tmpl.Clone()
+			if cloneErr != nil {
+				return "", fmt.Errorf("failed to clone cached template %s: %w", name, cloneErr)
+			}
+			tmpl = cloned.Funcs(funcMap)
 		}
 
 		// Execute with provided data or nil

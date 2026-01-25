@@ -169,6 +169,9 @@ func recursiveLookup(root string, pattern string, dirsLookup bool) ([]string, er
 	}
 	if isDir {
 		err := filepath.Walk(root, func(root string, f os.FileInfo, err error) error {
+			if err != nil {
+				return err // Propagate Walk errors (permission denied, broken symlink, etc.)
+			}
 			match, err := filepath.Match(pattern, f.Name())
 			if err != nil {
 				return err

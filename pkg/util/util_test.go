@@ -758,3 +758,62 @@ func TestComputeMD5_FileNotExist(t *testing.T) {
 		t.Error("computeMD5() expected error for non-existent file, got nil")
 	}
 }
+
+func TestRecursiveFilesLookup_UnreadableDirectory(t *testing.T) {
+	// Bug #486: recursiveLookup ignores filepath.Walk errors
+	// Skip on non-Unix systems where permissions work differently
+	if os.Getuid() == 0 {
+		t.Skip("Skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Create a subdirectory with a file
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, "test.toml"), []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Make the subdirectory unreadable
+	if err := os.Chmod(subDir, 0000); err != nil {
+		t.Fatalf("Failed to chmod subdir: %v", err)
+	}
+	defer os.Chmod(subDir, 0755) // Restore permissions for cleanup
+
+	// RecursiveFilesLookup should return an error for unreadable directories
+	_, err := RecursiveFilesLookup(tmpDir, "*.toml")
+	if err == nil {
+		t.Error("RecursiveFilesLookup() expected error for unreadable directory, got nil")
+	}
+}
+
+func TestRecursiveDirsLookup_UnreadableDirectory(t *testing.T) {
+	// Bug #486: recursiveLookup ignores filepath.Walk errors
+	// Skip on non-Unix systems where permissions work differently
+	if os.Getuid() == 0 {
+		t.Skip("Skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Create a subdirectory
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdir: %v", err)
+	}
+
+	// Make the subdirectory unreadable
+	if err := os.Chmod(subDir, 0000); err != nil {
+		t.Fatalf("Failed to chmod subdir: %v", err)
+	}
+	defer os.Chmod(subDir, 0755) // Restore permissions for cleanup
+
+	// RecursiveDirsLookup should return an error for unreadable directories
+	_, err := RecursiveDirsLookup(tmpDir, "*")
+	if err == nil {
+		t.Error("RecursiveDirsLookup() expected error for unreadable directory, got nil")
+	}
+}

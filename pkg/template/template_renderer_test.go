@@ -1,9 +1,11 @@
 package template
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/abtreece/confd/pkg/memkv"
@@ -355,5 +357,93 @@ func TestRender_EmptyTemplate(t *testing.T) {
 
 	if len(result) != 0 {
 		t.Errorf("render() empty template should return empty result, got: %v", string(result))
+	}
+}
+
+func TestRender_ConcurrentRenders(t *testing.T) {
+	// Bug #483: Template cache race condition with shared Funcs()
+	// This test verifies that concurrent renders of the same cached template
+	// don't cause race conditions. Run with -race flag to detect races.
+
+	// Create temp directory for templates
+	tmpDir, err := os.MkdirTemp("", "template-renderer-concurrent-")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a template that uses store functions
+	tmplContent := `{{getv "/key"}}`
+	tmplPath := filepath.Join(tmpDir, "concurrent.tmpl")
+	if err := os.WriteFile(tmplPath, []byte(tmplContent), 0644); err != nil {
+		t.Fatalf("Failed to write template: %v", err)
+	}
+
+	// Clear cache to ensure fresh start
+	ClearTemplateCache()
+
+	// Pre-populate cache with first render
+	store := memkv.New()
+	store.Set("/key", "value")
+	funcMap := newFuncMap()
+	addFuncs(funcMap, store.FuncMap)
+	renderer := newTemplateRenderer(templateRendererConfig{
+		TemplateDir: tmpDir,
+		FuncMap:     funcMap,
+		Store:       store,
+	})
+	_, err = renderer.render(tmplPath)
+	if err != nil {
+		t.Fatalf("Initial render failed: %v", err)
+	}
+
+	// Now run concurrent renders using the cached template
+	const goroutines = 10
+	const iterations = 100
+
+	errChan := make(chan error, goroutines*iterations)
+	var wg sync.WaitGroup
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				// Each goroutine creates its own store and renderer
+				localStore := memkv.New()
+				localStore.Set("/key", "goroutine")
+				localFuncMap := newFuncMap()
+				addFuncs(localFuncMap, localStore.FuncMap)
+
+				localRenderer := newTemplateRenderer(templateRendererConfig{
+					TemplateDir: tmpDir,
+					FuncMap:     localFuncMap,
+					Store:       localStore,
+				})
+
+				result, renderErr := localRenderer.render(tmplPath)
+				if renderErr != nil {
+					errChan <- renderErr
+					continue
+				}
+				if string(result) != "goroutine" {
+					errChan <- fmt.Errorf("expected 'goroutine', got '%s'", string(result))
+				}
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+	close(errChan)
+
+	// Collect any errors
+	var errors []error
+	for err := range errChan {
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		t.Errorf("Concurrent renders produced %d errors, first: %v", len(errors), errors[0])
 	}
 }

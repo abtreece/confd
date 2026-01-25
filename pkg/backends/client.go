@@ -80,6 +80,9 @@ func New(config Config) (StoreClient, error) {
 		log.Info("Backend source(s) set to %s", strings.Join(config.YAMLFile, ", "))
 		return file.NewFileClient(config.YAMLFile, config.Filter)
 	case "vault":
+		if len(backendNodes) == 0 {
+			return nil, errors.New("vault backend requires at least one node address")
+		}
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		vaultConfig := map[string]string{
 			"app-id":    config.AppID,
