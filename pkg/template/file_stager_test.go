@@ -65,7 +65,7 @@ func TestCreateStageFile_Success(t *testing.T) {
 	}
 
 	defer os.Remove(stageFile.Name())
-	defer stageFile.Close()
+	// stageFile.Close() not needed - file is already closed by createStageFile()
 
 	// Verify content
 	readContent, err := os.ReadFile(stageFile.Name())
@@ -502,7 +502,7 @@ func TestCreateStageFile_EmptyContent(t *testing.T) {
 	}
 
 	defer os.Remove(stageFile.Name())
-	defer stageFile.Close()
+	// stageFile.Close() not needed - file is already closed by createStageFile()
 
 	// Verify empty content
 	readContent, err := os.ReadFile(stageFile.Name())

@@ -110,6 +110,15 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 	}
 	permDuration := time.Since(permStart)
 
+	// Close the file before returning - content is flushed to disk
+	// The file handle remains valid for Name() calls
+	if err := temp.Close(); err != nil {
+		if removeErr := os.Remove(temp.Name()); removeErr != nil {
+			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
+		}
+		return nil, fmt.Errorf("failed to close stage file: %w", err)
+	}
+
 	logger.InfoContext(context.Background(), "Stage file created successfully",
 		"stage_path", temp.Name(),
 		"total_duration_ms", time.Since(start).Milliseconds(),
