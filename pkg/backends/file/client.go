@@ -66,11 +66,22 @@ func readFile(path string, vars map[string]string) error {
 	return nil
 }
 
+// normalizePrefix strips trailing wildcard patterns from a key prefix.
+// This allows keys like "/myapp/servers/*" to match paths like "/myapp/servers/0/host".
+func normalizePrefix(prefix string) string {
+	// Strip trailing "/*" (documented wildcard syntax)
+	prefix = strings.TrimSuffix(prefix, "/*")
+	// Also handle trailing "/" for consistency
+	prefix = strings.TrimSuffix(prefix, "/")
+	return prefix
+}
+
 // matchesAnyPrefix returns true if path has any of the given prefixes.
 // Returns false if prefixes is empty.
 func matchesAnyPrefix(path string, prefixes []string) bool {
 	for _, prefix := range prefixes {
-		if strings.HasPrefix(path, prefix) {
+		normalized := normalizePrefix(prefix)
+		if strings.HasPrefix(path, normalized) {
 			return true
 		}
 	}
