@@ -3,12 +3,21 @@ package redis
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 )
+
+// goroutineLeakTolerance is the acceptable variance in goroutine count for leak tests.
+// This tolerance accounts for:
+// - Test framework goroutines that may start/stop during test execution
+// - Runtime goroutines (GC, finalizers) that may be active
+// - Timing-related variance in goroutine cleanup
+// A value of 2 provides a reasonable buffer while still detecting actual leaks.
+const goroutineLeakTolerance = 2
 
 // waitForServer waits for a miniredis server to be ready by attempting to connect.
 // Returns error if server is not ready within timeout.
@@ -1009,6 +1018,116 @@ func TestMachinesRetention(t *testing.T) {
 	}
 	if client.machines[0] != s.Addr() {
 		t.Errorf("client.machines[0] = %q, want %q", client.machines[0], s.Addr())
+	}
+}
+
+func TestWatchPrefix_StopChan_NoLeak(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewRedisClient() unexpected error: %v", err)
+	}
+	defer client.Close()
+
+	// Record baseline goroutine count
+	baselineGoroutines := runtime.NumGoroutine()
+
+	// Create stop channel
+	stopChan := make(chan bool, 1)
+
+	// Start WatchPrefix in a goroutine
+	ctx := context.Background()
+	done := make(chan struct{})
+	var watchErr error
+	go func() {
+		defer close(done)
+		_, watchErr = client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
+	}()
+
+	// Give the watch goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Signal stop
+	stopChan <- true
+
+	// Wait for WatchPrefix to return with timeout
+	select {
+	case <-done:
+		// Success - WatchPrefix returned
+	case <-time.After(2 * time.Second):
+		t.Fatal("WatchPrefix did not return after stopChan signal")
+	}
+
+	// Verify no error (stopChan should return nil error)
+	if watchErr != nil {
+		t.Errorf("WatchPrefix() returned unexpected error: %v", watchErr)
+	}
+
+	// Give goroutines time to clean up
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify goroutine count returns to baseline (with some tolerance)
+	finalGoroutines := runtime.NumGoroutine()
+	if finalGoroutines > baselineGoroutines+goroutineLeakTolerance {
+		t.Errorf("Potential goroutine leak: baseline=%d, final=%d", baselineGoroutines, finalGoroutines)
+	}
+}
+
+func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewRedisClient() unexpected error: %v", err)
+	}
+	defer client.Close()
+
+	// Record baseline goroutine count
+	baselineGoroutines := runtime.NumGoroutine()
+
+	// Create cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
+	stopChan := make(chan bool, 1)
+
+	// Start WatchPrefix in a goroutine
+	done := make(chan struct{})
+	var watchErr error
+	var watchIndex uint64
+	go func() {
+		defer close(done)
+		watchIndex, watchErr = client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
+	}()
+
+	// Give the watch goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Cancel context
+	cancel()
+
+	// Wait for WatchPrefix to return with timeout
+	select {
+	case <-done:
+		// Success - WatchPrefix returned
+	case <-time.After(2 * time.Second):
+		t.Fatal("WatchPrefix did not return after context cancellation")
+	}
+
+	// Verify context.Canceled error is returned
+	if watchErr != context.Canceled {
+		t.Errorf("WatchPrefix() error = %v, want context.Canceled", watchErr)
+	}
+	if watchIndex != 1 {
+		t.Errorf("WatchPrefix() index = %d, want 1", watchIndex)
+	}
+
+	// Give goroutines time to clean up
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify goroutine count returns to baseline (with some tolerance)
+	finalGoroutines := runtime.NumGoroutine()
+	if finalGoroutines > baselineGoroutines+goroutineLeakTolerance {
+		t.Errorf("Potential goroutine leak: baseline=%d, final=%d", baselineGoroutines, finalGoroutines)
 	}
 }
 

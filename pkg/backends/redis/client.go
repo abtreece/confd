@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/abtreece/confd/pkg/backends/types"
@@ -72,6 +73,9 @@ type Client struct {
 	separator    string
 	db           int
 	pubsub       *redis.PubSub
+	pubsubMu     sync.Mutex // protects pubsub, watchCtx, and watchCancel fields
+	watchCtx     context.Context
+	watchCancel  context.CancelFunc
 	pscChan      chan watchResponse
 	retryConfig  RetryConfig
 	dialTimeout  time.Duration
@@ -213,7 +217,7 @@ func NewRedisClient(machines []string, password string, separator string, dialTi
 		password:     password,
 		separator:    separator,
 		db:           db,
-		pscChan:      make(chan watchResponse),
+		pscChan:      make(chan watchResponse, 1),
 		retryConfig:  retryConfig,
 		dialTimeout:  dialTimeout,
 		readTimeout:  readTimeout,
@@ -341,26 +345,44 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 		return respChan.waitIndex, respChan.err
 	}
 
-	go func() {
-		if c.pubsub == nil {
-			go c.watchWithReconnect(ctx, prefix)
-		}
-	}()
+	// Start long-lived watch goroutine if not already running
+	c.pubsubMu.Lock()
+	if c.pubsub == nil && c.watchCtx == nil {
+		// Create a long-lived context for the watcher that persists between calls
+		c.watchCtx, c.watchCancel = context.WithCancel(context.Background())
+		go c.watchWithReconnect(c.watchCtx, prefix)
+	}
+	c.pubsubMu.Unlock()
 
+	// Wait for either: parent context done, stopChan signal, or watch response
 	select {
 	case <-ctx.Done():
-		if c.pubsub != nil {
-			c.pubsub.Close()
-			c.pubsub = nil
-		}
+		// Parent context cancelled - shut down the watcher
+		c.stopWatch()
 		return waitIndex, ctx.Err()
 	case <-stopChan:
-		if c.pubsub != nil {
-			c.pubsub.PUnsubscribe(ctx)
-		}
+		// Stop signal received - shut down the watcher
+		c.stopWatch()
 		return waitIndex, nil
 	case r := <-c.pscChan:
+		// Watch response received - return without stopping the watcher
 		return r.waitIndex, r.err
+	}
+}
+
+// stopWatch cancels the long-lived watch goroutine and cleans up resources.
+func (c *Client) stopWatch() {
+	c.pubsubMu.Lock()
+	defer c.pubsubMu.Unlock()
+
+	if c.watchCancel != nil {
+		c.watchCancel()
+		c.watchCancel = nil
+		c.watchCtx = nil
+	}
+	if c.pubsub != nil {
+		c.pubsub.Close()
+		c.pubsub = nil
 	}
 }
 
@@ -379,10 +401,19 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 	}
 
 	defer func() {
+		c.pubsubMu.Lock()
 		if c.pubsub != nil {
 			c.pubsub.Close()
 			c.pubsub = nil
 		}
+		// Clear watchCtx/watchCancel so a new watcher can be started if needed.
+		// Only clear if they still refer to this watcher's context to avoid
+		// racing with stopWatch() or a concurrently started new watcher.
+		if c.watchCtx == ctx {
+			c.watchCtx = nil
+			c.watchCancel = nil
+		}
+		c.pubsubMu.Unlock()
 		if rClient != nil {
 			rClient.Close()
 		}
@@ -428,8 +459,10 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 
 		// Subscribe to keyspace notifications pattern
 		pattern := "__keyspace@" + strconv.Itoa(db) + "__:" + c.transform(prefix) + "*"
+		c.pubsubMu.Lock()
 		c.pubsub = rClient.PSubscribe(ctx, pattern)
 		ch := c.pubsub.Channel()
+		c.pubsubMu.Unlock()
 		log.Debug("Redis PubSub subscribed to pattern: %s", pattern)
 
 		// Process messages until channel closes or context is cancelled
@@ -445,10 +478,12 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 					channelClosed = true
 
 					// Clean up current connection before reconnecting
+					c.pubsubMu.Lock()
 					if c.pubsub != nil {
 						c.pubsub.Close()
 						c.pubsub = nil
 					}
+					c.pubsubMu.Unlock()
 					if rClient != nil {
 						rClient.Close()
 						rClient = nil
@@ -546,12 +581,8 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 
 // Close closes the Redis client connections.
 func (c *Client) Close() error {
-	if c.pubsub != nil {
-		if err := c.pubsub.Close(); err != nil {
-			log.Warning("Failed to close Redis pubsub: %v", err)
-		}
-		c.pubsub = nil
-	}
+	// Stop the watch goroutine and clean up pubsub
+	c.stopWatch()
 
 	if c.client != nil {
 		if err := c.client.Close(); err != nil {
