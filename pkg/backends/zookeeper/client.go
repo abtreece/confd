@@ -72,7 +72,9 @@ func nodeWalk(prefix string, c *Client, vars map[string]string) error {
 				}
 				vars[s] = string(b)
 			} else {
-				nodeWalk(s, c, vars)
+				if err := nodeWalk(s, c, vars); err != nil {
+					return err
+				}
 			}
 		}
 	}
