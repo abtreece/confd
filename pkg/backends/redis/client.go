@@ -73,7 +73,9 @@ type Client struct {
 	separator    string
 	db           int
 	pubsub       *redis.PubSub
-	pubsubMu     sync.Mutex // protects pubsub field
+	pubsubMu     sync.Mutex // protects pubsub, watchCtx, and watchCancel fields
+	watchCtx     context.Context
+	watchCancel  context.CancelFunc
 	pscChan      chan watchResponse
 	retryConfig  RetryConfig
 	dialTimeout  time.Duration
@@ -343,45 +345,44 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 		return respChan.waitIndex, respChan.err
 	}
 
-	// Derive cancellable context from passed context
-	watchCtx, cancel := context.WithCancel(ctx)
-	cancelRoutine := make(chan struct{})
-	defer cancel()
-	defer close(cancelRoutine)
-
-	// Monitor goroutine: cancel context when stopChan fires
-	go func() {
-		select {
-		case <-stopChan:
-			cancel()
-		case <-cancelRoutine:
-			return
-		}
-	}()
-
-	// Start watch goroutine if not already running
+	// Start long-lived watch goroutine if not already running
 	c.pubsubMu.Lock()
-	needsWatch := c.pubsub == nil
-	c.pubsubMu.Unlock()
-	if needsWatch {
-		go c.watchWithReconnect(watchCtx, prefix)
+	if c.pubsub == nil && c.watchCtx == nil {
+		// Create a long-lived context for the watcher that persists between calls
+		c.watchCtx, c.watchCancel = context.WithCancel(context.Background())
+		go c.watchWithReconnect(c.watchCtx, prefix)
 	}
+	c.pubsubMu.Unlock()
 
+	// Wait for either: parent context done, stopChan signal, or watch response
 	select {
-	case <-watchCtx.Done():
-		c.pubsubMu.Lock()
-		if c.pubsub != nil {
-			c.pubsub.Close()
-			c.pubsub = nil
-		}
-		c.pubsubMu.Unlock()
-		// Return original context error if it was cancelled, otherwise nil for stopChan
-		if ctx.Err() != nil {
-			return waitIndex, ctx.Err()
-		}
+	case <-ctx.Done():
+		// Parent context cancelled - shut down the watcher
+		c.stopWatch()
+		return waitIndex, ctx.Err()
+	case <-stopChan:
+		// Stop signal received - shut down the watcher
+		c.stopWatch()
 		return waitIndex, nil
 	case r := <-c.pscChan:
+		// Watch response received - return without stopping the watcher
 		return r.waitIndex, r.err
+	}
+}
+
+// stopWatch cancels the long-lived watch goroutine and cleans up resources.
+func (c *Client) stopWatch() {
+	c.pubsubMu.Lock()
+	defer c.pubsubMu.Unlock()
+
+	if c.watchCancel != nil {
+		c.watchCancel()
+		c.watchCancel = nil
+		c.watchCtx = nil
+	}
+	if c.pubsub != nil {
+		c.pubsub.Close()
+		c.pubsub = nil
 	}
 }
 
@@ -405,6 +406,9 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 			c.pubsub.Close()
 			c.pubsub = nil
 		}
+		// Clear watchCtx/watchCancel so a new watcher can be started if needed
+		c.watchCtx = nil
+		c.watchCancel = nil
 		c.pubsubMu.Unlock()
 		if rClient != nil {
 			rClient.Close()
@@ -573,14 +577,8 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 
 // Close closes the Redis client connections.
 func (c *Client) Close() error {
-	c.pubsubMu.Lock()
-	if c.pubsub != nil {
-		if err := c.pubsub.Close(); err != nil {
-			log.Warning("Failed to close Redis pubsub: %v", err)
-		}
-		c.pubsub = nil
-	}
-	c.pubsubMu.Unlock()
+	// Stop the watch goroutine and clean up pubsub
+	c.stopWatch()
 
 	if c.client != nil {
 		if err := c.client.Close(); err != nil {

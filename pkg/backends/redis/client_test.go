@@ -11,6 +11,14 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// goroutineLeakTolerance is the acceptable variance in goroutine count for leak tests.
+// This tolerance accounts for:
+// - Test framework goroutines that may start/stop during test execution
+// - Runtime goroutines (GC, finalizers) that may be active
+// - Timing-related variance in goroutine cleanup
+// A value of 2 provides a reasonable buffer while still detecting actual leaks.
+const goroutineLeakTolerance = 2
+
 // waitForServer waits for a miniredis server to be ready by attempting to connect.
 // Returns error if server is not ready within timeout.
 func waitForServer(t *testing.T, addr string, timeout time.Duration) error {
@@ -1061,8 +1069,7 @@ func TestWatchPrefix_StopChan_NoLeak(t *testing.T) {
 
 	// Verify goroutine count returns to baseline (with some tolerance)
 	finalGoroutines := runtime.NumGoroutine()
-	// Allow for some variance due to test framework goroutines
-	if finalGoroutines > baselineGoroutines+2 {
+	if finalGoroutines > baselineGoroutines+goroutineLeakTolerance {
 		t.Errorf("Potential goroutine leak: baseline=%d, final=%d", baselineGoroutines, finalGoroutines)
 	}
 }
@@ -1119,8 +1126,7 @@ func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
 
 	// Verify goroutine count returns to baseline (with some tolerance)
 	finalGoroutines := runtime.NumGoroutine()
-	// Allow for some variance due to test framework goroutines
-	if finalGoroutines > baselineGoroutines+2 {
+	if finalGoroutines > baselineGoroutines+goroutineLeakTolerance {
 		t.Errorf("Potential goroutine leak: baseline=%d, final=%d", baselineGoroutines, finalGoroutines)
 	}
 }
