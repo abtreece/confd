@@ -348,6 +348,7 @@ func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
 
 	listStarted := make(chan struct{})
 	listCanProceed := make(chan struct{})
+	listDone := make(chan struct{})
 
 	mock := &mockConsulKV{
 		listFunc: func(prefix string, q *api.QueryOptions) (api.KVPairs, *api.QueryMeta, error) {
@@ -355,6 +356,8 @@ func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
 			close(listStarted)
 			// Block until test allows us to proceed
 			<-listCanProceed
+			// Signal that List() is about to return
+			defer close(listDone)
 			return nil, &api.QueryMeta{LastIndex: 200}, nil
 		},
 	}
@@ -399,16 +402,24 @@ func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
 		t.Fatal("WatchPrefix() did not return promptly after context cancellation")
 	}
 
-	// Allow the blocked goroutine to complete
+	// Allow the blocked goroutine to complete and wait for it deterministically
 	close(listCanProceed)
+	<-listDone
 
-	// Give the goroutine time to send on the buffered channel and exit
-	time.Sleep(50 * time.Millisecond)
-
-	// Verify no goroutine leak - count should return to initial (or very close)
-	// Allow for some variance due to runtime goroutines
-	finalGoroutines := runtime.NumGoroutine()
-	if finalGoroutines > initialGoroutines+1 {
-		t.Errorf("Possible goroutine leak: initial=%d, final=%d", initialGoroutines, finalGoroutines)
+	// Use a retry loop to wait for goroutine count to stabilize, avoiding flaky
+	// hard-coded sleeps. The goroutine needs a moment to send on the buffered
+	// channel and exit after List() returns.
+	deadline := time.Now().Add(time.Second)
+	var finalGoroutines int
+	for time.Now().Before(deadline) {
+		finalGoroutines = runtime.NumGoroutine()
+		// We allow a difference of +1 because the Go runtime may start or stop
+		// background goroutines (GC, timers, etc.) between measurements. The test
+		// detects leaks from WatchPrefix, not incidental runtime fluctuations.
+		if finalGoroutines <= initialGoroutines+1 {
+			return // Success: no leak detected
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+	t.Errorf("Possible goroutine leak: initial=%d, final=%d", initialGoroutines, finalGoroutines)
 }
