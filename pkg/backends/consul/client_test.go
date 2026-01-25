@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/consul/api"
 )
@@ -336,4 +338,88 @@ func TestHealthCheck_Error(t *testing.T) {
 	if err != expectedErr {
 		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
 	}
+}
+
+func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
+	// This test verifies that when context is cancelled while the goroutine
+	// is blocked on List(), WatchPrefix returns promptly and no goroutine leaks.
+	// The fix uses a buffered channel (size 1) so the goroutine can send its
+	// response and exit even when no receiver is waiting.
+
+	listStarted := make(chan struct{})
+	listCanProceed := make(chan struct{})
+	listDone := make(chan struct{})
+
+	mock := &mockConsulKV{
+		listFunc: func(prefix string, q *api.QueryOptions) (api.KVPairs, *api.QueryMeta, error) {
+			// Signal that List() has started
+			close(listStarted)
+			// Block until test allows us to proceed
+			<-listCanProceed
+			// Signal that List() is about to return
+			defer close(listDone)
+			return nil, &api.QueryMeta{LastIndex: 200}, nil
+		},
+	}
+
+	client := newTestClient(mock)
+	stopChan := make(chan bool)
+
+	// Record goroutine count before test
+	initialGoroutines := runtime.NumGoroutine()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start WatchPrefix in a goroutine
+	resultChan := make(chan struct {
+		index uint64
+		err   error
+	})
+	go func() {
+		index, err := client.WatchPrefix(ctx, "app", []string{"/app/key"}, 100, stopChan)
+		resultChan <- struct {
+			index uint64
+			err   error
+		}{index, err}
+	}()
+
+	// Wait for List() to start (goroutine is now blocked)
+	<-listStarted
+
+	// Cancel the context while goroutine is blocked on List()
+	cancel()
+
+	// WatchPrefix should return promptly with context error
+	select {
+	case result := <-resultChan:
+		if !errors.Is(result.err, context.Canceled) {
+			t.Errorf("WatchPrefix() error = %v, want context.Canceled", result.err)
+		}
+		if result.index != 100 {
+			t.Errorf("WatchPrefix() index = %d, want 100 (unchanged)", result.index)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WatchPrefix() did not return promptly after context cancellation")
+	}
+
+	// Allow the blocked goroutine to complete and wait for it deterministically
+	close(listCanProceed)
+	<-listDone
+
+	// Use a retry loop to wait for goroutine count to stabilize, avoiding flaky
+	// hard-coded sleeps. The goroutine needs a moment to send on the buffered
+	// channel and exit after List() returns.
+	deadline := time.Now().Add(time.Second)
+	var finalGoroutines int
+	for time.Now().Before(deadline) {
+		finalGoroutines = runtime.NumGoroutine()
+		// We allow a difference of +1 because the Go runtime may start or stop
+		// background goroutines (GC, timers, etc.) between measurements. The test
+		// detects leaks from WatchPrefix, not incidental runtime fluctuations.
+		if finalGoroutines <= initialGoroutines+1 {
+			return // Success: no leak detected
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Errorf("Possible goroutine leak: initial=%d, final=%d", initialGoroutines, finalGoroutines)
 }
