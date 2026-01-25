@@ -4,27 +4,32 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
 )
 
 // Preflight performs connectivity and configuration checks without processing templates.
 // It verifies:
-// - Backend connectivity via HealthCheck
+// - Backend connectivity via HealthCheck (global and per-resource backends)
 // - Template resources can be loaded
 // - Keys are accessible in the backend (warning if not found)
 func Preflight(config Config) error {
 	log.Info("Running pre-flight checks...")
 
-	// Check backend connectivity
-	log.Info("Checking backend connectivity...")
 	ctx, cancel := context.WithTimeout(context.Background(), config.PreflightTimeout)
 	defer cancel()
 
-	if err := config.StoreClient.HealthCheck(ctx); err != nil {
-		log.Error("Backend connectivity check failed: %v", err)
-		return fmt.Errorf("backend connectivity failed: %w", err)
+	// Check global backend connectivity (if configured)
+	checkedBackends := make(map[backends.StoreClient]bool)
+	if config.StoreClient != nil {
+		log.Info("Checking global backend connectivity...")
+		if err := config.StoreClient.HealthCheck(ctx); err != nil {
+			log.Error("Global backend connectivity check failed: %v", err)
+			return fmt.Errorf("global backend connectivity failed: %w", err)
+		}
+		log.Info("Global backend: OK")
+		checkedBackends[config.StoreClient] = true
 	}
-	log.Info("Backend: OK")
 
 	// Load template resources
 	log.Info("Loading template resources...")
@@ -40,13 +45,26 @@ func Preflight(config Config) error {
 		return nil
 	}
 
-	// Check key accessibility for each template
+	// Check connectivity for unique per-resource backends
+	for _, t := range ts {
+		if !checkedBackends[t.storeClient] {
+			log.Info("Checking per-resource backend for %s...", t.Src)
+			if err := t.storeClient.HealthCheck(ctx); err != nil {
+				log.Error("Per-resource backend check failed for %s: %v", t.Src, err)
+				return fmt.Errorf("per-resource backend connectivity failed for %s: %w", t.Src, err)
+			}
+			log.Info("Per-resource backend for %s: OK", t.Src)
+			checkedBackends[t.storeClient] = true
+		}
+	}
+
+	// Check key accessibility for each template using its own backend client
 	log.Info("Checking key accessibility...")
 	var warnings []string
 	var errors []string
 
 	for _, t := range ts {
-		vals, err := config.StoreClient.GetValues(ctx, t.prefixedKeys)
+		vals, err := t.storeClient.GetValues(ctx, t.prefixedKeys)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("%s: backend error: %v", t.Src, err))
 			continue
