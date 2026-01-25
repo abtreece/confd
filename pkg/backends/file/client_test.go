@@ -187,6 +187,47 @@ servers:
 	}
 }
 
+func TestGetValues_WildcardKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlFile := filepath.Join(tmpDir, "config.yaml")
+
+	yamlContent := `
+servers:
+  - host: server1
+    port: 8080
+  - host: server2
+    port: 8081
+database:
+  host: dbhost
+`
+	if err := os.WriteFile(yamlFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write YAML file: %v", err)
+	}
+
+	client, _ := NewFileClient([]string{yamlFile}, "")
+
+	// Using wildcard key pattern
+	result, err := client.GetValues(context.Background(), []string{"/servers/*"})
+	if err != nil {
+		t.Fatalf("GetValues() unexpected error: %v", err)
+	}
+
+	expected := map[string]string{
+		"/servers/0/host": "server1",
+		"/servers/0/port": "8080",
+		"/servers/1/host": "server2",
+		"/servers/1/port": "8081",
+	}
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("GetValues() = %v, want %v", result, expected)
+	}
+
+	// Verify database is NOT included (filtered out)
+	if _, ok := result["/database/host"]; ok {
+		t.Error("Expected /database/host to be filtered out")
+	}
+}
+
 func TestGetValues_DifferentTypes(t *testing.T) {
 	tmpDir := t.TempDir()
 	yamlFile := filepath.Join(tmpDir, "config.yaml")
@@ -491,6 +532,32 @@ func TestHealthCheck_PartialMissingFiles(t *testing.T) {
 	}
 }
 
+func TestNormalizePrefix(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"/servers/*", "/servers"},
+		{"/servers/", "/servers"},
+		{"/servers", "/servers"},
+		{"/*", ""},
+		{"/", ""},
+		{"/app/db/*", "/app/db"},
+		{"/app/db/", "/app/db"},
+		// Middle wildcards are preserved (only trailing is stripped)
+		{"/a/*/b", "/a/*/b"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := normalizePrefix(tt.input)
+			if got != tt.want {
+				t.Errorf("normalizePrefix(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMatchesAnyPrefix(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -550,6 +617,30 @@ func TestMatchesAnyPrefix(t *testing.T) {
 			name:     "root prefix matches all",
 			path:     "/database/host",
 			prefixes: []string{"/"},
+			want:     true,
+		},
+		{
+			name:     "wildcard suffix matches nested path",
+			path:     "/servers/0/host",
+			prefixes: []string{"/servers/*"},
+			want:     true,
+		},
+		{
+			name:     "wildcard suffix matches immediate child",
+			path:     "/servers/primary",
+			prefixes: []string{"/servers/*"},
+			want:     true,
+		},
+		{
+			name:     "trailing slash is normalized",
+			path:     "/database/host",
+			prefixes: []string{"/database/"},
+			want:     true,
+		},
+		{
+			name:     "root wildcard matches all",
+			path:     "/any/path/here",
+			prefixes: []string{"/*"},
 			want:     true,
 		},
 	}
