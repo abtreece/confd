@@ -70,8 +70,13 @@ func (r *templateRenderer) render(srcPath string) ([]byte, error) {
 		PutCachedTemplate(srcPath, tmpl, stat.ModTime())
 	} else {
 		log.Debug("Template cache hit for %s", srcPath)
-		// Update funcMap with fresh include function (functions resolved at execution time)
-		tmpl = tmpl.Funcs(r.funcMap)
+		// Clone the cached template to avoid concurrent Funcs() race
+		// Must clone because Funcs() mutates the template object
+		cloned, cloneErr := tmpl.Clone()
+		if cloneErr != nil {
+			return nil, fmt.Errorf("failed to clone cached template %s: %w", srcPath, cloneErr)
+		}
+		tmpl = cloned.Funcs(r.funcMap)
 	}
 
 	// Execute template to buffer

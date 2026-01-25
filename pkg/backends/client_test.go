@@ -133,6 +133,42 @@ database:
 	}
 }
 
+func TestNew_VaultBackendEmptyNodes(t *testing.T) {
+	// Bug #485: Vault backend panics on empty nodes
+	config := Config{
+		Backend:      "vault",
+		BackendNodes: []string{}, // Empty nodes should error, not panic
+		AuthType:     "token",
+		AuthToken:    "test-token",
+	}
+
+	_, err := New(config)
+	if err == nil {
+		t.Error("New() expected error for vault backend with empty nodes, got nil")
+	}
+	if err.Error() != "vault backend requires at least one node address" {
+		t.Errorf("New() error = %v, want 'vault backend requires at least one node address'", err)
+	}
+}
+
+func TestNew_VaultBackendNilNodes(t *testing.T) {
+	// Bug #485: Vault backend panics on nil nodes (variant)
+	config := Config{
+		Backend:      "vault",
+		BackendNodes: nil, // Nil nodes should error, not panic
+		AuthType:     "token",
+		AuthToken:    "test-token",
+	}
+
+	_, err := New(config)
+	if err == nil {
+		t.Error("New() expected error for vault backend with nil nodes, got nil")
+	}
+	if err.Error() != "vault backend requires at least one node address" {
+		t.Errorf("New() error = %v, want 'vault backend requires at least one node address'", err)
+	}
+}
+
 // Note: Testing other backends (consul, etcd, redis, zookeeper, vault, dynamodb, ssm)
 // requires running backend services. These are covered by integration tests in
 // .github/workflows/integration-tests.yml

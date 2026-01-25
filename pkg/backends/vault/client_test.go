@@ -64,6 +64,29 @@ func TestGetMount(t *testing.T) {
 			path:     "/secret/data/myapp/config",
 			expected: "/secret",
 		},
+		// Bug #490: Edge cases for malformed paths
+		// Note: Paths without leading slashes are malformed for Vault
+		// The key fix is that getMount doesn't panic on these inputs
+		{
+			name:     "no leading slash",
+			path:     "secret/data/app",
+			expected: "/data", // First segment after split is "secret", second is "data"
+		},
+		{
+			name:     "just slash",
+			path:     "/",
+			expected: "/",
+		},
+		{
+			name:     "empty string",
+			path:     "",
+			expected: "/",
+		},
+		{
+			name:     "only mount",
+			path:     "/secret",
+			expected: "/secret",
+		},
 	}
 
 	for _, tt := range tests {
