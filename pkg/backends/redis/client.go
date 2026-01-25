@@ -406,9 +406,13 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 			c.pubsub.Close()
 			c.pubsub = nil
 		}
-		// Clear watchCtx/watchCancel so a new watcher can be started if needed
-		c.watchCtx = nil
-		c.watchCancel = nil
+		// Clear watchCtx/watchCancel so a new watcher can be started if needed.
+		// Only clear if they still refer to this watcher's context to avoid
+		// racing with stopWatch() or a concurrently started new watcher.
+		if c.watchCtx == ctx {
+			c.watchCtx = nil
+			c.watchCancel = nil
+		}
 		c.pubsubMu.Unlock()
 		if rClient != nil {
 			rClient.Close()
