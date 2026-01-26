@@ -1,0 +1,68 @@
+# confd configuration file
+# See https://github.com/abtreece/confd/blob/main/docs/configuration-guide.md
+#
+# This file provides default values. Command-line flags and environment
+# variables (CONFD_*) override these settings.
+#
+# Note: The backend and connection settings are typically specified via
+# command-line in /etc/default/confd (or /etc/sysconfig/confd on RHEL).
+
+# Configuration directories
+# confdir = "/etc/confd"
+
+# Global key prefix applied to all template resources
+# prefix = ""
+
+# Polling interval in seconds (used when watch mode is disabled)
+# interval = 600
+
+# Error handling mode:
+#   "best-effort" - Continue processing remaining templates when one fails
+#   "fail-fast"   - Stop all processing on first template error
+# failure_mode = "best-effort"
+
+# Logging
+# log-level = "info"
+# log-format = "text"
+
+# Backend connection (typically set via CLI in /etc/default/confd)
+# nodes = ["http://127.0.0.1:2379"]
+# scheme = "http"
+
+# Authentication (if required by backend)
+# basic_auth = false
+# username = ""
+# password = ""
+# auth_token = ""
+
+# TLS configuration
+# client_cert = ""
+# client_key = ""
+# client_cakeys = ""
+# client_insecure = false
+
+# Timeouts
+# dial_timeout = "5s"
+# read_timeout = "1s"
+# write_timeout = "1s"
+# backend_timeout = "30s"
+# check_cmd_timeout = "30s"
+# reload_cmd_timeout = "60s"
+
+# Retry configuration
+# retry_max_attempts = 3
+# retry_base_delay = "100ms"
+# retry_max_delay = "5s"
+
+# Watch mode settings
+# watch_error_backoff = "2s"
+# debounce = ""
+# batch_interval = ""
+
+# Performance
+# template_cache = true
+# stat_cache_ttl = "1s"
+
+# Metrics endpoint (disabled if empty)
+# Exposes /metrics, /health, /ready, /ready/detailed
+# metrics_addr = ":9100"
