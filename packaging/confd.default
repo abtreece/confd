@@ -1,7 +1,8 @@
 # confd environment configuration
 # This file is sourced by the confd systemd service.
 #
-# See https://github.com/abtreece/confd for documentation.
+# Documentation: https://github.com/abtreece/confd/blob/main/docs/
+# Quick start:   https://github.com/abtreece/confd/blob/main/docs/quick-start-guide.md
 
 # Backend to use (required)
 # Options: etcd, consul, vault, redis, zookeeper, dynamodb, ssm, acm,

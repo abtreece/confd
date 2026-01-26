@@ -37,6 +37,10 @@ LockPersonality=true
 MemoryDenyWriteExecute=true
 
 # Allow writes to config directories and common application paths
+# Note: /etc is required because confd writes to arbitrary config locations
+# (e.g., /etc/nginx/nginx.conf, /etc/myapp/config.yaml). To restrict further,
+# replace /etc with specific paths your templates write to:
+#   ReadWritePaths=/etc/nginx /etc/myapp /etc/confd /var/lib/confd /var/run
 ReadWritePaths=/etc /var/lib/confd /var/run
 
 # Restrict system calls

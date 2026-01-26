@@ -15,6 +15,36 @@ This guide covers deploying confd as a production service with systemd, Docker, 
 
 confd supports systemd's `sd_notify` protocol for improved service management.
 
+### Package-Based Installation (Recommended)
+
+If you installed confd via RPM or DEB packages, systemd integration is pre-configured. Configure confd using the environment file:
+
+```bash
+# Debian/Ubuntu
+sudo vi /etc/default/confd
+
+# RHEL/Fedora/CentOS
+sudo vi /etc/sysconfig/confd
+```
+
+Example configuration:
+```bash
+CONFD_BACKEND="etcd"
+CONFD_OPTS="--watch --systemd-notify --watchdog-interval 30s --node http://etcd.example.com:2379"
+```
+
+Then enable and start:
+```bash
+sudo systemctl enable confd
+sudo systemctl start confd
+```
+
+The packaged service includes security hardening (see [Security Hardening](#security-hardening) below).
+
+### Manual Installation
+
+If you installed confd via binary download, create a systemd service file manually.
+
 ### Type=notify (Recommended)
 
 The `Type=notify` service provides better reliability and monitoring:

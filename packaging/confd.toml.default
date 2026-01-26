@@ -1,5 +1,6 @@
 # confd configuration file
-# See https://github.com/abtreece/confd/blob/main/docs/configuration-guide.md
+# Documentation: https://github.com/abtreece/confd/blob/main/docs/configuration-guide.md
+# CLI reference:  https://github.com/abtreece/confd/blob/main/docs/command-line-flags.md
 #
 # This file provides default values. Command-line flags and environment
 # variables (CONFD_*) override these settings.
