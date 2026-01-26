@@ -1,3 +1,50 @@
+### v0.40.0-rc.2
+
+Release candidate for v0.40.0 with Linux packaging and critical bug fixes.
+
+**New Features**:
+
+* feat(packaging): Add RPM and DEB package support via nFPM (#520)
+  - Systemd service with security hardening
+  - Environment file configuration (`/etc/default/confd` or `/etc/sysconfig/confd`)
+  - Packages for amd64, arm64, and armv7 architectures
+* feat(cli): Add comprehensive environment variable support (#516)
+
+**Bug Fixes**:
+
+* fix: Address high severity bugs - goroutine leaks, FD leaks, data races (#493, #494, #496, #497)
+* fix: File backend wildcard keys filtered out (#498)
+* fix: Preflight now uses per-resource backend for key checks (#495)
+* fix(redis): Support multiple prefixes in WatchPrefix (#510)
+* fix(imds): Close response body in HealthCheck and New (#511)
+* fix(imds): Avoid trailing slash in user-data cache key (#500)
+* fix(backends): Respect context cancellation in WatchPrefix stubs (#512)
+* fix(template): Use atomic.Bool for reloadRequested to prevent data race (#504)
+* fix(template): Reduce backend fetch log verbosity (#506)
+* fix(config): Return error for invalid duration values in confd.toml (#505)
+* fix(zookeeper): Propagate errors from recursive nodeWalk calls (#499)
+
+**Testing**:
+
+* test(template): Add integration tests for watch reconnection after backend failures (#519)
+* Complete E2E test migration to Go testcontainers framework (#464-476)
+
+**Documentation**:
+
+* docs: Add Linux package installation instructions
+* docs: Update service deployment guide with package-based setup
+
+Install via packages:
+```bash
+# Debian/Ubuntu
+curl -LO https://github.com/abtreece/confd/releases/download/v0.40.0-rc.2/confd_0.40.0-rc.2_linux_amd64.deb
+sudo dpkg -i confd_0.40.0-rc.2_linux_amd64.deb
+
+# RHEL/Fedora
+curl -LO https://github.com/abtreece/confd/releases/download/v0.40.0-rc.2/confd-0.40.0.rc.2-1.x86_64.rpm
+sudo rpm -i confd-0.40.0.rc.2-1.x86_64.rpm
+```
+
 ### v0.40.0-rc.1
 
 Release candidate for v0.40.0 with Docker container support.
