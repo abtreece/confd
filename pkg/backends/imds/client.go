@@ -110,6 +110,12 @@ func New(cacheTTL, dialTimeout time.Duration) (*Client, error) {
 
 	client := imds.NewFromConfig(cfg, opts...)
 
+	return newWithClient(ctx, client, cacheTTL)
+}
+
+// newWithClient creates a new IMDS Client with the provided imdsAPI implementation.
+// This is separated from New() to allow testing with mock clients.
+func newWithClient(ctx context.Context, client imdsAPI, cacheTTL time.Duration) (*Client, error) {
 	// Validate IMDS availability
 	validationOutput, err := client.GetMetadata(ctx, &imds.GetMetadataInput{
 		Path: "",

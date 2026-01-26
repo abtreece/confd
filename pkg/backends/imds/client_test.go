@@ -675,3 +675,60 @@ func TestHealthCheckDetailed_ClosesResponseBody(t *testing.T) {
 		t.Error("HealthCheckDetailed should close the response body")
 	}
 }
+
+func TestNewWithClient_Success(t *testing.T) {
+	var closed atomic.Bool
+	mock := &mockIMDS{
+		getMetadataFunc: func(ctx context.Context, params *imds.GetMetadataInput, optFns ...func(*imds.Options)) (*imds.GetMetadataOutput, error) {
+			if params.Path == "" {
+				return mockResponseWithCloseTracking("ami-id\ninstance-id\n", &closed), nil
+			}
+			return nil, fmt.Errorf("path not found")
+		},
+	}
+
+	ctx := context.Background()
+	client, err := newWithClient(ctx, mock, 60*time.Second)
+	if err != nil {
+		t.Fatalf("newWithClient failed: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("newWithClient returned nil client")
+	}
+
+	if !closed.Load() {
+		t.Error("newWithClient should close the validation response body")
+	}
+
+	// Verify client is properly initialized
+	if client.cache == nil {
+		t.Error("client cache should be initialized")
+	}
+	if client.cacheTTL != 60*time.Second {
+		t.Errorf("client cacheTTL = %v, want 60s", client.cacheTTL)
+	}
+}
+
+func TestNewWithClient_IMDSUnavailable(t *testing.T) {
+	mock := &mockIMDS{
+		getMetadataFunc: func(ctx context.Context, params *imds.GetMetadataInput, optFns ...func(*imds.Options)) (*imds.GetMetadataOutput, error) {
+			return nil, fmt.Errorf("IMDS unavailable")
+		},
+	}
+
+	ctx := context.Background()
+	client, err := newWithClient(ctx, mock, 60*time.Second)
+
+	if err == nil {
+		t.Error("newWithClient should fail when IMDS is unavailable")
+	}
+
+	if client != nil {
+		t.Error("newWithClient should return nil client on error")
+	}
+
+	if !strings.Contains(err.Error(), "IMDS not available") {
+		t.Errorf("error should mention IMDS not available, got: %v", err)
+	}
+}
