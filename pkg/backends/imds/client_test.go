@@ -606,3 +606,72 @@ func TestClose(t *testing.T) {
 		t.Errorf("Close should not return error, got: %v", err)
 	}
 }
+
+// trackingReadCloser wraps a ReadCloser and tracks whether Close was called
+type trackingReadCloser struct {
+	io.Reader
+	closed *atomic.Bool
+}
+
+func (t *trackingReadCloser) Close() error {
+	t.closed.Store(true)
+	return nil
+}
+
+// mockResponseWithCloseTracking creates a mock GetMetadataOutput that tracks Close calls
+func mockResponseWithCloseTracking(content string, closed *atomic.Bool) *imds.GetMetadataOutput {
+	return &imds.GetMetadataOutput{
+		Content: &trackingReadCloser{
+			Reader: strings.NewReader(content),
+			closed: closed,
+		},
+	}
+}
+
+func TestHealthCheck_ClosesResponseBody(t *testing.T) {
+	var closed atomic.Bool
+	mock := &mockIMDS{
+		getMetadataFunc: func(ctx context.Context, params *imds.GetMetadataInput, optFns ...func(*imds.Options)) (*imds.GetMetadataOutput, error) {
+			if params.Path == "" {
+				return mockResponseWithCloseTracking("ami-id\ninstance-id\n", &closed), nil
+			}
+			return nil, fmt.Errorf("path not found")
+		},
+	}
+
+	client := newTestClient(mock)
+	ctx := context.Background()
+
+	err := client.HealthCheck(ctx)
+	if err != nil {
+		t.Fatalf("HealthCheck failed: %v", err)
+	}
+
+	if !closed.Load() {
+		t.Error("HealthCheck should close the response body")
+	}
+}
+
+func TestHealthCheckDetailed_ClosesResponseBody(t *testing.T) {
+	var closed atomic.Bool
+	mock := &mockIMDS{
+		getMetadataFunc: func(ctx context.Context, params *imds.GetMetadataInput, optFns ...func(*imds.Options)) (*imds.GetMetadataOutput, error) {
+			if params.Path == "" {
+				return mockResponseWithCloseTracking("ami-id\ninstance-id\n", &closed), nil
+			}
+			return nil, fmt.Errorf("path not found")
+		},
+	}
+
+	client := newTestClient(mock)
+	ctx := context.Background()
+
+	_, err := client.HealthCheckDetailed(ctx)
+	if err != nil {
+		t.Fatalf("HealthCheckDetailed failed: %v", err)
+	}
+
+	if !closed.Load() {
+		t.Error("HealthCheckDetailed should close the response body")
+	}
+}
