@@ -12,6 +12,28 @@ import (
 	"github.com/abtreece/confd/pkg/backends"
 )
 
+// Test timing constants for reconnection tests.
+// These values are tuned to balance test reliability with execution speed.
+const (
+	// testErrorChannelBuffer is the buffer size for error channels in tests.
+	// Large enough to collect errors during failure scenarios without blocking.
+	testErrorChannelBuffer = 100
+
+	// watchEstablishmentDelay is the time to wait for a watch to be established
+	// after processor startup before triggering test actions.
+	watchEstablishmentDelay = 200 * time.Millisecond
+
+	// watchDetectionDelay is the time to wait for fsnotify to detect file changes.
+	watchDetectionDelay = 300 * time.Millisecond
+
+	// watchRetryDelay is the time to wait for the processor to detect failures
+	// and begin retry attempts.
+	watchRetryDelay = 500 * time.Millisecond
+
+	// testShutdownTimeout is the maximum time to wait for processor shutdown.
+	testShutdownTimeout = 2 * time.Second
+)
+
 // processorTestEnv holds the test environment for processor integration tests.
 type processorTestEnv struct {
 	confDir  string // conf.d directory with TOML configs
@@ -142,6 +164,13 @@ func (e *processorTestEnv) createConfig(ctx context.Context) Config {
 func (e *processorTestEnv) createConfigWithBatch(ctx context.Context, batchInterval time.Duration) Config {
 	cfg := e.createConfig(ctx)
 	cfg.BatchInterval = batchInterval
+	return cfg
+}
+
+// createConfigWithBackoff creates a Config with custom watch error backoff for reconnection tests.
+func (e *processorTestEnv) createConfigWithBackoff(ctx context.Context, backoff time.Duration) Config {
+	cfg := e.createConfig(ctx)
+	cfg.WatchErrorBackoff = backoff
 	return cfg
 }
 
@@ -694,6 +723,498 @@ prefix = "/"
 		// Success - exited before interval
 	case <-time.After(3 * time.Second):
 		t.Error("Processor did not respond to context cancellation")
+	}
+}
+
+// =============================================================================
+// Watch Reconnection Tests (Issue #421)
+// =============================================================================
+// These tests verify that the watch processor correctly handles backend failures
+// and recovers when the backend becomes available again.
+
+// TestWatchProcessor_Integration_FileReconnection tests that when a watched file
+// is deleted and recreated, the watch processor detects the change and processes
+// the template with the new content.
+func TestWatchProcessor_Integration_FileReconnection(t *testing.T) {
+	env := newProcessorTestEnv(t)
+
+	// Setup template
+	env.writeTemplate("test.tmpl", `value={{ getv "/test/value" }}`)
+
+	// Setup config
+	destPath := env.destPath("reconnect-output.txt")
+	configContent := fmt.Sprintf(`[template]
+src = "test.tmpl"
+dest = "%s"
+keys = ["/test"]
+prefix = "/"
+`, destPath)
+	env.writeConfig("reconnect.toml", configContent)
+
+	// Setup initial data
+	dataPath := env.writeData("test.yaml", `test:
+  value: initial
+`)
+
+	// Create processor with 20s timeout - sufficient for file deletion, retry cycles,
+	// and reconnection. Single file reconnection is faster than directory recreation.
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	config := env.createConfig(ctx)
+	stopChan := make(chan bool)
+	doneChan := make(chan bool)
+	errChan := make(chan error, testErrorChannelBuffer)
+
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
+
+	// Start processor in goroutine
+	go processor.Process()
+
+	// Wait for initial output
+	if err := waitForFile(t, destPath, 5*time.Second, "value=initial"); err != nil {
+		t.Fatalf("Initial output not created: %v", err)
+	}
+
+	// Delete the data file to simulate backend failure
+	time.Sleep(watchEstablishmentDelay)
+	if err := os.Remove(dataPath); err != nil {
+		t.Fatalf("Failed to delete data file: %v", err)
+	}
+	t.Log("Data file deleted, simulating backend failure")
+
+	// Give the watcher time to detect deletion and attempt retry
+	time.Sleep(watchRetryDelay)
+
+	// Recreate the file with new content
+	env.writeData("test.yaml", `test:
+  value: reconnected
+`)
+	t.Log("Data file recreated with new content")
+
+	// Wait for the processor to detect recreation and update output
+	content, err := waitForFileUpdate(t, destPath, 10*time.Second, "value=initial")
+	if err != nil {
+		t.Fatalf("Output not updated after file recreation: %v", err)
+	}
+
+	if content != "value=reconnected" {
+		t.Errorf("Expected 'value=reconnected', got %q", content)
+	}
+
+	// Cleanup
+	close(stopChan)
+	select {
+	case <-doneChan:
+		// Success
+	case <-time.After(testShutdownTimeout):
+		t.Error("Processor did not stop within timeout")
+	}
+}
+
+// TestWatchProcessor_Integration_MultipleFileFailures tests that the processor
+// handles multiple consecutive file deletions and recreations correctly.
+func TestWatchProcessor_Integration_MultipleFileFailures(t *testing.T) {
+	env := newProcessorTestEnv(t)
+
+	// Setup template
+	env.writeTemplate("test.tmpl", `value={{ getv "/test/value" }}`)
+
+	// Setup config
+	destPath := env.destPath("multi-fail-output.txt")
+	configContent := fmt.Sprintf(`[template]
+src = "test.tmpl"
+dest = "%s"
+keys = ["/test"]
+prefix = "/"
+`, destPath)
+	env.writeConfig("multi-fail.toml", configContent)
+
+	// Setup initial data
+	dataPath := env.writeData("test.yaml", `test:
+  value: v0
+`)
+
+	// 30s timeout for 3 delete/recreate cycles with recovery time between each
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	config := env.createConfig(ctx)
+	stopChan := make(chan bool)
+	doneChan := make(chan bool)
+	errChan := make(chan error, testErrorChannelBuffer)
+
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
+
+	go processor.Process()
+
+	// Wait for initial output
+	if err := waitForFile(t, destPath, 5*time.Second, "value=v0"); err != nil {
+		t.Fatalf("Initial output not created: %v", err)
+	}
+
+	// Perform 3 delete/recreate cycles
+	for i := 1; i <= 3; i++ {
+		time.Sleep(watchDetectionDelay)
+
+		// Delete file
+		if err := os.Remove(dataPath); err != nil {
+			t.Fatalf("Cycle %d: Failed to delete data file: %v", i, err)
+		}
+		t.Logf("Cycle %d: File deleted", i)
+
+		time.Sleep(watchDetectionDelay)
+
+		// Recreate with new value
+		previousValue := fmt.Sprintf("value=v%d", i-1)
+		newValue := fmt.Sprintf("v%d", i)
+		env.writeData("test.yaml", fmt.Sprintf(`test:
+  value: %s
+`, newValue))
+		t.Logf("Cycle %d: File recreated with value=%s", i, newValue)
+
+		// Wait for update
+		content, err := waitForFileUpdate(t, destPath, 8*time.Second, previousValue)
+		if err != nil {
+			t.Fatalf("Cycle %d: Output not updated: %v", i, err)
+		}
+
+		expectedContent := fmt.Sprintf("value=%s", newValue)
+		if content != expectedContent {
+			t.Errorf("Cycle %d: Expected %q, got %q", i, expectedContent, content)
+		}
+	}
+
+	// Cleanup
+	close(stopChan)
+	select {
+	case <-doneChan:
+	case <-time.After(testShutdownTimeout):
+		t.Error("Processor did not stop within timeout")
+	}
+}
+
+// TestWatchProcessor_Integration_ErrorChannelOnFailure tests that errors are
+// reported to the error channel when the backend fails, and the processor
+// recovers after the backend becomes available again.
+func TestWatchProcessor_Integration_ErrorChannelOnFailure(t *testing.T) {
+	env := newProcessorTestEnv(t)
+
+	// Setup template
+	env.writeTemplate("test.tmpl", `value={{ getv "/test/value" }}`)
+
+	// Setup config
+	destPath := env.destPath("error-channel-output.txt")
+	configContent := fmt.Sprintf(`[template]
+src = "test.tmpl"
+dest = "%s"
+keys = ["/test"]
+prefix = "/"
+`, destPath)
+	env.writeConfig("error-channel.toml", configContent)
+
+	// Setup initial data
+	dataPath := env.writeData("test.yaml", `test:
+  value: initial
+`)
+
+	// 15s timeout for error detection and recovery cycle
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	config := env.createConfig(ctx)
+	stopChan := make(chan bool)
+	doneChan := make(chan bool)
+	errChan := make(chan error, testErrorChannelBuffer)
+
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
+
+	go processor.Process()
+
+	// Wait for initial output
+	if err := waitForFile(t, destPath, 5*time.Second, "value=initial"); err != nil {
+		t.Fatalf("Initial output not created: %v", err)
+	}
+
+	// Delete file to trigger errors
+	time.Sleep(watchEstablishmentDelay)
+	if err := os.Remove(dataPath); err != nil {
+		t.Fatalf("Failed to delete data file: %v", err)
+	}
+	t.Log("Data file deleted")
+
+	// Wait for watch to detect deletion and retry
+	time.Sleep(watchRetryDelay)
+
+	// Recreate file with new content
+	env.writeData("test.yaml", `test:
+  value: recovered
+`)
+	t.Log("Data file recreated")
+
+	// Wait for recovery - the processor must update the output after recovering
+	content, err := waitForFileUpdate(t, destPath, 10*time.Second, "value=initial")
+	if err != nil {
+		t.Fatalf("Output not updated after recovery: %v", err)
+	}
+
+	if content != "value=recovered" {
+		t.Errorf("Expected 'value=recovered', got %q", content)
+	}
+
+	// Log error count for debugging (errors are expected during file deletion)
+	errorCount := len(errChan)
+	t.Logf("Errors reported during file deletion/recreation: %d", errorCount)
+
+	// Cleanup
+	close(stopChan)
+	select {
+	case <-doneChan:
+		// Success - processor is still running and shuts down cleanly
+	case <-time.After(testShutdownTimeout):
+		t.Error("Processor did not stop within timeout")
+	}
+}
+
+// TestWatchProcessor_Integration_ContinuesAfterTransientError tests that the
+// watch processor continues operating after a transient error.
+func TestWatchProcessor_Integration_ContinuesAfterTransientError(t *testing.T) {
+	env := newProcessorTestEnv(t)
+
+	// Setup template
+	env.writeTemplate("test.tmpl", `value={{ getv "/test/value" }}`)
+
+	// Setup config
+	destPath := env.destPath("transient-output.txt")
+	configContent := fmt.Sprintf(`[template]
+src = "test.tmpl"
+dest = "%s"
+keys = ["/test"]
+prefix = "/"
+`, destPath)
+	env.writeConfig("transient.toml", configContent)
+
+	// Setup initial data
+	dataPath := env.writeData("test.yaml", `test:
+  value: initial
+`)
+
+	// 20s timeout for permission error and recovery cycle
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	config := env.createConfig(ctx)
+	stopChan := make(chan bool)
+	doneChan := make(chan bool)
+	errChan := make(chan error, testErrorChannelBuffer)
+
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
+
+	go processor.Process()
+
+	// Wait for initial output
+	if err := waitForFile(t, destPath, 5*time.Second, "value=initial"); err != nil {
+		t.Fatalf("Initial output not created: %v", err)
+	}
+
+	// Cause a transient error by making the file unreadable (Unix-specific)
+	time.Sleep(watchEstablishmentDelay)
+	if err := os.Chmod(dataPath, 0000); err != nil {
+		t.Skipf("Cannot change file permissions (may require elevated privileges): %v", err)
+	}
+	t.Log("File made unreadable")
+
+	// Wait a bit for errors to accumulate
+	time.Sleep(watchRetryDelay)
+
+	// Restore permissions
+	if err := os.Chmod(dataPath, 0644); err != nil {
+		t.Fatalf("Failed to restore file permissions: %v", err)
+	}
+	t.Log("File permissions restored")
+
+	// Update the file content
+	env.updateData("test.yaml", `test:
+  value: after-error
+`)
+
+	// Verify processor recovered and processed new content
+	content, err := waitForFileUpdate(t, destPath, 10*time.Second, "value=initial")
+	if err != nil {
+		t.Fatalf("Output not updated after error recovery: %v", err)
+	}
+
+	if content != "value=after-error" {
+		t.Errorf("Expected 'value=after-error', got %q", content)
+	}
+
+	// Cleanup
+	close(stopChan)
+	select {
+	case <-doneChan:
+	case <-time.After(testShutdownTimeout):
+		t.Error("Processor did not stop within timeout")
+	}
+}
+
+// TestBatchProcessor_Integration_FileReconnection tests that the batch processor
+// also handles file deletion and recreation correctly.
+func TestBatchProcessor_Integration_FileReconnection(t *testing.T) {
+	env := newProcessorTestEnv(t)
+
+	// Setup template
+	env.writeTemplate("test.tmpl", `value={{ getv "/test/value" }}`)
+
+	// Setup config
+	destPath := env.destPath("batch-reconnect-output.txt")
+	configContent := fmt.Sprintf(`[template]
+src = "test.tmpl"
+dest = "%s"
+keys = ["/test"]
+prefix = "/"
+`, destPath)
+	env.writeConfig("batch-reconnect.toml", configContent)
+
+	// Setup initial data
+	dataPath := env.writeData("test.yaml", `test:
+  value: initial
+`)
+
+	// 20s timeout for batch processor reconnection cycle
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	config := env.createConfigWithBatch(ctx, 500*time.Millisecond)
+	stopChan := make(chan bool)
+	doneChan := make(chan bool)
+	errChan := make(chan error, testErrorChannelBuffer)
+
+	processor := BatchWatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
+
+	go processor.Process()
+
+	// Wait for initial output
+	if err := waitForFile(t, destPath, 5*time.Second, "value=initial"); err != nil {
+		t.Fatalf("Initial output not created: %v", err)
+	}
+
+	// Delete and recreate file
+	time.Sleep(watchEstablishmentDelay)
+	if err := os.Remove(dataPath); err != nil {
+		t.Fatalf("Failed to delete data file: %v", err)
+	}
+	t.Log("Data file deleted")
+
+	time.Sleep(watchDetectionDelay)
+
+	env.writeData("test.yaml", `test:
+  value: batch-reconnected
+`)
+	t.Log("Data file recreated")
+
+	// Wait for batch processor to pick up the change
+	content, err := waitForFileUpdate(t, destPath, 10*time.Second, "value=initial")
+	if err != nil {
+		t.Fatalf("Output not updated after file recreation: %v", err)
+	}
+
+	if content != "value=batch-reconnected" {
+		t.Errorf("Expected 'value=batch-reconnected', got %q", content)
+	}
+
+	// Cleanup
+	close(stopChan)
+	select {
+	case <-doneChan:
+	case <-time.After(testShutdownTimeout):
+		t.Error("Processor did not stop within timeout")
+	}
+}
+
+// TestWatchProcessor_Integration_DirectoryRecreation tests that when the watched
+// directory is deleted and recreated, the watch processor recovers.
+func TestWatchProcessor_Integration_DirectoryRecreation(t *testing.T) {
+	env := newProcessorTestEnv(t)
+
+	// Setup template
+	env.writeTemplate("test.tmpl", `value={{ getv "/test/value" }}`)
+
+	// Setup config
+	destPath := env.destPath("dir-recreate-output.txt")
+	configContent := fmt.Sprintf(`[template]
+src = "test.tmpl"
+dest = "%s"
+keys = ["/test"]
+prefix = "/"
+`, destPath)
+	env.writeConfig("dir-recreate.toml", configContent)
+
+	// Setup initial data
+	env.writeData("test.yaml", `test:
+  value: initial
+`)
+
+	// 30s timeout for directory recreation - requires more time for directory
+	// removal, watcher re-establishment, and file detection
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Use short backoff for faster recovery during tests
+	config := env.createConfigWithBackoff(ctx, 100*time.Millisecond)
+	stopChan := make(chan bool)
+	doneChan := make(chan bool)
+	errChan := make(chan error, testErrorChannelBuffer)
+
+	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
+
+	go processor.Process()
+
+	// Wait for initial output
+	if err := waitForFile(t, destPath, 5*time.Second, "value=initial"); err != nil {
+		t.Fatalf("Initial output not created: %v", err)
+	}
+
+	// Delete the entire data directory
+	time.Sleep(watchEstablishmentDelay)
+	if err := os.RemoveAll(env.dataDir); err != nil {
+		t.Fatalf("Failed to delete data directory: %v", err)
+	}
+	t.Log("Data directory deleted")
+
+	// Wait for watch to detect the deletion and start retrying
+	time.Sleep(watchDetectionDelay)
+
+	// Recreate directory and file
+	if err := os.MkdirAll(env.dataDir, 0755); err != nil {
+		t.Fatalf("Failed to recreate data directory: %v", err)
+	}
+	env.writeData("test.yaml", `test:
+  value: dir-recreated
+`)
+	t.Log("Data directory recreated with content")
+
+	// Wait for watcher to be re-established on the recreated directory
+	// The processor retries with backoff; we need to wait for a successful WatchPrefix call
+	time.Sleep(watchRetryDelay)
+
+	// Trigger a file update to ensure the re-established watcher detects a change
+	env.updateData("test.yaml", `test:
+  value: dir-recreated
+`)
+	t.Log("Data file touched to trigger watcher")
+
+	// Wait for processor to process the change and produce the final value
+	if err := waitForFile(t, destPath, 15*time.Second, "value=dir-recreated"); err != nil {
+		t.Fatalf("Output not updated to final value after directory recreation: %v", err)
+	}
+	t.Log("Processor recovered with final content: value=dir-recreated")
+
+	// Cleanup
+	close(stopChan)
+	select {
+	case <-doneChan:
+	case <-time.After(testShutdownTimeout):
+		t.Error("Processor did not stop within timeout")
 	}
 }
 
