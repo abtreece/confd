@@ -18,7 +18,7 @@
 
 - **Multiple Backends**: etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM/Secrets Manager/ACM/IMDS, environment variables, and files
 - **Template Processing**: Go text/template with custom functions for configuration generation
-- **Watch Mode**: Real-time config updates for supported backends (Consul, etcd, Redis, Zookeeper, env, file)
+- **Watch Mode**: Real-time config updates for supported backends (Consul, etcd, Redis, Zookeeper, file)
 - **Polling Mode**: Configurable interval-based polling for all backends
 - **Validation**: Pre-flight checks, template validation, and configuration validation
 - **Metrics**: Prometheus metrics for observability (backend operations, template processing, commands)
@@ -263,7 +263,7 @@ confd --noop --diff --color etcd
 | [Consul](pkg/backends/consul/README.md) | ✅ | ✅ | Basic, TLS, Token |
 | [Redis](pkg/backends/redis/README.md) | ✅ | ✅ | Password |
 | [Zookeeper](pkg/backends/zookeeper/README.md) | ✅ | ✅ | None |
-| [Env](pkg/backends/env/README.md) | ✅ | ✅ | None |
+| [Env](pkg/backends/env/README.md) | ❌ | ✅ | None |
 | [File](pkg/backends/file/README.md) | ✅ | ✅ | None |
 | [Vault](pkg/backends/vault/README.md) | ❌ | ✅ | Token, AppRole, App-ID, Kubernetes |
 | [DynamoDB](pkg/backends/dynamodb/README.md) | ❌ | ✅ | AWS SDK |
