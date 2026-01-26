@@ -499,21 +499,85 @@ confd --stat-cache-ttl 5s etcd --watch
 
 ## Environment Variables
 
-Global configuration can also be set via environment variables with the `CONFD_` prefix:
+Global configuration can also be set via environment variables with the `CONFD_` prefix. Command-line flags take precedence over environment variables.
+
+### Core Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CONFD_CONFDIR` | Configuration directory | `/etc/confd` |
+| `CONFD_CONFIG_FILE` | Configuration file path | `/etc/confd/confd.toml` |
+| `CONFD_INTERVAL` | Polling interval (seconds) | `600` |
+| `CONFD_LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
+| `CONFD_LOG_FORMAT` | Log format (text, json) | `text` |
+| `CONFD_PREFIX` | Key prefix | |
+| `CONFD_WATCH` | Enable watch mode | `false` |
+| `CONFD_ONETIME` | Run once and exit | `false` |
+| `CONFD_NOOP` | Dry-run mode (no changes) | `false` |
+| `CONFD_SYNC_ONLY` | Sync without check/reload commands | `false` |
+| `CONFD_FAILURE_MODE` | Error handling (best-effort, fail-fast) | `best-effort` |
+| `CONFD_KEEP_STAGE_FILE` | Keep staged files after processing | `false` |
+
+### Timeouts and Performance
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CONFD_BACKEND_TIMEOUT` | Backend operation timeout | `30s` |
+| `CONFD_CHECK_CMD_TIMEOUT` | Check command timeout | `30s` |
+| `CONFD_RELOAD_CMD_TIMEOUT` | Reload command timeout | `60s` |
+| `CONFD_DIAL_TIMEOUT` | Connection timeout | `5s` |
+| `CONFD_READ_TIMEOUT` | Read timeout | `1s` |
+| `CONFD_WRITE_TIMEOUT` | Write timeout | `1s` |
+| `CONFD_PREFLIGHT_TIMEOUT` | Preflight check timeout | `10s` |
+| `CONFD_SHUTDOWN_TIMEOUT` | Graceful shutdown timeout | `30s` |
+
+### Retry Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CONFD_RETRY_MAX_ATTEMPTS` | Max retry attempts | `3` |
+| `CONFD_RETRY_BASE_DELAY` | Initial backoff delay | `100ms` |
+| `CONFD_RETRY_MAX_DELAY` | Maximum backoff delay | `5s` |
+
+### Watch Mode Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CONFD_DEBOUNCE` | Debounce duration for watch mode | |
+| `CONFD_BATCH_INTERVAL` | Batch processing interval | |
+| `CONFD_WATCH_ERROR_BACKOFF` | Backoff after watch errors | `2s` |
+
+### Caching
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CONFD_TEMPLATE_CACHE` | Enable template caching | `true` |
+| `CONFD_STAT_CACHE_TTL` | Template file stat cache TTL | `1s` |
+
+### Service Discovery
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CONFD_SRV_DOMAIN` | DNS SRV domain for backend discovery | |
+| `CONFD_SRV_RECORD` | SRV record for backend node discovery | |
+
+### Observability
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CONFD_METRICS_ADDR` | Metrics endpoint address (e.g., `:9100`) | |
+| `CONFD_SYSTEMD_NOTIFY` | Enable systemd sd_notify | `false` |
+| `CONFD_WATCHDOG_INTERVAL` | Systemd watchdog ping interval (0=disabled) | `0` |
+
+### TLS/Authentication
 
 | Variable | Description |
 |----------|-------------|
-| `CONFD_CONFDIR` | Configuration directory |
-| `CONFD_INTERVAL` | Polling interval |
-| `CONFD_LOG_LEVEL` | Log level |
-| `CONFD_PREFIX` | Key prefix |
-| `CONFD_METRICS_ADDR` | Metrics endpoint address |
-| `CONFD_SYSTEMD_NOTIFY` | Enable systemd notify |
 | `CONFD_CLIENT_CERT` | Client certificate file |
 | `CONFD_CLIENT_KEY` | Client key file |
 | `CONFD_CLIENT_CAKEYS` | CA certificate file |
 
-Backend-specific environment variables:
+### Backend-Specific Variables
 
 | Variable | Backend | Description |
 |----------|---------|-------------|

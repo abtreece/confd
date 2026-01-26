@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
@@ -663,5 +664,187 @@ func TestProcessEnvDoesNotOverride(t *testing.T) {
 
 	if cfg.ClientCert != "/cli/cert" {
 		t.Errorf("Expected ClientCert '/cli/cert' (not overridden), got %q", cfg.ClientCert)
+	}
+}
+
+// clearCONFDEnvVars clears all CONFD_* and backend-specific env vars that could
+// interfere with Kong parsing, saving original values for restoration via t.Cleanup.
+func clearCONFDEnvVars(t *testing.T) {
+	t.Helper()
+
+	// List of env vars that Kong parses and could interfere with tests
+	envVars := []string{
+		"ACM_EXPORT_PRIVATE_KEY",
+		"CONFD_CONFDIR", "CONFD_CONFIG_FILE", "CONFD_INTERVAL",
+		"CONFD_LOG_LEVEL", "CONFD_LOG_FORMAT", "CONFD_PREFIX",
+		"CONFD_WATCH", "CONFD_ONETIME", "CONFD_NOOP", "CONFD_SYNC_ONLY",
+		"CONFD_FAILURE_MODE", "CONFD_KEEP_STAGE_FILE",
+		"CONFD_BACKEND_TIMEOUT", "CONFD_CHECK_CMD_TIMEOUT", "CONFD_RELOAD_CMD_TIMEOUT",
+		"CONFD_DIAL_TIMEOUT", "CONFD_READ_TIMEOUT", "CONFD_WRITE_TIMEOUT",
+		"CONFD_PREFLIGHT_TIMEOUT", "CONFD_SHUTDOWN_TIMEOUT",
+		"CONFD_RETRY_MAX_ATTEMPTS", "CONFD_RETRY_BASE_DELAY", "CONFD_RETRY_MAX_DELAY",
+		"CONFD_DEBOUNCE", "CONFD_BATCH_INTERVAL", "CONFD_WATCH_ERROR_BACKOFF",
+		"CONFD_TEMPLATE_CACHE", "CONFD_STAT_CACHE_TTL",
+		"CONFD_METRICS_ADDR", "CONFD_SYSTEMD_NOTIFY",
+		"CONFD_CLIENT_CERT", "CONFD_CLIENT_KEY", "CONFD_CLIENT_CAKEYS",
+		"CONFD_SRV_DOMAIN", "CONFD_SRV_RECORD", "CONFD_WATCHDOG_INTERVAL",
+	}
+
+	// Save original values and clear
+	origValues := make(map[string]string)
+	for _, env := range envVars {
+		if val, exists := os.LookupEnv(env); exists {
+			origValues[env] = val
+		}
+		os.Unsetenv(env)
+	}
+
+	// Restore original values on cleanup
+	t.Cleanup(func() {
+		for _, env := range envVars {
+			if val, exists := origValues[env]; exists {
+				os.Setenv(env, val)
+			} else {
+				os.Unsetenv(env)
+			}
+		}
+	})
+}
+
+func TestCLIEnvVars(t *testing.T) {
+	// Clear all CONFD_* env vars to ensure hermetic tests
+	clearCONFDEnvVars(t)
+
+	tests := []struct {
+		name     string
+		envVar   string
+		envValue string
+		check    func(*CLI) bool
+		desc     string
+	}{
+		{
+			name:     "CONFD_CONFDIR",
+			envVar:   "CONFD_CONFDIR",
+			envValue: "/custom/confd",
+			check:    func(cli *CLI) bool { return cli.ConfDir == "/custom/confd" },
+			desc:     "ConfDir",
+		},
+		{
+			name:     "CONFD_INTERVAL",
+			envVar:   "CONFD_INTERVAL",
+			envValue: "300",
+			check:    func(cli *CLI) bool { return cli.Interval == 300 },
+			desc:     "Interval",
+		},
+		{
+			name:     "CONFD_LOG_LEVEL",
+			envVar:   "CONFD_LOG_LEVEL",
+			envValue: "debug",
+			check:    func(cli *CLI) bool { return cli.LogLevel == "debug" },
+			desc:     "LogLevel",
+		},
+		{
+			name:     "CONFD_LOG_FORMAT",
+			envVar:   "CONFD_LOG_FORMAT",
+			envValue: "json",
+			check:    func(cli *CLI) bool { return cli.LogFormat == "json" },
+			desc:     "LogFormat",
+		},
+		{
+			name:     "CONFD_PREFIX",
+			envVar:   "CONFD_PREFIX",
+			envValue: "/production",
+			check:    func(cli *CLI) bool { return cli.Prefix == "/production" },
+			desc:     "Prefix",
+		},
+		{
+			name:     "CONFD_WATCH",
+			envVar:   "CONFD_WATCH",
+			envValue: "true",
+			check:    func(cli *CLI) bool { return cli.Watch == true },
+			desc:     "Watch",
+		},
+		{
+			name:     "CONFD_ONETIME",
+			envVar:   "CONFD_ONETIME",
+			envValue: "true",
+			check:    func(cli *CLI) bool { return cli.Onetime == true },
+			desc:     "Onetime",
+		},
+		{
+			name:     "CONFD_NOOP",
+			envVar:   "CONFD_NOOP",
+			envValue: "true",
+			check:    func(cli *CLI) bool { return cli.Noop == true },
+			desc:     "Noop",
+		},
+		{
+			name:     "CONFD_SYNC_ONLY",
+			envVar:   "CONFD_SYNC_ONLY",
+			envValue: "true",
+			check:    func(cli *CLI) bool { return cli.SyncOnly == true },
+			desc:     "SyncOnly",
+		},
+		{
+			name:     "CONFD_BACKEND_TIMEOUT",
+			envVar:   "CONFD_BACKEND_TIMEOUT",
+			envValue: "45s",
+			check:    func(cli *CLI) bool { return cli.BackendTimeout == 45*time.Second },
+			desc:     "BackendTimeout",
+		},
+		{
+			name:     "CONFD_METRICS_ADDR",
+			envVar:   "CONFD_METRICS_ADDR",
+			envValue: ":9100",
+			check:    func(cli *CLI) bool { return cli.MetricsAddr == ":9100" },
+			desc:     "MetricsAddr",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use t.Setenv for automatic cleanup
+			t.Setenv(tt.envVar, tt.envValue)
+
+			cli := &CLI{}
+			parser, err := kong.New(cli, kong.NoDefaultHelp())
+			if err != nil {
+				t.Fatalf("Failed to create kong parser: %v", err)
+			}
+
+			// Parse with minimal args (just the env subcommand to satisfy required cmd)
+			_, err = parser.Parse([]string{"env"})
+			if err != nil {
+				t.Fatalf("Failed to parse: %v", err)
+			}
+
+			if !tt.check(cli) {
+				t.Errorf("Environment variable %s=%s did not set %s correctly", tt.envVar, tt.envValue, tt.desc)
+			}
+		})
+	}
+}
+
+func TestCLIEnvVarPrecedence(t *testing.T) {
+	// Clear all CONFD_* env vars to ensure hermetic tests
+	clearCONFDEnvVars(t)
+
+	// Test that CLI flags take precedence over env vars
+	t.Setenv("CONFD_INTERVAL", "300")
+
+	cli := &CLI{}
+	parser, err := kong.New(cli, kong.NoDefaultHelp())
+	if err != nil {
+		t.Fatalf("Failed to create kong parser: %v", err)
+	}
+
+	// CLI flag should override env var
+	_, err = parser.Parse([]string{"--interval", "600", "env"})
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+
+	if cli.Interval != 600 {
+		t.Errorf("CLI flag should override env var: expected 600, got %d", cli.Interval)
 	}
 }

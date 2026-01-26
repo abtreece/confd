@@ -37,20 +37,20 @@ const (
 // CLI is the root command structure
 type CLI struct {
 	// Global flags
-	ConfDir       string `name:"confdir" help:"confd conf directory" default:"/etc/confd"`
-	ConfigFile    string `name:"config-file" help:"confd config file" default:"/etc/confd/confd.toml"`
-	Interval      int    `help:"backend polling interval" default:"600"`
-	LogLevel      string `name:"log-level" help:"log level (debug, info, warn, error)" default:""`
-	LogFormat     string `name:"log-format" help:"log format (text, json)" default:""`
-	Noop          bool   `help:"only show pending changes"`
-	Onetime       bool   `help:"run once and exit"`
-	Prefix        string `help:"key path prefix"`
-	SyncOnly      bool   `name:"sync-only" help:"sync without check_cmd and reload_cmd"`
-	Watch         bool   `help:"enable watch support"`
-	FailureMode   string `name:"failure-mode" help:"error handling mode: 'best-effort' or 'fail-fast'" default:"best-effort" enum:"best-effort,fail-fast"`
-	KeepStageFile bool   `name:"keep-stage-file" help:"keep staged files"`
-	SRVDomain     string `name:"srv-domain" help:"DNS SRV domain"`
-	SRVRecord     string `name:"srv-record" help:"SRV record for backend node discovery"`
+	ConfDir       string `name:"confdir" help:"confd conf directory" default:"/etc/confd" env:"CONFD_CONFDIR"`
+	ConfigFile    string `name:"config-file" help:"confd config file" default:"/etc/confd/confd.toml" env:"CONFD_CONFIG_FILE"`
+	Interval      int    `help:"backend polling interval" default:"600" env:"CONFD_INTERVAL"`
+	LogLevel      string `name:"log-level" help:"log level (debug, info, warn, error)" default:"" env:"CONFD_LOG_LEVEL"`
+	LogFormat     string `name:"log-format" help:"log format (text, json)" default:"" env:"CONFD_LOG_FORMAT"`
+	Noop          bool   `help:"only show pending changes" env:"CONFD_NOOP"`
+	Onetime       bool   `help:"run once and exit" env:"CONFD_ONETIME"`
+	Prefix        string `help:"key path prefix" env:"CONFD_PREFIX"`
+	SyncOnly      bool   `name:"sync-only" help:"sync without check_cmd and reload_cmd" env:"CONFD_SYNC_ONLY"`
+	Watch         bool   `help:"enable watch support" env:"CONFD_WATCH"`
+	FailureMode   string `name:"failure-mode" help:"error handling mode: 'best-effort' or 'fail-fast'" default:"best-effort" enum:"best-effort,fail-fast" env:"CONFD_FAILURE_MODE"`
+	KeepStageFile bool   `name:"keep-stage-file" help:"keep staged files" env:"CONFD_KEEP_STAGE_FILE"`
+	SRVDomain     string `name:"srv-domain" help:"DNS SRV domain" env:"CONFD_SRV_DOMAIN"`
+	SRVRecord     string `name:"srv-record" help:"SRV record for backend node discovery" env:"CONFD_SRV_RECORD"`
 
 	// Validation flags
 	CheckConfig bool   `name:"check-config" help:"validate configuration files and exit"`
@@ -65,38 +65,38 @@ type CLI struct {
 	Color       bool `help:"colorize diff output"`
 
 	// Watch mode flags
-	DebounceStr      string `name:"debounce" help:"debounce duration for watch mode (e.g., 2s, 500ms)"`
-	BatchIntervalStr string `name:"batch-interval" help:"batch processing interval for watch mode (e.g., 5s)"`
+	DebounceStr      string `name:"debounce" help:"debounce duration for watch mode (e.g., 2s, 500ms)" env:"CONFD_DEBOUNCE"`
+	BatchIntervalStr string `name:"batch-interval" help:"batch processing interval for watch mode (e.g., 5s)" env:"CONFD_BATCH_INTERVAL"`
 
 	// Performance flags
-	TemplateCache    bool          `name:"template-cache" help:"enable template compilation caching" default:"true" negatable:""`
-	StatCacheTTL     time.Duration `name:"stat-cache-ttl" help:"TTL for template file stat cache (e.g., 1s, 500ms)" default:"1s"`
-	BackendTimeout   time.Duration `name:"backend-timeout" help:"timeout for backend operations (e.g., 30s, 1m)" default:"30s"`
-	CheckCmdTimeout  time.Duration `name:"check-cmd-timeout" help:"default timeout for check commands (e.g., 30s)" default:"30s"`
-	ReloadCmdTimeout time.Duration `name:"reload-cmd-timeout" help:"default timeout for reload commands (e.g., 60s)" default:"60s"`
+	TemplateCache    bool          `name:"template-cache" help:"enable template compilation caching" default:"true" negatable:"" env:"CONFD_TEMPLATE_CACHE"`
+	StatCacheTTL     time.Duration `name:"stat-cache-ttl" help:"TTL for template file stat cache (e.g., 1s, 500ms)" default:"1s" env:"CONFD_STAT_CACHE_TTL"`
+	BackendTimeout   time.Duration `name:"backend-timeout" help:"timeout for backend operations (e.g., 30s, 1m)" default:"30s" env:"CONFD_BACKEND_TIMEOUT"`
+	CheckCmdTimeout  time.Duration `name:"check-cmd-timeout" help:"default timeout for check commands (e.g., 30s)" default:"30s" env:"CONFD_CHECK_CMD_TIMEOUT"`
+	ReloadCmdTimeout time.Duration `name:"reload-cmd-timeout" help:"default timeout for reload commands (e.g., 60s)" default:"60s" env:"CONFD_RELOAD_CMD_TIMEOUT"`
 
 	// Connection timeouts
-	DialTimeout  time.Duration `name:"dial-timeout" help:"connection timeout for backends" default:"5s"`
-	ReadTimeout  time.Duration `name:"read-timeout" help:"read timeout for backend operations" default:"1s"`
-	WriteTimeout time.Duration `name:"write-timeout" help:"write timeout for backend operations" default:"1s"`
+	DialTimeout  time.Duration `name:"dial-timeout" help:"connection timeout for backends" default:"5s" env:"CONFD_DIAL_TIMEOUT"`
+	ReadTimeout  time.Duration `name:"read-timeout" help:"read timeout for backend operations" default:"1s" env:"CONFD_READ_TIMEOUT"`
+	WriteTimeout time.Duration `name:"write-timeout" help:"write timeout for backend operations" default:"1s" env:"CONFD_WRITE_TIMEOUT"`
 
 	// Retry configuration
-	RetryMaxAttempts int           `name:"retry-max-attempts" help:"max retry attempts for connections" default:"3"`
-	RetryBaseDelay   time.Duration `name:"retry-base-delay" help:"initial backoff delay" default:"100ms"`
-	RetryMaxDelay    time.Duration `name:"retry-max-delay" help:"maximum backoff delay" default:"5s"`
+	RetryMaxAttempts int           `name:"retry-max-attempts" help:"max retry attempts for connections" default:"3" env:"CONFD_RETRY_MAX_ATTEMPTS"`
+	RetryBaseDelay   time.Duration `name:"retry-base-delay" help:"initial backoff delay" default:"100ms" env:"CONFD_RETRY_BASE_DELAY"`
+	RetryMaxDelay    time.Duration `name:"retry-max-delay" help:"maximum backoff delay" default:"5s" env:"CONFD_RETRY_MAX_DELAY"`
 
 	// Watch mode timeouts
-	WatchErrorBackoff time.Duration `name:"watch-error-backoff" help:"backoff after watch errors" default:"2s"`
+	WatchErrorBackoff time.Duration `name:"watch-error-backoff" help:"backoff after watch errors" default:"2s" env:"CONFD_WATCH_ERROR_BACKOFF"`
 
 	// Preflight timeout
-	PreflightTimeout time.Duration `name:"preflight-timeout" help:"preflight check timeout" default:"10s"`
+	PreflightTimeout time.Duration `name:"preflight-timeout" help:"preflight check timeout" default:"10s" env:"CONFD_PREFLIGHT_TIMEOUT"`
 
 	// Shutdown timeout
-	ShutdownTimeout time.Duration `name:"shutdown-timeout" help:"graceful shutdown timeout" default:"30s"`
+	ShutdownTimeout time.Duration `name:"shutdown-timeout" help:"graceful shutdown timeout" default:"30s" env:"CONFD_SHUTDOWN_TIMEOUT"`
 
 	// Systemd integration
 	SystemdNotify    bool          `name:"systemd-notify" help:"enable systemd sd_notify support" env:"CONFD_SYSTEMD_NOTIFY"`
-	WatchdogInterval time.Duration `name:"watchdog-interval" help:"systemd watchdog ping interval (0=disabled)" default:"0"`
+	WatchdogInterval time.Duration `name:"watchdog-interval" help:"systemd watchdog ping interval (0=disabled)" default:"0" env:"CONFD_WATCHDOG_INTERVAL"`
 
 	// Metrics and observability
 	MetricsAddr string `name:"metrics-addr" help:"Address for metrics endpoint (e.g., :9100). Disabled if empty." env:"CONFD_METRICS_ADDR"`
