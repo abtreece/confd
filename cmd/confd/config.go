@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -134,10 +135,12 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	// Stat cache TTL
 	if tomlCfg.StatCacheTTL != "" {
-		if d, err := time.ParseDuration(tomlCfg.StatCacheTTL); err == nil {
-			if cli.StatCacheTTL == DefaultStatCacheTTL {
-				cli.StatCacheTTL = d
-			}
+		d, err := time.ParseDuration(tomlCfg.StatCacheTTL)
+		if err != nil {
+			return fmt.Errorf("invalid stat_cache_ttl %q: %w (use Go duration format, e.g., \"1m\", \"5m\")", tomlCfg.StatCacheTTL, err)
+		}
+		if cli.StatCacheTTL == DefaultStatCacheTTL {
+			cli.StatCacheTTL = d
 		}
 	}
 	if cli.SRVDomain == "" && tomlCfg.SRVDomain != "" {
@@ -223,24 +226,30 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 
 	// Connection timeout settings (apply to CLI if default, then to backend config)
 	if tomlCfg.DialTimeout != "" {
-		if d, err := time.ParseDuration(tomlCfg.DialTimeout); err == nil {
-			if cli.DialTimeout == DefaultDialTimeout {
-				cli.DialTimeout = d
-			}
+		d, err := time.ParseDuration(tomlCfg.DialTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid dial_timeout %q: %w (use Go duration format, e.g., \"5s\", \"30s\")", tomlCfg.DialTimeout, err)
+		}
+		if cli.DialTimeout == DefaultDialTimeout {
+			cli.DialTimeout = d
 		}
 	}
 	if tomlCfg.ReadTimeout != "" {
-		if d, err := time.ParseDuration(tomlCfg.ReadTimeout); err == nil {
-			if cli.ReadTimeout == DefaultReadTimeout {
-				cli.ReadTimeout = d
-			}
+		d, err := time.ParseDuration(tomlCfg.ReadTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid read_timeout %q: %w (use Go duration format, e.g., \"1s\", \"5s\")", tomlCfg.ReadTimeout, err)
+		}
+		if cli.ReadTimeout == DefaultReadTimeout {
+			cli.ReadTimeout = d
 		}
 	}
 	if tomlCfg.WriteTimeout != "" {
-		if d, err := time.ParseDuration(tomlCfg.WriteTimeout); err == nil {
-			if cli.WriteTimeout == DefaultWriteTimeout {
-				cli.WriteTimeout = d
-			}
+		d, err := time.ParseDuration(tomlCfg.WriteTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid write_timeout %q: %w (use Go duration format, e.g., \"1s\", \"5s\")", tomlCfg.WriteTimeout, err)
+		}
+		if cli.WriteTimeout == DefaultWriteTimeout {
+			cli.WriteTimeout = d
 		}
 	}
 
@@ -249,35 +258,43 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 		cli.RetryMaxAttempts = tomlCfg.RetryMaxAttempts
 	}
 	if tomlCfg.RetryBaseDelay != "" {
-		if d, err := time.ParseDuration(tomlCfg.RetryBaseDelay); err == nil {
-			if cli.RetryBaseDelay == DefaultRetryBaseDelay {
-				cli.RetryBaseDelay = d
-			}
+		d, err := time.ParseDuration(tomlCfg.RetryBaseDelay)
+		if err != nil {
+			return fmt.Errorf("invalid retry_base_delay %q: %w (use Go duration format, e.g., \"100ms\", \"1s\")", tomlCfg.RetryBaseDelay, err)
+		}
+		if cli.RetryBaseDelay == DefaultRetryBaseDelay {
+			cli.RetryBaseDelay = d
 		}
 	}
 	if tomlCfg.RetryMaxDelay != "" {
-		if d, err := time.ParseDuration(tomlCfg.RetryMaxDelay); err == nil {
-			if cli.RetryMaxDelay == DefaultRetryMaxDelay {
-				cli.RetryMaxDelay = d
-			}
+		d, err := time.ParseDuration(tomlCfg.RetryMaxDelay)
+		if err != nil {
+			return fmt.Errorf("invalid retry_max_delay %q: %w (use Go duration format, e.g., \"5s\", \"30s\")", tomlCfg.RetryMaxDelay, err)
+		}
+		if cli.RetryMaxDelay == DefaultRetryMaxDelay {
+			cli.RetryMaxDelay = d
 		}
 	}
 
 	// Watch mode timeouts
 	if tomlCfg.WatchErrorBackoff != "" {
-		if d, err := time.ParseDuration(tomlCfg.WatchErrorBackoff); err == nil {
-			if cli.WatchErrorBackoff == DefaultWatchErrorBackoff {
-				cli.WatchErrorBackoff = d
-			}
+		d, err := time.ParseDuration(tomlCfg.WatchErrorBackoff)
+		if err != nil {
+			return fmt.Errorf("invalid watch_error_backoff %q: %w (use Go duration format, e.g., \"2s\", \"5s\")", tomlCfg.WatchErrorBackoff, err)
+		}
+		if cli.WatchErrorBackoff == DefaultWatchErrorBackoff {
+			cli.WatchErrorBackoff = d
 		}
 	}
 
 	// Preflight timeout
 	if tomlCfg.PreflightTimeout != "" {
-		if d, err := time.ParseDuration(tomlCfg.PreflightTimeout); err == nil {
-			if cli.PreflightTimeout == DefaultPreflightTimeout {
-				cli.PreflightTimeout = d
-			}
+		d, err := time.ParseDuration(tomlCfg.PreflightTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid preflight_timeout %q: %w (use Go duration format, e.g., \"10s\", \"30s\")", tomlCfg.PreflightTimeout, err)
+		}
+		if cli.PreflightTimeout == DefaultPreflightTimeout {
+			cli.PreflightTimeout = d
 		}
 	}
 
