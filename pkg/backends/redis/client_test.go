@@ -1138,3 +1138,231 @@ func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
 //
 // PubSub keyspace notification testing requires Redis configured with
 // notify-keyspace-events which miniredis does not fully support.
+
+func TestBuildKeyspacePattern(t *testing.T) {
+	tests := []struct {
+		name      string
+		db        int
+		separator string
+		prefix    string
+		want      string
+	}{
+		{
+			name:      "default separator db 0",
+			db:        0,
+			separator: "/",
+			prefix:    "/app",
+			want:      "__keyspace@0__:/app*",
+		},
+		{
+			name:      "default separator db 1",
+			db:        1,
+			separator: "/",
+			prefix:    "/app/config",
+			want:      "__keyspace@1__:/app/config*",
+		},
+		{
+			name:      "colon separator",
+			db:        0,
+			separator: ":",
+			prefix:    "/app/config",
+			want:      "__keyspace@0__:app:config*",
+		},
+		{
+			name:      "root prefix",
+			db:        0,
+			separator: "/",
+			prefix:    "/",
+			want:      "__keyspace@0__:/*",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				db:        tt.db,
+				separator: tt.separator,
+			}
+			got := client.buildKeyspacePattern(tt.prefix)
+			if got != tt.want {
+				t.Errorf("buildKeyspacePattern() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWatchPrefix_MultiplePrefixes(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewRedisClient() unexpected error: %v", err)
+	}
+	defer client.Close()
+
+	// Verify watchedPrefixes is initialized
+	if client.watchedPrefixes == nil {
+		t.Fatal("watchedPrefixes should be initialized")
+	}
+	if len(client.watchedPrefixes) != 0 {
+		t.Errorf("watchedPrefixes should be empty initially, got %d", len(client.watchedPrefixes))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stopChan := make(chan bool, 1)
+
+	// First call with waitIndex=0 returns immediately without starting watcher
+	index, err := client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 0, stopChan)
+	if err != nil {
+		t.Fatalf("WatchPrefix() unexpected error: %v", err)
+	}
+	if index != 1 {
+		t.Errorf("WatchPrefix() index = %d, want 1", index)
+	}
+
+	// No prefix should be tracked yet (waitIndex=0 returns early)
+	client.pubsubMu.Lock()
+	prefixCount := len(client.watchedPrefixes)
+	client.pubsubMu.Unlock()
+	if prefixCount != 0 {
+		t.Errorf("watchedPrefixes should be empty after waitIndex=0 call, got %d", prefixCount)
+	}
+
+	// Start first watch in a goroutine
+	done1 := make(chan struct{})
+	go func() {
+		defer close(done1)
+		_, _ = client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
+	}()
+
+	// Give the watch goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify first prefix is tracked
+	client.pubsubMu.Lock()
+	_, hasApp := client.watchedPrefixes["/app"]
+	prefixCount = len(client.watchedPrefixes)
+	client.pubsubMu.Unlock()
+
+	if !hasApp {
+		t.Error("watchedPrefixes should contain /app")
+	}
+	if prefixCount != 1 {
+		t.Errorf("watchedPrefixes should have 1 entry, got %d", prefixCount)
+	}
+
+	// Start second watch with different prefix
+	done2 := make(chan struct{})
+	go func() {
+		defer close(done2)
+		_, _ = client.WatchPrefix(ctx, "/config", []string{"/config/key"}, 1, stopChan)
+	}()
+
+	// Give the second watch time to register
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify both prefixes are tracked
+	client.pubsubMu.Lock()
+	_, hasApp = client.watchedPrefixes["/app"]
+	_, hasConfig := client.watchedPrefixes["/config"]
+	prefixCount = len(client.watchedPrefixes)
+	client.pubsubMu.Unlock()
+
+	if !hasApp {
+		t.Error("watchedPrefixes should still contain /app")
+	}
+	if !hasConfig {
+		t.Error("watchedPrefixes should contain /config")
+	}
+	if prefixCount != 2 {
+		t.Errorf("watchedPrefixes should have 2 entries, got %d", prefixCount)
+	}
+
+	// Calling with same prefix again should not add duplicate
+	done3 := make(chan struct{})
+	go func() {
+		defer close(done3)
+		_, _ = client.WatchPrefix(ctx, "/app", []string{"/app/other"}, 1, stopChan)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	client.pubsubMu.Lock()
+	prefixCount = len(client.watchedPrefixes)
+	client.pubsubMu.Unlock()
+
+	if prefixCount != 2 {
+		t.Errorf("watchedPrefixes should still have 2 entries (no duplicates), got %d", prefixCount)
+	}
+
+	// Stop all watches
+	cancel()
+
+	// Wait for goroutines to finish
+	select {
+	case <-done1:
+	case <-time.After(2 * time.Second):
+		t.Error("First watch did not stop")
+	}
+	select {
+	case <-done2:
+	case <-time.After(2 * time.Second):
+		t.Error("Second watch did not stop")
+	}
+	select {
+	case <-done3:
+	case <-time.After(2 * time.Second):
+		t.Error("Third watch did not stop")
+	}
+}
+
+func TestStopWatch_ClearsPrefixes(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewRedisClient() unexpected error: %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stopChan := make(chan bool, 1)
+
+	// Start a watch
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
+	}()
+
+	// Give the watch goroutine time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify prefix is tracked
+	client.pubsubMu.Lock()
+	prefixCount := len(client.watchedPrefixes)
+	client.pubsubMu.Unlock()
+	if prefixCount != 1 {
+		t.Errorf("watchedPrefixes should have 1 entry, got %d", prefixCount)
+	}
+
+	// Cancel and wait for cleanup
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Watch did not stop")
+	}
+
+	// Give stopWatch time to clear prefixes
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify prefixes are cleared
+	client.pubsubMu.Lock()
+	prefixCount = len(client.watchedPrefixes)
+	client.pubsubMu.Unlock()
+	if prefixCount != 0 {
+		t.Errorf("watchedPrefixes should be empty after stopWatch, got %d", prefixCount)
+	}
+}
