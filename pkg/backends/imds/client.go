@@ -110,12 +110,21 @@ func New(cacheTTL, dialTimeout time.Duration) (*Client, error) {
 
 	client := imds.NewFromConfig(cfg, opts...)
 
+	return newWithClient(ctx, client, cacheTTL)
+}
+
+// newWithClient creates a new IMDS Client with the provided imdsAPI implementation.
+// This is separated from New() to allow testing with mock clients.
+func newWithClient(ctx context.Context, client imdsAPI, cacheTTL time.Duration) (*Client, error) {
 	// Validate IMDS availability
-	_, err = client.GetMetadata(ctx, &imds.GetMetadataInput{
+	validationOutput, err := client.GetMetadata(ctx, &imds.GetMetadataInput{
 		Path: "",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("IMDS not available: %w", err)
+	}
+	if closeErr := validationOutput.Content.Close(); closeErr != nil {
+		log.Debug("Failed to close IMDS validation response: %v", closeErr)
 	}
 
 	log.Info("Successfully connected to AWS EC2 IMDS")
@@ -332,11 +341,14 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 
 // HealthCheck performs a basic health check
 func (c *Client) HealthCheck(ctx context.Context) error {
-	_, err := c.client.GetMetadata(ctx, &imds.GetMetadataInput{
+	output, err := c.client.GetMetadata(ctx, &imds.GetMetadataInput{
 		Path: "",
 	})
 	if err != nil {
 		return fmt.Errorf("IMDS health check failed: %w", err)
+	}
+	if closeErr := output.Content.Close(); closeErr != nil {
+		log.Debug("Failed to close IMDS health check response: %v", closeErr)
 	}
 	return nil
 }
