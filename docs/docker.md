@@ -20,14 +20,15 @@ docker pull ghcr.io/abtreece/confd:latest
 ```
 
 ## Image Tags
+Replace `vX.Y.Z` in the examples below with the latest release tag.
 
 | Tag | Description |
 |-----|-------------|
 | `latest` | Latest stable release (not updated for RCs) |
-| `v0.40.0` | Specific version |
-| `v0.40.0-rc.1` | Release candidate |
-| `v0.40.0-amd64` | Architecture-specific (amd64) |
-| `v0.40.0-arm64` | Architecture-specific (arm64) |
+| `vX.Y.Z` | Specific version |
+| `vX.Y.Z-rc.N` | Release candidate |
+| `vX.Y.Z-amd64` | Architecture-specific (amd64) |
+| `vX.Y.Z-arm64` | Architecture-specific (arm64) |
 
 ## Image Details
 
