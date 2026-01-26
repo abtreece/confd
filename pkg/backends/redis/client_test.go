@@ -1138,3 +1138,251 @@ func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
 //
 // PubSub keyspace notification testing requires Redis configured with
 // notify-keyspace-events which miniredis does not fully support.
+
+func TestBuildKeyspacePattern(t *testing.T) {
+	tests := []struct {
+		name      string
+		db        int
+		separator string
+		prefix    string
+		want      string
+	}{
+		{
+			name:      "default separator db 0",
+			db:        0,
+			separator: "/",
+			prefix:    "/app",
+			want:      "__keyspace@0__:/app*",
+		},
+		{
+			name:      "default separator db 1",
+			db:        1,
+			separator: "/",
+			prefix:    "/app/config",
+			want:      "__keyspace@1__:/app/config*",
+		},
+		{
+			name:      "colon separator",
+			db:        0,
+			separator: ":",
+			prefix:    "/app/config",
+			want:      "__keyspace@0__:app:config*",
+		},
+		{
+			name:      "root prefix",
+			db:        0,
+			separator: "/",
+			prefix:    "/",
+			want:      "__keyspace@0__:/*",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				db:        tt.db,
+				separator: tt.separator,
+			}
+			got := client.buildKeyspacePattern(tt.prefix)
+			if got != tt.want {
+				t.Errorf("buildKeyspacePattern() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWatchPrefix_MultiplePrefixes(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewRedisClient() unexpected error: %v", err)
+	}
+	defer client.Close()
+
+	// Verify watchedPrefixes is initialized
+	if client.watchedPrefixes == nil {
+		t.Fatal("watchedPrefixes should be initialized")
+	}
+	if len(client.watchedPrefixes) != 0 {
+		t.Errorf("watchedPrefixes should be empty initially, got %d", len(client.watchedPrefixes))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stopChan := make(chan bool, 1)
+
+	// First call with waitIndex=0 returns immediately without starting watcher
+	index, err := client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 0, stopChan)
+	if err != nil {
+		t.Fatalf("WatchPrefix() unexpected error: %v", err)
+	}
+	if index != 1 {
+		t.Errorf("WatchPrefix() index = %d, want 1", index)
+	}
+
+	// No prefix should be tracked yet (waitIndex=0 returns early)
+	client.pubsubMu.Lock()
+	prefixCount := len(client.watchedPrefixes)
+	client.pubsubMu.Unlock()
+	if prefixCount != 0 {
+		t.Errorf("watchedPrefixes should be empty after waitIndex=0 call, got %d", prefixCount)
+	}
+
+	// Start first watch in a goroutine
+	done1 := make(chan struct{})
+	go func() {
+		defer close(done1)
+		_, _ = client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
+	}()
+
+	// Wait for the watch goroutine to start and track the prefix
+	deadline := time.Now().Add(2 * time.Second)
+	var hasApp bool
+	for {
+		client.pubsubMu.Lock()
+		_, hasApp = client.watchedPrefixes["/app"]
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
+
+		if hasApp && prefixCount == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for /app to be tracked; hasApp=%v, prefixCount=%d", hasApp, prefixCount)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Start second watch with different prefix
+	done2 := make(chan struct{})
+	go func() {
+		defer close(done2)
+		_, _ = client.WatchPrefix(ctx, "/config", []string{"/config/key"}, 1, stopChan)
+	}()
+
+	// Wait for the second watch to register
+	deadline = time.Now().Add(2 * time.Second)
+	var hasConfig bool
+	for {
+		client.pubsubMu.Lock()
+		_, hasApp = client.watchedPrefixes["/app"]
+		_, hasConfig = client.watchedPrefixes["/config"]
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
+
+		if hasApp && hasConfig && prefixCount == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for /config; hasApp=%v, hasConfig=%v, prefixCount=%d", hasApp, hasConfig, prefixCount)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Calling with same prefix again should not add duplicate
+	done3 := make(chan struct{})
+	go func() {
+		defer close(done3)
+		_, _ = client.WatchPrefix(ctx, "/app", []string{"/app/other"}, 1, stopChan)
+	}()
+
+	// Wait briefly and verify no duplicate was added
+	deadline = time.Now().Add(500 * time.Millisecond)
+	for {
+		client.pubsubMu.Lock()
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
+
+		// Should still be exactly 2
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if prefixCount != 2 {
+		t.Errorf("watchedPrefixes should still have 2 entries (no duplicates), got %d", prefixCount)
+	}
+
+	// Stop all watches
+	cancel()
+
+	// Wait for goroutines to finish
+	select {
+	case <-done1:
+	case <-time.After(2 * time.Second):
+		t.Error("First watch did not stop")
+	}
+	select {
+	case <-done2:
+	case <-time.After(2 * time.Second):
+		t.Error("Second watch did not stop")
+	}
+	select {
+	case <-done3:
+	case <-time.After(2 * time.Second):
+		t.Error("Third watch did not stop")
+	}
+}
+
+func TestStopWatch_ClearsPrefixes(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("NewRedisClient() unexpected error: %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stopChan := make(chan bool, 1)
+
+	// Start a watch
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
+	}()
+
+	// Wait for prefix to be tracked
+	deadline := time.Now().Add(2 * time.Second)
+	var prefixCount int
+	for {
+		client.pubsubMu.Lock()
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
+
+		if prefixCount == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for prefix to be tracked; prefixCount=%d", prefixCount)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Cancel and wait for cleanup
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Watch did not stop")
+	}
+
+	// Wait for stopWatch to clear prefixes
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		client.pubsubMu.Lock()
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
+
+		if prefixCount == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("watchedPrefixes should be empty after stopWatch, got %d", prefixCount)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

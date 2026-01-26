@@ -73,7 +73,7 @@ type Client struct {
 	separator    string
 	db           int
 	pubsub       *redis.PubSub
-	pubsubMu     sync.Mutex // protects pubsub, watchCtx, and watchCancel fields
+	pubsubMu     sync.Mutex // protects pubsub, watchCtx, watchCancel, and watchedPrefixes fields
 	watchCtx     context.Context
 	watchCancel  context.CancelFunc
 	pscChan      chan watchResponse
@@ -81,6 +81,10 @@ type Client struct {
 	dialTimeout  time.Duration
 	readTimeout  time.Duration
 	writeTimeout time.Duration
+	// watchedPrefixes tracks all prefixes that have been registered for watching.
+	// This allows multiple template resources with different prefixes to share
+	// the same client and receive notifications for all their prefixes.
+	watchedPrefixes map[string]struct{}
 }
 
 // createClient attempts to connect to each machine in order with exponential backoff retry logic.
@@ -212,16 +216,17 @@ func NewRedisClient(machines []string, password string, separator string, dialTi
 	}
 
 	return &Client{
-		client:       client,
-		machines:     machines,
-		password:     password,
-		separator:    separator,
-		db:           db,
-		pscChan:      make(chan watchResponse, 1),
-		retryConfig:  retryConfig,
-		dialTimeout:  dialTimeout,
-		readTimeout:  readTimeout,
-		writeTimeout: writeTimeout,
+		client:          client,
+		machines:        machines,
+		password:        password,
+		separator:       separator,
+		db:              db,
+		pscChan:         make(chan watchResponse, 1),
+		retryConfig:     retryConfig,
+		dialTimeout:     dialTimeout,
+		readTimeout:     readTimeout,
+		writeTimeout:    writeTimeout,
+		watchedPrefixes: make(map[string]struct{}),
 	}, nil
 }
 
@@ -345,12 +350,30 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 		return respChan.waitIndex, respChan.err
 	}
 
-	// Start long-lived watch goroutine if not already running
+	// Start long-lived watch goroutine if not already running, or add new prefix subscription
 	c.pubsubMu.Lock()
 	if c.pubsub == nil && c.watchCtx == nil {
-		// Create a long-lived context for the watcher that persists between calls
+		// First watcher - create context and start the watch goroutine
 		c.watchCtx, c.watchCancel = context.WithCancel(context.Background())
-		go c.watchWithReconnect(c.watchCtx, prefix)
+		c.watchedPrefixes[prefix] = struct{}{}
+		go c.watchWithReconnect(c.watchCtx)
+	} else if c.pubsub != nil {
+		// Watcher already running - check if we need to subscribe to a new prefix
+		if _, exists := c.watchedPrefixes[prefix]; !exists {
+			// Subscribe to the new prefix pattern using the long-lived watch context
+			// to ensure the subscription lifetime matches the watcher, not the caller
+			pattern := c.buildKeyspacePattern(prefix)
+			if err := c.pubsub.PSubscribe(c.watchCtx, pattern); err != nil {
+				log.Warning("Failed to subscribe to new prefix pattern %s: %v", pattern, err)
+				// Don't track the prefix if subscription failed - caller can retry
+			} else {
+				c.watchedPrefixes[prefix] = struct{}{}
+				log.Debug("Redis PubSub subscribed to additional pattern: %s", pattern)
+			}
+		}
+	} else {
+		// watchCtx exists but pubsub is nil - watcher is starting up, just track the prefix
+		c.watchedPrefixes[prefix] = struct{}{}
 	}
 	c.pubsubMu.Unlock()
 
@@ -384,12 +407,20 @@ func (c *Client) stopWatch() {
 		c.pubsub.Close()
 		c.pubsub = nil
 	}
+	// Clear watched prefixes so they can be re-registered if watch restarts
+	c.watchedPrefixes = make(map[string]struct{})
+}
+
+// buildKeyspacePattern constructs a Redis keyspace notification pattern for a given prefix.
+func (c *Client) buildKeyspacePattern(prefix string) string {
+	return "__keyspace@" + strconv.Itoa(c.db) + "__:" + c.transform(prefix) + "*"
 }
 
 // watchWithReconnect manages the PubSub connection lifecycle with automatic reconnection.
 // It attempts to maintain a persistent watch on Redis keyspace notifications, reconnecting
-// with exponential backoff if the connection is lost.
-func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
+// with exponential backoff if the connection is lost. It subscribes to all prefixes tracked
+// in c.watchedPrefixes, allowing multiple template resources to share the same client.
+func (c *Client) watchWithReconnect(ctx context.Context) {
 	var rClient *redis.Client
 	var db int
 	attempt := 0
@@ -457,13 +488,30 @@ func (c *Client) watchWithReconnect(ctx context.Context, prefix string) {
 		}
 		attempt = 0
 
-		// Subscribe to keyspace notifications pattern
-		pattern := "__keyspace@" + strconv.Itoa(db) + "__:" + c.transform(prefix) + "*"
+		// Build patterns for all tracked prefixes
 		c.pubsubMu.Lock()
-		c.pubsub = rClient.PSubscribe(ctx, pattern)
+		// Update db field under lock since buildKeyspacePattern reads it
+		c.db = db
+		patterns := make([]string, 0, len(c.watchedPrefixes))
+		for prefix := range c.watchedPrefixes {
+			pattern := c.buildKeyspacePattern(prefix)
+			patterns = append(patterns, pattern)
+		}
+
+		// Subscribe to all keyspace notification patterns
+		if len(patterns) > 0 {
+			c.pubsub = rClient.PSubscribe(ctx, patterns...)
+		} else {
+			// No prefixes yet - create pubsub without subscriptions
+			// New prefixes will be added via PSubscribe in WatchPrefix
+			c.pubsub = rClient.PSubscribe(ctx)
+		}
 		ch := c.pubsub.Channel()
 		c.pubsubMu.Unlock()
-		log.Debug("Redis PubSub subscribed to pattern: %s", pattern)
+
+		for _, pattern := range patterns {
+			log.Debug("Redis PubSub subscribed to pattern: %s", pattern)
+		}
 
 		// Process messages until channel closes or context is cancelled
 		channelClosed := false
