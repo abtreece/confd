@@ -236,8 +236,12 @@ func (c *Client) fetchAndProcessSecret(ctx context.Context, secretName, key stri
 // WatchPrefix is not implemented for Secrets Manager.
 // Secrets Manager does not support streaming/watching for changes.
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	<-stopChan
-	return 0, nil
+	select {
+	case <-ctx.Done():
+		return waitIndex, ctx.Err()
+	case <-stopChan:
+		return waitIndex, nil
+	}
 }
 
 // HealthCheck verifies the backend connection is healthy.
