@@ -198,6 +198,49 @@ func TestWatchPrefix(t *testing.T) {
 	}
 }
 
+func TestWatchPrefix_ContextCancellation(t *testing.T) {
+	client, err := NewEnvClient()
+	if err != nil {
+		t.Fatalf("NewEnvClient() error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	stopChan := make(chan bool)
+	waitIndex := uint64(42)
+
+	index, err := client.WatchPrefix(ctx, "/test", []string{"/test/key"}, waitIndex, stopChan)
+	if err != context.Canceled {
+		t.Errorf("WatchPrefix() error = %v, want context.Canceled", err)
+	}
+	if index != waitIndex {
+		t.Errorf("WatchPrefix() index = %d, want %d", index, waitIndex)
+	}
+}
+
+func TestWatchPrefix_ReturnsWaitIndex(t *testing.T) {
+	client, err := NewEnvClient()
+	if err != nil {
+		t.Fatalf("NewEnvClient() error: %v", err)
+	}
+
+	stopChan := make(chan bool, 1)
+	waitIndex := uint64(123)
+
+	go func() {
+		stopChan <- true
+	}()
+
+	index, err := client.WatchPrefix(context.Background(), "/test", []string{"/test/key"}, waitIndex, stopChan)
+	if err != nil {
+		t.Errorf("WatchPrefix() unexpected error: %v", err)
+	}
+	if index != waitIndex {
+		t.Errorf("WatchPrefix() index = %d, want %d", index, waitIndex)
+	}
+}
+
 func TestHealthCheck(t *testing.T) {
 	client, err := NewEnvClient()
 	if err != nil {

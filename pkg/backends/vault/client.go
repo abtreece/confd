@@ -466,8 +466,12 @@ func uniqMounts(strSlice []string) []string {
 
 // WatchPrefix - not implemented at the moment
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	<-stopChan
-	return 0, nil
+	select {
+	case <-ctx.Done():
+		return waitIndex, ctx.Err()
+	case <-stopChan:
+		return waitIndex, nil
+	}
 }
 
 // HealthCheck verifies the backend connection is healthy.

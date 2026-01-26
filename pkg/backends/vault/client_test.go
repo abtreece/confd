@@ -405,6 +405,42 @@ func TestWatchPrefix(t *testing.T) {
 	}
 }
 
+func TestWatchPrefix_ContextCancellation(t *testing.T) {
+	client := &Client{client: nil}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	stopChan := make(chan bool)
+	waitIndex := uint64(42)
+
+	index, err := client.WatchPrefix(ctx, "/secret", []string{"/secret/key"}, waitIndex, stopChan)
+	if err != context.Canceled {
+		t.Errorf("WatchPrefix() error = %v, want context.Canceled", err)
+	}
+	if index != waitIndex {
+		t.Errorf("WatchPrefix() index = %d, want %d", index, waitIndex)
+	}
+}
+
+func TestWatchPrefix_ReturnsWaitIndex(t *testing.T) {
+	client := &Client{client: nil}
+	stopChan := make(chan bool, 1)
+	waitIndex := uint64(123)
+
+	go func() {
+		stopChan <- true
+	}()
+
+	index, err := client.WatchPrefix(context.Background(), "/secret", []string{"/secret/key"}, waitIndex, stopChan)
+	if err != nil {
+		t.Errorf("WatchPrefix() unexpected error: %v", err)
+	}
+	if index != waitIndex {
+		t.Errorf("WatchPrefix() index = %d, want %d", index, waitIndex)
+	}
+}
+
 func TestGetConfig_Basic(t *testing.T) {
 	conf, err := getConfig("http://localhost:8200", "", "", "")
 	if err != nil {

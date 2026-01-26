@@ -335,8 +335,12 @@ func (c *Client) getUserData(ctx context.Context) (string, error) {
 
 // WatchPrefix is not supported for IMDS (polling only)
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	<-stopChan
-	return 0, nil
+	select {
+	case <-ctx.Done():
+		return waitIndex, ctx.Err()
+	case <-stopChan:
+		return waitIndex, nil
+	}
 }
 
 // HealthCheck performs a basic health check
