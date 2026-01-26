@@ -12,6 +12,28 @@ import (
 	"github.com/abtreece/confd/pkg/backends"
 )
 
+// Test timing constants for reconnection tests.
+// These values are tuned to balance test reliability with execution speed.
+const (
+	// testErrorChannelBuffer is the buffer size for error channels in tests.
+	// Large enough to collect errors during failure scenarios without blocking.
+	testErrorChannelBuffer = 100
+
+	// watchEstablishmentDelay is the time to wait for a watch to be established
+	// after processor startup before triggering test actions.
+	watchEstablishmentDelay = 200 * time.Millisecond
+
+	// watchDetectionDelay is the time to wait for fsnotify to detect file changes.
+	watchDetectionDelay = 300 * time.Millisecond
+
+	// watchRetryDelay is the time to wait for the processor to detect failures
+	// and begin retry attempts.
+	watchRetryDelay = 500 * time.Millisecond
+
+	// testShutdownTimeout is the maximum time to wait for processor shutdown.
+	testShutdownTimeout = 2 * time.Second
+)
+
 // processorTestEnv holds the test environment for processor integration tests.
 type processorTestEnv struct {
 	confDir  string // conf.d directory with TOML configs
@@ -734,14 +756,15 @@ prefix = "/"
   value: initial
 `)
 
-	// Create processor
+	// Create processor with 20s timeout - sufficient for file deletion, retry cycles,
+	// and reconnection. Single file reconnection is faster than directory recreation.
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	config := env.createConfig(ctx)
 	stopChan := make(chan bool)
 	doneChan := make(chan bool)
-	errChan := make(chan error, 100) // Larger buffer for error collection
+	errChan := make(chan error, testErrorChannelBuffer)
 
 	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
@@ -754,14 +777,14 @@ prefix = "/"
 	}
 
 	// Delete the data file to simulate backend failure
-	time.Sleep(200 * time.Millisecond) // Ensure watch is established
+	time.Sleep(watchEstablishmentDelay)
 	if err := os.Remove(dataPath); err != nil {
 		t.Fatalf("Failed to delete data file: %v", err)
 	}
 	t.Log("Data file deleted, simulating backend failure")
 
 	// Give the watcher time to detect deletion and attempt retry
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(watchRetryDelay)
 
 	// Recreate the file with new content
 	env.writeData("test.yaml", `test:
@@ -784,7 +807,7 @@ prefix = "/"
 	select {
 	case <-doneChan:
 		// Success
-	case <-time.After(2 * time.Second):
+	case <-time.After(testShutdownTimeout):
 		t.Error("Processor did not stop within timeout")
 	}
 }
@@ -812,13 +835,14 @@ prefix = "/"
   value: v0
 `)
 
+	// 30s timeout for 3 delete/recreate cycles with recovery time between each
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	config := env.createConfig(ctx)
 	stopChan := make(chan bool)
 	doneChan := make(chan bool)
-	errChan := make(chan error, 100)
+	errChan := make(chan error, testErrorChannelBuffer)
 
 	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
@@ -831,7 +855,7 @@ prefix = "/"
 
 	// Perform 3 delete/recreate cycles
 	for i := 1; i <= 3; i++ {
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(watchDetectionDelay)
 
 		// Delete file
 		if err := os.Remove(dataPath); err != nil {
@@ -839,7 +863,7 @@ prefix = "/"
 		}
 		t.Logf("Cycle %d: File deleted", i)
 
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(watchDetectionDelay)
 
 		// Recreate with new value
 		previousValue := fmt.Sprintf("value=v%d", i-1)
@@ -865,13 +889,14 @@ prefix = "/"
 	close(stopChan)
 	select {
 	case <-doneChan:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testShutdownTimeout):
 		t.Error("Processor did not stop within timeout")
 	}
 }
 
 // TestWatchProcessor_Integration_ErrorChannelOnFailure tests that errors are
-// reported to the error channel when the backend fails.
+// reported to the error channel when the backend fails, and the processor
+// recovers after the backend becomes available again.
 func TestWatchProcessor_Integration_ErrorChannelOnFailure(t *testing.T) {
 	env := newProcessorTestEnv(t)
 
@@ -893,13 +918,14 @@ prefix = "/"
   value: initial
 `)
 
+	// 15s timeout for error detection and recovery cycle
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	config := env.createConfig(ctx)
 	stopChan := make(chan bool)
 	doneChan := make(chan bool)
-	errChan := make(chan error, 100)
+	errChan := make(chan error, testErrorChannelBuffer)
 
 	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
@@ -910,26 +936,33 @@ prefix = "/"
 		t.Fatalf("Initial output not created: %v", err)
 	}
 
-	// Delete file and wait for errors
-	time.Sleep(200 * time.Millisecond)
+	// Delete file to trigger errors
+	time.Sleep(watchEstablishmentDelay)
 	if err := os.Remove(dataPath); err != nil {
 		t.Fatalf("Failed to delete data file: %v", err)
 	}
+	t.Log("Data file deleted")
 
-	// Recreate immediately to allow processing to continue
-	time.Sleep(100 * time.Millisecond)
+	// Wait for watch to detect deletion and retry
+	time.Sleep(watchRetryDelay)
+
+	// Recreate file with new content
 	env.writeData("test.yaml", `test:
   value: recovered
 `)
+	t.Log("Data file recreated")
 
-	// Wait for recovery
-	_, err := waitForFileUpdate(t, destPath, 8*time.Second, "value=initial")
+	// Wait for recovery - the processor must update the output after recovering
+	content, err := waitForFileUpdate(t, destPath, 10*time.Second, "value=initial")
 	if err != nil {
-		t.Logf("Note: File may not have updated if deletion was too brief: %v", err)
+		t.Fatalf("Output not updated after recovery: %v", err)
 	}
 
-	// Check if any errors were reported (may or may not have errors depending on timing)
-	// The key assertion is that the processor didn't crash
+	if content != "value=recovered" {
+		t.Errorf("Expected 'value=recovered', got %q", content)
+	}
+
+	// Log error count for debugging (errors are expected during file deletion)
 	errorCount := len(errChan)
 	t.Logf("Errors reported during file deletion/recreation: %d", errorCount)
 
@@ -938,7 +971,7 @@ prefix = "/"
 	select {
 	case <-doneChan:
 		// Success - processor is still running and shuts down cleanly
-	case <-time.After(2 * time.Second):
+	case <-time.After(testShutdownTimeout):
 		t.Error("Processor did not stop within timeout")
 	}
 }
@@ -966,13 +999,14 @@ prefix = "/"
   value: initial
 `)
 
+	// 20s timeout for permission error and recovery cycle
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	config := env.createConfig(ctx)
 	stopChan := make(chan bool)
 	doneChan := make(chan bool)
-	errChan := make(chan error, 100)
+	errChan := make(chan error, testErrorChannelBuffer)
 
 	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
@@ -984,14 +1018,14 @@ prefix = "/"
 	}
 
 	// Cause a transient error by making the file unreadable (Unix-specific)
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(watchEstablishmentDelay)
 	if err := os.Chmod(dataPath, 0000); err != nil {
 		t.Skipf("Cannot change file permissions (may require elevated privileges): %v", err)
 	}
 	t.Log("File made unreadable")
 
 	// Wait a bit for errors to accumulate
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(watchRetryDelay)
 
 	// Restore permissions
 	if err := os.Chmod(dataPath, 0644); err != nil {
@@ -1018,7 +1052,7 @@ prefix = "/"
 	close(stopChan)
 	select {
 	case <-doneChan:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testShutdownTimeout):
 		t.Error("Processor did not stop within timeout")
 	}
 }
@@ -1046,13 +1080,14 @@ prefix = "/"
   value: initial
 `)
 
+	// 20s timeout for batch processor reconnection cycle
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	config := env.createConfigWithBatch(ctx, 500*time.Millisecond)
 	stopChan := make(chan bool)
 	doneChan := make(chan bool)
-	errChan := make(chan error, 100)
+	errChan := make(chan error, testErrorChannelBuffer)
 
 	processor := BatchWatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
@@ -1064,13 +1099,13 @@ prefix = "/"
 	}
 
 	// Delete and recreate file
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(watchEstablishmentDelay)
 	if err := os.Remove(dataPath); err != nil {
 		t.Fatalf("Failed to delete data file: %v", err)
 	}
 	t.Log("Data file deleted")
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(watchDetectionDelay)
 
 	env.writeData("test.yaml", `test:
   value: batch-reconnected
@@ -1091,7 +1126,7 @@ prefix = "/"
 	close(stopChan)
 	select {
 	case <-doneChan:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testShutdownTimeout):
 		t.Error("Processor did not stop within timeout")
 	}
 }
@@ -1119,6 +1154,8 @@ prefix = "/"
   value: initial
 `)
 
+	// 30s timeout for directory recreation - requires more time for directory
+	// removal, watcher re-establishment, and file detection
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -1126,7 +1163,7 @@ prefix = "/"
 	config := env.createConfigWithBackoff(ctx, 100*time.Millisecond)
 	stopChan := make(chan bool)
 	doneChan := make(chan bool)
-	errChan := make(chan error, 100)
+	errChan := make(chan error, testErrorChannelBuffer)
 
 	processor := WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{}))
 
@@ -1138,51 +1175,45 @@ prefix = "/"
 	}
 
 	// Delete the entire data directory
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(watchEstablishmentDelay)
 	if err := os.RemoveAll(env.dataDir); err != nil {
 		t.Fatalf("Failed to delete data directory: %v", err)
 	}
 	t.Log("Data directory deleted")
 
 	// Wait for watch to detect the deletion and start retrying
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(watchDetectionDelay)
 
-	// Recreate directory with initial placeholder file
+	// Recreate directory and file
 	if err := os.MkdirAll(env.dataDir, 0755); err != nil {
 		t.Fatalf("Failed to recreate data directory: %v", err)
 	}
 	env.writeData("test.yaml", `test:
-  value: placeholder
+  value: dir-recreated
 `)
-	t.Log("Data directory recreated with placeholder")
+	t.Log("Data directory recreated with content")
 
 	// Wait for watcher to be re-established on the recreated directory
 	// The processor retries with backoff; we need to wait for a successful WatchPrefix call
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(watchRetryDelay)
 
-	// Now update the file to trigger a change event that the re-established watcher will catch
+	// Trigger a file update to ensure the re-established watcher detects a change
 	env.updateData("test.yaml", `test:
   value: dir-recreated
 `)
-	t.Log("Data file updated with final content")
+	t.Log("Data file touched to trigger watcher")
 
-	// Wait for processor to process the change
-	content, err := waitForFileUpdate(t, destPath, 15*time.Second, "value=initial")
-	if err != nil {
-		t.Fatalf("Output not updated after directory recreation: %v", err)
+	// Wait for processor to process the change and produce the final value
+	if err := waitForFile(t, destPath, 15*time.Second, "value=dir-recreated"); err != nil {
+		t.Fatalf("Output not updated to final value after directory recreation: %v", err)
 	}
-
-	// Accept either placeholder or final value - both indicate successful recovery
-	if content != "value=dir-recreated" && content != "value=placeholder" {
-		t.Errorf("Expected 'value=dir-recreated' or 'value=placeholder', got %q", content)
-	}
-	t.Logf("Processor recovered with content: %s", content)
+	t.Log("Processor recovered with final content: value=dir-recreated")
 
 	// Cleanup
 	close(stopChan)
 	select {
 	case <-doneChan:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testShutdownTimeout):
 		t.Error("Processor did not stop within timeout")
 	}
 }
