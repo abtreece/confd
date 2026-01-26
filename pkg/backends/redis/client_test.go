@@ -1236,20 +1236,22 @@ func TestWatchPrefix_MultiplePrefixes(t *testing.T) {
 		_, _ = client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
 	}()
 
-	// Give the watch goroutine time to start
-	time.Sleep(50 * time.Millisecond)
+	// Wait for the watch goroutine to start and track the prefix
+	deadline := time.Now().Add(2 * time.Second)
+	var hasApp bool
+	for {
+		client.pubsubMu.Lock()
+		_, hasApp = client.watchedPrefixes["/app"]
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
 
-	// Verify first prefix is tracked
-	client.pubsubMu.Lock()
-	_, hasApp := client.watchedPrefixes["/app"]
-	prefixCount = len(client.watchedPrefixes)
-	client.pubsubMu.Unlock()
-
-	if !hasApp {
-		t.Error("watchedPrefixes should contain /app")
-	}
-	if prefixCount != 1 {
-		t.Errorf("watchedPrefixes should have 1 entry, got %d", prefixCount)
+		if hasApp && prefixCount == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for /app to be tracked; hasApp=%v, prefixCount=%d", hasApp, prefixCount)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// Start second watch with different prefix
@@ -1259,24 +1261,23 @@ func TestWatchPrefix_MultiplePrefixes(t *testing.T) {
 		_, _ = client.WatchPrefix(ctx, "/config", []string{"/config/key"}, 1, stopChan)
 	}()
 
-	// Give the second watch time to register
-	time.Sleep(50 * time.Millisecond)
+	// Wait for the second watch to register
+	deadline = time.Now().Add(2 * time.Second)
+	var hasConfig bool
+	for {
+		client.pubsubMu.Lock()
+		_, hasApp = client.watchedPrefixes["/app"]
+		_, hasConfig = client.watchedPrefixes["/config"]
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
 
-	// Verify both prefixes are tracked
-	client.pubsubMu.Lock()
-	_, hasApp = client.watchedPrefixes["/app"]
-	_, hasConfig := client.watchedPrefixes["/config"]
-	prefixCount = len(client.watchedPrefixes)
-	client.pubsubMu.Unlock()
-
-	if !hasApp {
-		t.Error("watchedPrefixes should still contain /app")
-	}
-	if !hasConfig {
-		t.Error("watchedPrefixes should contain /config")
-	}
-	if prefixCount != 2 {
-		t.Errorf("watchedPrefixes should have 2 entries, got %d", prefixCount)
+		if hasApp && hasConfig && prefixCount == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for /config; hasApp=%v, hasConfig=%v, prefixCount=%d", hasApp, hasConfig, prefixCount)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// Calling with same prefix again should not add duplicate
@@ -1286,11 +1287,19 @@ func TestWatchPrefix_MultiplePrefixes(t *testing.T) {
 		_, _ = client.WatchPrefix(ctx, "/app", []string{"/app/other"}, 1, stopChan)
 	}()
 
-	time.Sleep(50 * time.Millisecond)
+	// Wait briefly and verify no duplicate was added
+	deadline = time.Now().Add(500 * time.Millisecond)
+	for {
+		client.pubsubMu.Lock()
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
 
-	client.pubsubMu.Lock()
-	prefixCount = len(client.watchedPrefixes)
-	client.pubsubMu.Unlock()
+		// Should still be exactly 2
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	if prefixCount != 2 {
 		t.Errorf("watchedPrefixes should still have 2 entries (no duplicates), got %d", prefixCount)
@@ -1336,15 +1345,21 @@ func TestStopWatch_ClearsPrefixes(t *testing.T) {
 		_, _ = client.WatchPrefix(ctx, "/app", []string{"/app/key"}, 1, stopChan)
 	}()
 
-	// Give the watch goroutine time to start
-	time.Sleep(50 * time.Millisecond)
+	// Wait for prefix to be tracked
+	deadline := time.Now().Add(2 * time.Second)
+	var prefixCount int
+	for {
+		client.pubsubMu.Lock()
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
 
-	// Verify prefix is tracked
-	client.pubsubMu.Lock()
-	prefixCount := len(client.watchedPrefixes)
-	client.pubsubMu.Unlock()
-	if prefixCount != 1 {
-		t.Errorf("watchedPrefixes should have 1 entry, got %d", prefixCount)
+		if prefixCount == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for prefix to be tracked; prefixCount=%d", prefixCount)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// Cancel and wait for cleanup
@@ -1355,14 +1370,19 @@ func TestStopWatch_ClearsPrefixes(t *testing.T) {
 		t.Fatal("Watch did not stop")
 	}
 
-	// Give stopWatch time to clear prefixes
-	time.Sleep(50 * time.Millisecond)
+	// Wait for stopWatch to clear prefixes
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		client.pubsubMu.Lock()
+		prefixCount = len(client.watchedPrefixes)
+		client.pubsubMu.Unlock()
 
-	// Verify prefixes are cleared
-	client.pubsubMu.Lock()
-	prefixCount = len(client.watchedPrefixes)
-	client.pubsubMu.Unlock()
-	if prefixCount != 0 {
-		t.Errorf("watchedPrefixes should be empty after stopWatch, got %d", prefixCount)
+		if prefixCount == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("watchedPrefixes should be empty after stopWatch, got %d", prefixCount)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

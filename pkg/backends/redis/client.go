@@ -360,12 +360,14 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	} else if c.pubsub != nil {
 		// Watcher already running - check if we need to subscribe to a new prefix
 		if _, exists := c.watchedPrefixes[prefix]; !exists {
-			c.watchedPrefixes[prefix] = struct{}{}
-			// Subscribe to the new prefix pattern
+			// Subscribe to the new prefix pattern using the long-lived watch context
+			// to ensure the subscription lifetime matches the watcher, not the caller
 			pattern := c.buildKeyspacePattern(prefix)
-			if err := c.pubsub.PSubscribe(ctx, pattern); err != nil {
+			if err := c.pubsub.PSubscribe(c.watchCtx, pattern); err != nil {
 				log.Warning("Failed to subscribe to new prefix pattern %s: %v", pattern, err)
+				// Don't track the prefix if subscription failed - caller can retry
 			} else {
+				c.watchedPrefixes[prefix] = struct{}{}
 				log.Debug("Redis PubSub subscribed to additional pattern: %s", pattern)
 			}
 		}
@@ -486,11 +488,10 @@ func (c *Client) watchWithReconnect(ctx context.Context) {
 		}
 		attempt = 0
 
-		// Update db field for buildKeyspacePattern
-		c.db = db
-
 		// Build patterns for all tracked prefixes
 		c.pubsubMu.Lock()
+		// Update db field under lock since buildKeyspacePattern reads it
+		c.db = db
 		patterns := make([]string, 0, len(c.watchedPrefixes))
 		for prefix := range c.watchedPrefixes {
 			pattern := c.buildKeyspacePattern(prefix)
