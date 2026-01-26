@@ -1,0 +1,54 @@
+[Unit]
+Description=confd configuration management
+Documentation=https://github.com/abtreece/confd
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+EnvironmentFile=-/etc/default/confd
+EnvironmentFile=-/etc/sysconfig/confd
+ExecStart=/usr/bin/confd $CONFD_BACKEND $CONFD_OPTS
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Restart behavior
+Restart=on-failure
+RestartSec=5s
+WatchdogSec=60s
+
+# Graceful shutdown
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Security hardening - run as root but with restrictions
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_KILL CAP_CHOWN CAP_FOWNER CAP_DAC_READ_SEARCH
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# Allow writes to config directories and common application paths
+# Note: /etc is required because confd writes to arbitrary config locations
+# (e.g., /etc/nginx/nginx.conf, /etc/myapp/config.yaml). To restrict further,
+# replace /etc with specific paths your templates write to:
+#   ReadWritePaths=/etc/nginx /etc/myapp /etc/confd /var/lib/confd /var/run
+ReadWritePaths=/etc /var/lib/confd /var/run
+
+# Restrict system calls
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

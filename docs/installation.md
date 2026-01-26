@@ -1,6 +1,77 @@
 # Installation
 
-### Binary Download
+## Linux Packages (Recommended)
+
+confd provides native packages for Debian/Ubuntu (.deb) and RHEL/Fedora/CentOS (.rpm). These packages include systemd integration with security hardening.
+
+### Debian / Ubuntu
+
+```bash
+# Download the latest release (replace VERSION and ARCH as needed)
+VERSION=0.34.0
+ARCH=amd64  # or arm64
+
+curl -LO "https://github.com/abtreece/confd/releases/download/v${VERSION}/confd_${VERSION}_linux_${ARCH}.deb"
+sudo dpkg -i "confd_${VERSION}_linux_${ARCH}.deb"
+```
+
+### RHEL / Fedora / CentOS
+
+```bash
+# Download the latest release (replace VERSION and ARCH as needed)
+VERSION=0.34.0
+ARCH=x86_64  # or aarch64
+
+curl -LO "https://github.com/abtreece/confd/releases/download/v${VERSION}/confd-${VERSION}-1.${ARCH}.rpm"
+sudo rpm -i "confd-${VERSION}-1.${ARCH}.rpm"
+```
+
+### Package Contents
+
+The packages install:
+
+| Path | Description |
+|------|-------------|
+| `/usr/bin/confd` | Binary |
+| `/usr/lib/systemd/system/confd.service` | Systemd service with security hardening |
+| `/etc/confd/confd.toml` | Default configuration file |
+| `/etc/confd/conf.d/` | Template resource directory |
+| `/etc/confd/templates/` | Template directory |
+| `/etc/default/confd` | Environment file (Debian) |
+| `/etc/sysconfig/confd` | Environment file (RHEL) |
+| `/var/lib/confd/` | State directory |
+
+### Post-Installation Setup
+
+1. Configure the backend and options in the environment file:
+
+   ```bash
+   # Debian/Ubuntu
+   sudo vi /etc/default/confd
+
+   # RHEL/Fedora
+   sudo vi /etc/sysconfig/confd
+   ```
+
+   Example configuration:
+   ```bash
+   CONFD_BACKEND="etcd"
+   CONFD_OPTS="--watch --systemd-notify --watchdog-interval 30s --log-level info"
+   ```
+
+2. Create template resources and templates in `/etc/confd/conf.d/` and `/etc/confd/templates/`
+
+3. Enable and start the service:
+   ```bash
+   sudo systemctl enable confd
+   sudo systemctl start confd
+   ```
+
+See [Service Deployment Guide](service-deployment.md) for advanced systemd configuration.
+
+---
+
+## Binary Download
 
 confd ships binaries for OS X, Linux, and Windows for both amd64 and arm64 architectures. You can download the latest release from [GitHub](https://github.com/abtreece/confd/releases).
 

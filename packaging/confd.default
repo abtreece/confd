@@ -1,0 +1,49 @@
+# confd environment configuration
+# This file is sourced by the confd systemd service.
+#
+# Documentation: https://github.com/abtreece/confd/blob/main/docs/
+# Quick start:   https://github.com/abtreece/confd/blob/main/docs/quick-start-guide.md
+
+# Backend to use (required)
+# Options: etcd, consul, vault, redis, zookeeper, dynamodb, ssm, acm,
+#          secretsmanager, env, file, imds
+CONFD_BACKEND="etcd"
+
+# Command-line options passed to confd
+# Common options:
+#   --watch                Enable watch mode (real-time updates)
+#   --interval N           Polling interval in seconds (default: 600)
+#   --onetime              Run once and exit
+#   --node URL             Backend node address (can specify multiple times)
+#   --prefix PATH          Key prefix
+#   --log-level LEVEL      Log level: debug, info, warn, error
+#   --config-file PATH     Path to confd.toml config file
+#   --confdir PATH         Path to conf.d directory
+#   --systemd-notify       Enable systemd sd_notify support
+#   --watchdog-interval D  Systemd watchdog ping interval (e.g., 30s)
+#
+# Backend-specific options vary. Run 'confd <backend> --help' for details.
+
+CONFD_OPTS="--watch --systemd-notify --watchdog-interval 30s --log-level info"
+
+# Examples:
+#
+# etcd with watch mode:
+#   CONFD_BACKEND="etcd"
+#   CONFD_OPTS="--watch --node http://127.0.0.1:2379 --systemd-notify"
+#
+# Consul with watch mode:
+#   CONFD_BACKEND="consul"
+#   CONFD_OPTS="--watch --node 127.0.0.1:8500 --systemd-notify"
+#
+# Vault with polling:
+#   CONFD_BACKEND="vault"
+#   CONFD_OPTS="--interval 60 --node https://vault.example.com:8200 --auth-type approle"
+#
+# File backend with watch mode:
+#   CONFD_BACKEND="file"
+#   CONFD_OPTS="--watch --file /etc/myapp/config.yaml --systemd-notify"
+#
+# AWS SSM Parameter Store:
+#   CONFD_BACKEND="ssm"
+#   CONFD_OPTS="--interval 300 --prefix /myapp/production"

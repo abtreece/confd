@@ -31,6 +31,82 @@ archives:
       formats: [zip]
     files:
     - none*
+
+nfpms:
+  - id: confd
+    package_name: confd
+    vendor: abtreece
+    homepage: https://github.com/abtreece/confd
+    maintainer: Andrew Treece <abtreece@users.noreply.github.com>
+    description: Lightweight configuration management tool
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+
+    # Package dependencies
+    dependencies:
+      - systemd
+
+    contents:
+      # Systemd service file
+      - src: ./packaging/confd.service
+        dst: /usr/lib/systemd/system/confd.service
+        file_info:
+          mode: 0644
+
+      # Default config file (won't overwrite on upgrade)
+      - src: ./packaging/confd.toml.default
+        dst: /etc/confd/confd.toml
+        type: config|noreplace
+        file_info:
+          mode: 0644
+
+      # Environment file for Debian/Ubuntu
+      - src: ./packaging/confd.default
+        dst: /etc/default/confd
+        type: config|noreplace
+        file_info:
+          mode: 0644
+        packager: deb
+
+      # Environment file for RHEL/Fedora
+      - src: ./packaging/confd.default
+        dst: /etc/sysconfig/confd
+        type: config|noreplace
+        file_info:
+          mode: 0644
+        packager: rpm
+
+      # Create config directories
+      - dst: /etc/confd/conf.d
+        type: dir
+        file_info:
+          mode: 0755
+
+      - dst: /etc/confd/templates
+        type: dir
+        file_info:
+          mode: 0755
+
+      - dst: /var/lib/confd
+        type: dir
+        file_info:
+          mode: 0755
+
+    scripts:
+      postinstall: ./packaging/scripts/postinstall.sh
+      preremove: ./packaging/scripts/preremove.sh
+
+    rpm:
+      group: System Environment/Daemons
+      compression: gzip
+
+    deb:
+      lintian_overrides:
+        - statically-linked-binary
+
 checksum:
   name_template: 'checksums.txt'
   algorithm: sha256
