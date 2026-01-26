@@ -92,7 +92,7 @@ func (b *backendFetcher) fetchValues() error {
 	}
 	updateDuration := time.Since(updateStart)
 
-	logger.InfoContext(ctx, "Backend fetch and store update completed",
+	logger.DebugContext(ctx, "Backend fetch and store update completed",
 		"total_duration_ms", time.Since(start).Milliseconds(),
 		"fetch_duration_ms", fetchDuration.Milliseconds(),
 		"update_duration_ms", updateDuration.Milliseconds(),
