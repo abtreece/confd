@@ -1,11 +1,11 @@
 .PHONY: build install clean lint test integration dep release
-VERSION=`egrep -o '[0-9]+\.[0-9a-z.\-]+' cmd/confd/version.go`
-GIT_SHA=`git rev-parse --short HEAD || echo`
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "dev")
+GIT_SHA=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 build:
 	@echo "Building confd..."
 	@mkdir -p bin
-	@go build -ldflags "-X main.GitSHA=${GIT_SHA}" -o bin/confd ./cmd/confd
+	@go build -ldflags "-X main.Version=$(VERSION) -X main.GitSHA=$(GIT_SHA)" -o bin/confd ./cmd/confd
 
 install:
 	@echo "Installing confd..."
