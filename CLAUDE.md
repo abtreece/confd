@@ -419,10 +419,23 @@ See [docs/release-checklist.md](docs/release-checklist.md) for the complete rele
 
 ### Version Management
 
-The version is defined in `cmd/confd/version.go`. This file **must be updated** before tagging a new release, and the version string **must exactly match the tag** (without the `v` prefix).
+The version is automatically injected from the git tag at build time via goreleaser's ldflags. No manual version file updates are required.
 
-```go
-const Version = "0.40.0-rc.1"  // Must match tag v0.40.0-rc.1
+- **Release builds**: Version comes from git tag (e.g., tag `v0.40.0` → version `0.40.0`)
+- **Local builds**: Version comes from `git describe` (e.g., `0.40.0-rc.2-5-gabcdef-dirty`)
+- **Development**: Shows `dev` if no tags exist
+
+### Release Workflow
+
+```bash
+# 1. Update CHANGELOG with release notes
+# 2. Commit changes
+git add CHANGELOG
+git commit -m "docs: update CHANGELOG for v0.41.0"
+
+# 3. Tag and push
+git tag -a v0.41.0 -m "v0.41.0"
+git push origin main v0.41.0
 ```
 
 ### Release Candidate Workflow
@@ -430,38 +443,17 @@ const Version = "0.40.0-rc.1"  // Must match tag v0.40.0-rc.1
 For significant releases, use release candidates:
 
 ```bash
-# 1. Update version.go to "0.40.0-rc.1"
-# 2. Commit and tag
-git add cmd/confd/version.go
-git commit -m "chore: bump version to 0.40.0-rc.1"
+# RC1
 git tag -a v0.40.0-rc.1 -m "v0.40.0-rc.1"
-git push origin main v0.40.0-rc.1
+git push origin v0.40.0-rc.1
 
-# 3. If issues are found, fix them, then update version.go to "0.40.0-rc.2"
-git add cmd/confd/version.go
-git commit -m "chore: bump version to 0.40.0-rc.2"
+# If issues are found, fix them and tag RC2
 git tag -a v0.40.0-rc.2 -m "v0.40.0-rc.2"
-git push origin main v0.40.0-rc.2
+git push origin v0.40.0-rc.2
 
-# 4. When stable, update version.go to "0.40.0" and tag final release
-git add cmd/confd/version.go
-git commit -m "chore: bump version to 0.40.0"
+# When stable, tag final release
 git tag -a v0.40.0 -m "v0.40.0"
 git push origin main v0.40.0
-```
-
-### Standard Release Workflow
-
-For minor releases and patches (no RC needed):
-
-```bash
-# 1. Update version.go to match tag (e.g., "0.41.0")
-# 2. Update CHANGELOG
-# 3. Commit, tag, and push
-git add cmd/confd/version.go CHANGELOG
-git commit -m "chore: bump version to 0.41.0"
-git tag -a v0.41.0 -m "v0.41.0"
-git push origin main v0.41.0
 ```
 
 ### Goreleaser
@@ -473,8 +465,7 @@ Tags trigger GitHub Actions which run goreleaser:
 ### Checklist
 
 Before tagging any release:
-- [ ] Update `cmd/confd/version.go` to match the tag (e.g., `"0.40.0-rc.1"` for tag `v0.40.0-rc.1`)
 - [ ] Update `CHANGELOG` with release notes
 - [ ] Ensure all tests pass (`make test`)
 - [ ] Ensure build succeeds (`make build`)
-- [ ] Verify version: `./bin/confd --version` shows correct version
+- [ ] Verify version after build: `./bin/confd --version`
