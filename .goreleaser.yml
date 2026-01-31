@@ -9,7 +9,7 @@ builds:
     binary: confd
     env:
       - CGO_ENABLED=0
-    ldflags: -s -w -X main.GitSHA={{ .ShortCommit }}
+    ldflags: -s -w -X main.Version={{ .Version }} -X main.GitSHA={{ .ShortCommit }}
     goos:
       - darwin
       - linux
