@@ -91,7 +91,7 @@ github.com/aws/aws-sdk-go-v2/internal/ini
 github.com/aws/aws-sdk-go-v2/service/acm
 github.com/aws/aws-sdk-go-v2/service/acm/internal/endpoints
 github.com/aws/aws-sdk-go-v2/service/acm/types
-# github.com/aws/aws-sdk-go-v2/service/dynamodb v1.54.0
+# github.com/aws/aws-sdk-go-v2/service/dynamodb v1.55.0
 ## explicit; go 1.23
 github.com/aws/aws-sdk-go-v2/service/dynamodb
 github.com/aws/aws-sdk-go-v2/service/dynamodb/internal/customizations
