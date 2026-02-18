@@ -21,7 +21,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.17
 	github.com/aws/aws-sdk-go-v2/service/acm v1.37.19
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.54.0
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.55.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.8
 	github.com/coreos/go-systemd/v22 v22.7.0
