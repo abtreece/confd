@@ -1,6 +1,6 @@
 module github.com/abtreece/confd
 
-go 1.25.5
+go 1.25.7
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -9,7 +9,7 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-zookeeper/zk v1.0.4
-	github.com/hashicorp/consul/api v1.33.2
+	github.com/hashicorp/consul/api v1.33.3
 	github.com/hashicorp/vault/api v1.22.0
 	go.etcd.io/etcd/client/v3 v3.6.8
 )
