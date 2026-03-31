@@ -1,3 +1,25 @@
+# v1.68.4 (2026-03-26)
+
+* **Bug Fix**: Fix a bug where a recorded clock skew could persist on the client even if the client and server clock ended up realigning.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.68.3 (2026-03-13)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.68.2 (2026-03-03)
+
+* **Dependency Update**: Bump minimum Go version to 1.24
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.68.1 (2026-02-23)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.68.0 (2026-02-20)
+
+* **Feature**: Add support for AssociationDispatchAssumeRole in AWS SSM State Manager.
+
 # v1.67.8 (2026-01-09)
 
 * **Dependency Update**: Updated to the latest SDK module versions
