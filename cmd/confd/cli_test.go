@@ -903,70 +903,61 @@ func makeValidateCLI(t *testing.T) *CLI {
 }
 
 func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
+	assertDefaultNode := func(t *testing.T, nodes []string, expected string) {
+		t.Helper()
+		if len(nodes) != 1 || nodes[0] != expected {
+			t.Fatalf("unexpected default nodes: %v", nodes)
+		}
+	}
+
 	tests := []struct {
-		name         string
-		run          func(*CLI) error
-		defaultNodes []string
+		name string
+		run  func(*CLI) error
 	}{
 		{
 			name: "consul",
 			run: func(cli *CLI) error {
 				cmd := &ConsulCmd{}
 				err := cmd.Run(cli)
-				if len(cmd.Node) != 1 || cmd.Node[0] != "127.0.0.1:8500" {
-					t.Fatalf("unexpected consul default nodes: %v", cmd.Node)
-				}
+				assertDefaultNode(t, cmd.Node, "127.0.0.1:8500")
 				return err
 			},
-			defaultNodes: []string{"127.0.0.1:8500"},
 		},
 		{
 			name: "etcd",
 			run: func(cli *CLI) error {
 				cmd := &EtcdCmd{}
 				err := cmd.Run(cli)
-				if len(cmd.Node) != 1 || cmd.Node[0] != "http://127.0.0.1:2379" {
-					t.Fatalf("unexpected etcd default nodes: %v", cmd.Node)
-				}
+				assertDefaultNode(t, cmd.Node, "http://127.0.0.1:2379")
 				return err
 			},
-			defaultNodes: []string{"http://127.0.0.1:2379"},
 		},
 		{
 			name: "vault",
 			run: func(cli *CLI) error {
 				cmd := &VaultCmd{}
 				err := cmd.Run(cli)
-				if len(cmd.Node) != 1 || cmd.Node[0] != "http://127.0.0.1:8200" {
-					t.Fatalf("unexpected vault default nodes: %v", cmd.Node)
-				}
+				assertDefaultNode(t, cmd.Node, "http://127.0.0.1:8200")
 				return err
 			},
-			defaultNodes: []string{"http://127.0.0.1:8200"},
 		},
 		{
 			name: "redis",
 			run: func(cli *CLI) error {
 				cmd := &RedisCmd{}
 				err := cmd.Run(cli)
-				if len(cmd.Node) != 1 || cmd.Node[0] != "127.0.0.1:6379" {
-					t.Fatalf("unexpected redis default nodes: %v", cmd.Node)
-				}
+				assertDefaultNode(t, cmd.Node, "127.0.0.1:6379")
 				return err
 			},
-			defaultNodes: []string{"127.0.0.1:6379"},
 		},
 		{
 			name: "zookeeper",
 			run: func(cli *CLI) error {
 				cmd := &ZookeeperCmd{}
 				err := cmd.Run(cli)
-				if len(cmd.Node) != 1 || cmd.Node[0] != "127.0.0.1:2181" {
-					t.Fatalf("unexpected zookeeper default nodes: %v", cmd.Node)
-				}
+				assertDefaultNode(t, cmd.Node, "127.0.0.1:2181")
 				return err
 			},
-			defaultNodes: []string{"127.0.0.1:2181"},
 		},
 	}
 
