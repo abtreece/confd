@@ -557,6 +557,265 @@ server {
 
 **Note:** Included template paths are relative to the templates directory (default: `/etc/confd/templates/`). Directory traversal outside the templates directory is not allowed for security.
 
+## Utility Functions
+
+### Defaults & Conditionals
+
+#### default
+
+Returns the value if non-empty, otherwise returns the default value. "Empty" means nil, false, 0, "", or an empty slice/map.
+
+```
+database_host: {{default "localhost" (getv "/db/host")}}
+```
+
+#### ternary
+
+Returns the first value if the condition is true, otherwise the second. The condition is the last argument for pipeline use.
+
+```
+mode: {{ternary "debug" "release" (parseBool (getv "/app/debug" "false"))}}
+```
+
+#### coalesce
+
+Returns the first non-empty value from its arguments.
+
+```
+host: {{coalesce (getv "/app/host" "") (getenv "HOST") "localhost"}}
+```
+
+#### empty
+
+Returns true if the value is empty (nil, false, 0, "", empty slice/map).
+
+```
+{{if not (empty (getv "/app/name" ""))}}
+app_name: {{getv "/app/name"}}
+{{end}}
+```
+
+### JSON
+
+#### toJson
+
+Marshals a value to a compact JSON string.
+
+```
+config: {{toJson (dict "host" (getv "/db/host") "port" (atoi (getv "/db/port")))}}
+```
+
+#### fromJson
+
+Unmarshals a JSON string into a value. Works with objects, arrays, strings, and numbers.
+
+```
+{{$config := fromJson (getv "/app/config")}}
+host: {{index $config "host"}}
+```
+
+#### toPrettyJson
+
+Marshals a value to a pretty-printed JSON string with 2-space indentation.
+
+```
+{{toPrettyJson (dict "host" (getv "/db/host") "port" (atoi (getv "/db/port")))}}
+```
+
+### Formatting
+
+#### indent
+
+Indents every line of a string by the specified number of spaces.
+
+```
+upstream_config: |
+{{indent 4 (getv "/nginx/upstream_block")}}
+```
+
+#### nindent
+
+Same as `indent` but prepends a newline. Useful in YAML where you need the content to start on the next line.
+
+```
+config:{{nindent 2 (getv "/app/yaml_block")}}
+```
+
+#### quote
+
+Wraps a string in double quotes.
+
+```
+name: {{quote (getv "/app/name")}}
+```
+
+#### squote
+
+Wraps a string in single quotes.
+
+```
+name: {{squote (getv "/app/name")}}
+```
+
+### Regex
+
+#### regexMatch
+
+Returns true if the string matches the regular expression pattern.
+
+```
+{{if regexMatch "^prod" (getv "/env/name")}}
+log_level: warn
+{{end}}
+```
+
+#### regexFind
+
+Returns the first match of the pattern in the string, or an empty string if no match.
+
+```
+version: {{regexFind "[0-9]+\\.[0-9]+" (getv "/app/version_string")}}
+```
+
+#### regexReplaceAll
+
+Replaces all matches of the pattern with the replacement string.
+
+```
+sanitized: {{regexReplaceAll "[^a-zA-Z0-9]" (getv "/app/name") "_"}}
+```
+
+### Strings
+
+#### trimPrefix
+
+Alias for [strings.TrimPrefix](https://golang.org/pkg/strings/#TrimPrefix). Removes the prefix from the beginning of a string.
+
+```
+name: {{trimPrefix (getv "/service/fqdn") "service-"}}
+```
+
+#### repeat
+
+Repeats a string the specified number of times.
+
+```
+separator: {{repeat 80 "-"}}
+```
+
+#### nospace
+
+Removes all whitespace from a string.
+
+```
+id: {{nospace (getv "/app/display_name")}}
+```
+
+#### snakecase
+
+Converts a string to snake_case.
+
+```
+env_var: {{toUpper (snakecase (getv "/app/settingName"))}}
+```
+
+#### camelcase
+
+Converts a string to camelCase.
+
+```
+property: {{camelcase (getv "/app/setting_name")}}
+```
+
+#### kebabcase
+
+Converts a string to kebab-case.
+
+```
+slug: {{kebabcase (getv "/app/ServiceName")}}
+```
+
+### Collections
+
+#### dict
+
+Creates a key-value map from pairs of arguments (alias for `map`). Returns an error if given an odd number of arguments.
+
+```
+{{$server := dict "host" (getv "/server/host") "port" (getv "/server/port")}}
+server: {{index $server "host"}}:{{index $server "port"}}
+```
+
+#### list
+
+Creates a list from its arguments.
+
+```
+{{range list "web" "api" "worker"}}
+  service: {{.}}
+{{end}}
+```
+
+#### hasKey
+
+Returns true if a map contains the given key.
+
+```
+{{$config := fromJson (getv "/app/config")}}
+{{if hasKey $config "debug"}}
+debug: {{index $config "debug"}}
+{{end}}
+```
+
+#### keys
+
+Returns the sorted keys of a map.
+
+```
+{{$config := fromJson (getv "/app/config")}}
+{{range keys $config}}
+  {{.}}: {{index $config .}}
+{{end}}
+```
+
+#### values
+
+Returns the values of a map, sorted by key for deterministic output.
+
+```
+{{range values (fromJson (getv "/app/ports"))}}
+  - {{.}}
+{{end}}
+```
+
+#### append
+
+Appends a value to a list and returns the new list.
+
+```
+{{$servers := list "web1" "web2"}}
+{{$servers = append $servers "web3"}}
+```
+
+#### pluck
+
+Extracts a key from a list of maps. Skips maps that don't contain the key.
+
+```
+{{$services := list (dict "name" "web" "port" 80) (dict "name" "api" "port" 8080)}}
+ports: {{toJson (pluck "port" (index $services 0) (index $services 1))}}
+```
+
+### Hashing
+
+#### sha256sum
+
+Returns the hex-encoded SHA-256 hash of a string.
+
+```
+config_hash: {{sha256sum (getv "/app/config")}}
+```
+
 ## Example Usage
 
 ```Bash
