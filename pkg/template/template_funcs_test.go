@@ -35,10 +35,10 @@ func TestSeq(t *testing.T) {
 			expected: []int{-2, -1, 0, 1, 2},
 		},
 		{
-			name:     "empty when first > last",
+			name:     "descending sequence",
 			first:    5,
 			last:     1,
-			expected: nil,
+			expected: []int{5, 4, 3, 2, 1},
 		},
 	}
 
@@ -139,15 +139,25 @@ func TestSortKVByLength(t *testing.T) {
 func TestReverse(t *testing.T) {
 	t.Run("reverse string slice", func(t *testing.T) {
 		input := []string{"a", "b", "c", "d"}
+		inputCopy := []string{"a", "b", "c", "d"}
 		expected := []string{"d", "c", "b", "a"}
 		result := Reverse(input).([]string)
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("Reverse(%v) = %v, want %v", input, result, expected)
 		}
+		// Input must not be mutated
+		if !reflect.DeepEqual(input, inputCopy) {
+			t.Errorf("Reverse mutated input: got %v, want %v", input, inputCopy)
+		}
 	})
 
 	t.Run("reverse KVPair slice", func(t *testing.T) {
 		input := []memkv.KVPair{
+			{Key: "/a", Value: "1"},
+			{Key: "/b", Value: "2"},
+			{Key: "/c", Value: "3"},
+		}
+		inputCopy := []memkv.KVPair{
 			{Key: "/a", Value: "1"},
 			{Key: "/b", Value: "2"},
 			{Key: "/c", Value: "3"},
@@ -160,6 +170,10 @@ func TestReverse(t *testing.T) {
 		result := Reverse(input).([]memkv.KVPair)
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("Reverse() = %v, want %v", result, expected)
+		}
+		// Input must not be mutated
+		if !reflect.DeepEqual(input, inputCopy) {
+			t.Errorf("Reverse mutated input: got %v, want %v", input, inputCopy)
 		}
 	})
 
@@ -177,6 +191,36 @@ func TestReverse(t *testing.T) {
 		result := Reverse(input).([]string)
 		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("Reverse(%v) = %v, want %v", input, result, expected)
+		}
+	})
+}
+
+func TestDivMod(t *testing.T) {
+	divFn := newFuncMap()["div"].(func(int, int) (int, error))
+	modFn := newFuncMap()["mod"].(func(int, int) (int, error))
+
+	t.Run("div normal", func(t *testing.T) {
+		result, err := divFn(10, 3)
+		if err != nil || result != 3 {
+			t.Errorf("div(10, 3) = (%d, %v), want (3, nil)", result, err)
+		}
+	})
+	t.Run("div by zero", func(t *testing.T) {
+		_, err := divFn(10, 0)
+		if err == nil {
+			t.Error("div(10, 0) should return an error, got nil")
+		}
+	})
+	t.Run("mod normal", func(t *testing.T) {
+		result, err := modFn(10, 3)
+		if err != nil || result != 1 {
+			t.Errorf("mod(10, 3) = (%d, %v), want (1, nil)", result, err)
+		}
+	})
+	t.Run("mod by zero", func(t *testing.T) {
+		_, err := modFn(10, 0)
+		if err == nil {
+			t.Error("mod(10, 0) should return an error, got nil")
 		}
 	})
 }
@@ -570,7 +614,7 @@ func TestLookupIfaceIPV6_NonExistent(t *testing.T) {
 }
 
 func TestLookupIfaceIPV6_ExistingInterface(t *testing.T) {
-	// Try to find an interface with an IPv6 address
+	// Try to find an interface with a true IPv6 address (not IPv4-mapped)
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		t.Skip("Cannot get network interfaces")
@@ -583,7 +627,8 @@ func TestLookupIfaceIPV6_ExistingInterface(t *testing.T) {
 			continue
 		}
 		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To16() != nil {
+			// Select only true IPv6 addresses: To16() != nil && To4() == nil
+			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To16() != nil && ipnet.IP.To4() == nil {
 				testIface = &ifaces[i]
 				break
 			}
@@ -594,13 +639,12 @@ func TestLookupIfaceIPV6_ExistingInterface(t *testing.T) {
 	}
 
 	if testIface == nil {
-		t.Skip("No interface with IPv6 address found")
+		t.Skip("No interface with a true IPv6 address found")
 	}
 
 	result := LookupIfaceIPV6(testIface.Name)
-	// Result should be a valid IP address (IPv6 or mapped IPv4)
 	if result == "" {
-		t.Errorf("LookupIfaceIPV6(%s) returned empty, expected IP address", testIface.Name)
+		t.Errorf("LookupIfaceIPV6(%s) returned empty, expected IPv6 address", testIface.Name)
 	}
 }
 

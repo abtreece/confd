@@ -180,7 +180,9 @@ func SetFormat(format string) {
 
 // Debug logs a message with severity DEBUG.
 func Debug(format string, v ...interface{}) {
-	logger.Debug(fmt.Sprintf(format, v...))
+	if logger.Enabled(context.Background(), slog.LevelDebug) {
+		logger.Debug(fmt.Sprintf(format, v...))
+	}
 }
 
 // Error logs a message with severity ERROR.
@@ -196,12 +198,16 @@ func Fatal(format string, v ...interface{}) {
 
 // Info logs a message with severity INFO.
 func Info(format string, v ...interface{}) {
-	logger.Info(fmt.Sprintf(format, v...))
+	if logger.Enabled(context.Background(), slog.LevelInfo) {
+		logger.Info(fmt.Sprintf(format, v...))
+	}
 }
 
 // Warning logs a message with severity WARNING.
 func Warning(format string, v ...interface{}) {
-	logger.Warn(fmt.Sprintf(format, v...))
+	if logger.Enabled(context.Background(), slog.LevelWarn) {
+		logger.Warn(fmt.Sprintf(format, v...))
+	}
 }
 
 // Structured logging methods using slog's native API

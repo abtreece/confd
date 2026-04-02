@@ -2,6 +2,7 @@ package template
 
 import (
 	"context"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -87,8 +88,12 @@ func (p *intervalProcessor) Process() {
 	for {
 		ts, err := getTemplateResources(p.config)
 		if err != nil {
-			log.Fatal("%s", err.Error())
-			break
+			if len(ts) == 0 {
+				log.Error("Failed to load any template resources: %s", err.Error())
+				p.errChan <- err
+				return
+			}
+			log.Warning("Some template resources failed to load: %s", err.Error())
 		}
 		process(ts, p.config.FailureMode)
 		select {
@@ -137,8 +142,12 @@ func (p *watchProcessor) Process() {
 	for {
 		ts, err := getTemplateResources(p.config)
 		if err != nil {
-			log.Fatal("%s", err.Error())
-			return
+			if len(ts) == 0 {
+				log.Error("Failed to load any template resources: %s", err.Error())
+				p.errChan <- err
+				return
+			}
+			log.Warning("Some template resources failed to load: %s", err.Error())
 		}
 
 		// Calculate total watched keys for metrics
@@ -306,8 +315,12 @@ func (p *batchWatchProcessor) Process() {
 	for {
 		ts, err := getTemplateResources(p.config)
 		if err != nil {
-			log.Fatal("%s", err.Error())
-			return
+			if len(ts) == 0 {
+				log.Error("Failed to load any template resources: %s", err.Error())
+				p.errChan <- err
+				return
+			}
+			log.Warning("Some template resources failed to load: %s", err.Error())
 		}
 
 		// Calculate total watched keys for metrics
@@ -491,8 +504,8 @@ func (p *batchWatchProcessor) processBatch() {
 func getTemplateResources(config Config) ([]*TemplateResource, error) {
 	var lastError error
 	log.Debug("Loading template resources from confdir %s", config.ConfDir)
-	if !util.IsFileExist(config.ConfDir) {
-		log.Warning("Cannot load template resources: confdir '%s' does not exist", config.ConfDir)
+	if _, err := os.Stat(config.ConfDir); err != nil {
+		log.Warning("Cannot load template resources: confdir '%s': %v", config.ConfDir, err)
 		return nil, nil
 	}
 	paths, err := util.RecursiveFilesLookup(config.ConfigDir, "*toml")
@@ -511,6 +524,7 @@ func getTemplateResources(config Config) ([]*TemplateResource, error) {
 		log.Debug("Found template: %s", p)
 		t, err := NewTemplateResource(p, config)
 		if err != nil {
+			log.Error("Failed to load template resource %s: %s", p, err.Error())
 			lastError = err
 			continue
 		}

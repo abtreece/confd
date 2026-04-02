@@ -49,8 +49,18 @@ func newFuncMap() map[string]interface{} {
 	m["sortKVByLength"] = SortKVByLength
 	m["add"] = func(a, b int) int { return a + b }
 	m["sub"] = func(a, b int) int { return a - b }
-	m["div"] = func(a, b int) int { return a / b }
-	m["mod"] = func(a, b int) int { return a % b }
+	m["div"] = func(a, b int) (int, error) {
+		if b == 0 {
+			return 0, fmt.Errorf("division by zero")
+		}
+		return a / b, nil
+	}
+	m["mod"] = func(a, b int) (int, error) {
+		if b == 0 {
+			return 0, fmt.Errorf("modulo by zero")
+		}
+		return a % b, nil
+	}
 	m["mul"] = func(a, b int) int { return a * b }
 	m["seq"] = Seq
 	m["atoi"] = strconv.Atoi
@@ -66,9 +76,17 @@ func addFuncs(out, in map[string]interface{}) {
 
 // Seq creates a sequence of integers. It's named and used as GNU's seq.
 // Seq takes the first and the last element as arguments. So Seq(3, 5) will generate [3,4,5]
+// and Seq(5, 3) will generate [5,4,3].
 func Seq(first, last int) []int {
-	var arr []int
-	for i := first; i <= last; i++ {
+	if first <= last {
+		arr := make([]int, 0, last-first+1)
+		for i := first; i <= last; i++ {
+			arr = append(arr, i)
+		}
+		return arr
+	}
+	arr := make([]int, 0, first-last+1)
+	for i := first; i >= last; i-- {
 		arr = append(arr, i)
 	}
 	return arr
@@ -110,20 +128,22 @@ func SortByLength(values []string) []string {
 	return values
 }
 
-//Reverse returns the array in reversed order
-//works with []string and []KVPair
+// Reverse returns a new array in reversed order without modifying the input.
+// Works with []string and []KVPair.
 func Reverse(values interface{}) interface{} {
-	switch values.(type) {
+	switch v := values.(type) {
 	case []string:
-		v := values.([]string)
-		for left, right := 0, len(v)-1; left < right; left, right = left+1, right-1 {
-			v[left], v[right] = v[right], v[left]
+		out := make([]string, len(v))
+		for i, j := 0, len(v)-1; j >= 0; i, j = i+1, j-1 {
+			out[i] = v[j]
 		}
+		return out
 	case []memkv.KVPair:
-		v := values.([]memkv.KVPair)
-		for left, right := 0, len(v)-1; left < right; left, right = left+1, right-1 {
-			v[left], v[right] = v[right], v[left]
+		out := make([]memkv.KVPair, len(v))
+		for i, j := 0, len(v)-1; j >= 0; i, j = i+1, j-1 {
+			out[i] = v[j]
 		}
+		return out
 	}
 	return values
 }
@@ -228,10 +248,17 @@ func LookupIfaceIPV4(data string) (addr string) {
 		return
 	}
 	for _, addr := range addrs { // get ipv4 address
-		ipv4Addr = addr.(*net.IPNet).IP.To4()
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+		ipv4Addr = ipNet.IP.To4()
 		if ipv4Addr != nil {
 			break
 		}
+	}
+	if ipv4Addr == nil {
+		return ""
 	}
 	return ipv4Addr.String()
 }
@@ -251,10 +278,21 @@ func LookupIfaceIPV6(data string) (addr string) {
 		return
 	}
 	for _, addr := range addrs { // get ipv6 address
-		ipv6Addr = addr.(*net.IPNet).IP.To16()
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+		// Skip IPv4 addresses — To4() returns non-nil for IPv4 and IPv4-mapped IPv6
+		if ipNet.IP.To4() != nil {
+			continue
+		}
+		ipv6Addr = ipNet.IP
 		if ipv6Addr != nil {
 			break
 		}
+	}
+	if ipv6Addr == nil {
+		return ""
 	}
 	return ipv6Addr.String()
 }
