@@ -26,7 +26,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25.5"
+          go-version: "1.25.8"
 
       - name: Build and Install
         run: |
@@ -107,7 +107,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25.5"
+          go-version: "1.25.8"
 
       - name: Build and Install
         run: |
@@ -173,7 +173,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25.5"
+          go-version: "1.25.8"
 
       - name: Build and Install
         run: |
@@ -232,7 +232,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25.5"
+          go-version: "1.25.8"
 
       - name: Build and Install
         run: |
