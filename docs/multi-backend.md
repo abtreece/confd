@@ -180,6 +180,6 @@ This keeps environment logic in the deployment layer where it belongs, while con
 
 ## Limitations
 
-- **Watch mode**: Per-resource backends that don't support watch (Vault, SSM, ACM, IMDS, DynamoDB, Secrets Manager) fall back to interval polling even when the global backend uses `--watch`.
+- **Watch mode**: Per-resource backends that don't support watch (Vault, SSM, ACM, IMDS, DynamoDB, Secrets Manager) will **not** receive updates when the global backend uses `--watch`. The watch processor calls `WatchPrefix` on all backends; for non-watch backends, this blocks until shutdown without processing. For templates using these backends, use `--interval` mode instead, or run separate confd instances for watch-capable and non-watch backends.
 - **No fallback chains**: If a per-resource backend is unreachable, confd does not automatically try another backend. Use `--failure-mode best-effort` to continue processing other templates.
 - **No per-key backends**: Backend override is per-template, not per-key. If you need keys from different backends in a single template, split them into separate templates and use `include` to compose the output.

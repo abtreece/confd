@@ -378,11 +378,12 @@ confd --sync-only etcd --onetime
 
 ### --keep-stage-file
 
-Preserves the staged (rendered) template file in `/tmp` after syncing to the destination. Normally, confd renders to a temporary file, compares it with the destination, and removes the temp file. With this flag, the staged file is copied (not moved) so it remains for inspection.
+Preserves the staged (rendered) template file after syncing to the destination. Stage files are created in the destination file's directory as hidden dotfiles (e.g., if `dest = "/etc/myapp/app.conf"`, the stage file is `/etc/myapp/.app.conf<random>`). Normally, confd removes the temp file after syncing. With this flag, the staged file is copied (not moved) so it remains for inspection.
 
 ```bash
 confd --keep-stage-file etcd --onetime
-ls /tmp/confd-*  # Examine rendered output before sync
+# Stage files are hidden dotfiles next to the destination
+ls -a /etc/myapp/.app.conf*
 ```
 
 This is useful for debugging when:
