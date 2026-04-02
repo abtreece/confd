@@ -912,11 +912,11 @@ func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
 
 	tests := []struct {
 		name string
-		run  func(*CLI) error
+		run  func(*testing.T, *CLI) error
 	}{
 		{
 			name: "consul",
-			run: func(cli *CLI) error {
+			run: func(t *testing.T, cli *CLI) error {
 				cmd := &ConsulCmd{}
 				err := cmd.Run(cli)
 				assertDefaultNode(t, cmd.Node, "127.0.0.1:8500")
@@ -925,7 +925,7 @@ func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
 		},
 		{
 			name: "etcd",
-			run: func(cli *CLI) error {
+			run: func(t *testing.T, cli *CLI) error {
 				cmd := &EtcdCmd{}
 				err := cmd.Run(cli)
 				assertDefaultNode(t, cmd.Node, "http://127.0.0.1:2379")
@@ -934,7 +934,7 @@ func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
 		},
 		{
 			name: "vault",
-			run: func(cli *CLI) error {
+			run: func(t *testing.T, cli *CLI) error {
 				cmd := &VaultCmd{}
 				err := cmd.Run(cli)
 				assertDefaultNode(t, cmd.Node, "http://127.0.0.1:8200")
@@ -943,7 +943,7 @@ func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
 		},
 		{
 			name: "redis",
-			run: func(cli *CLI) error {
+			run: func(t *testing.T, cli *CLI) error {
 				cmd := &RedisCmd{}
 				err := cmd.Run(cli)
 				assertDefaultNode(t, cmd.Node, "127.0.0.1:6379")
@@ -952,7 +952,7 @@ func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
 		},
 		{
 			name: "zookeeper",
-			run: func(cli *CLI) error {
+			run: func(t *testing.T, cli *CLI) error {
 				cmd := &ZookeeperCmd{}
 				err := cmd.Run(cli)
 				assertDefaultNode(t, cmd.Node, "127.0.0.1:2181")
@@ -964,7 +964,7 @@ func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cli := makeCheckConfigCLI(t)
-			if err := tt.run(cli); err != nil {
+			if err := tt.run(t, cli); err != nil {
 				t.Fatalf("Run() returned error: %v", err)
 			}
 		})
