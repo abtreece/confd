@@ -1,3 +1,5 @@
+version: "2"
+
 linters:
   enable:
     - errorlint     # Enforce error wrapping and proper use of errors

@@ -8,7 +8,7 @@ confd provides native packages for Debian/Ubuntu (.deb) and RHEL/Fedora/CentOS (
 
 ```bash
 # Download the latest release (replace VERSION and ARCH as needed)
-VERSION=0.34.0
+VERSION=0.40.0
 ARCH=amd64  # or arm64
 
 curl -LO "https://github.com/abtreece/confd/releases/download/v${VERSION}/confd_${VERSION}_linux_${ARCH}.deb"
@@ -19,7 +19,7 @@ sudo dpkg -i "confd_${VERSION}_linux_${ARCH}.deb"
 
 ```bash
 # Download the latest release (replace VERSION and ARCH as needed)
-VERSION=0.34.0
+VERSION=0.40.0
 ARCH=x86_64  # or aarch64
 
 curl -LO "https://github.com/abtreece/confd/releases/download/v${VERSION}/confd-${VERSION}-1.${ARCH}.rpm"
@@ -79,10 +79,10 @@ confd ships binaries for OS X, Linux, and Windows for both amd64 and arm64 archi
 
 ```bash
 # For Intel Macs (amd64)
-curl -SL https://github.com/abtreece/confd/releases/download/v0.33.0/confd-v0.33.0-darwin-amd64.tar.gz | tar -xz -C /usr/local/bin/
+curl -SL https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-darwin-amd64.tar.gz | tar -xz -C /usr/local/bin/
 
 # For Apple Silicon (arm64)
-curl -SL https://github.com/abtreece/confd/releases/download/v0.33.0/confd-v0.33.0-darwin-arm64.tar.gz | tar -xz -C /usr/local/bin/
+curl -SL https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-darwin-arm64.tar.gz | tar -xz -C /usr/local/bin/
 ```
 
 #### Linux
@@ -90,16 +90,16 @@ curl -SL https://github.com/abtreece/confd/releases/download/v0.33.0/confd-v0.33
 Download and extract the binary:
 ```bash
 # For amd64
-curl -SL https://github.com/abtreece/confd/releases/download/v0.33.0/confd-v0.33.0-linux-amd64.tar.gz | tar -xz -C /usr/local/bin/
+curl -SL https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-linux-amd64.tar.gz | tar -xz -C /usr/local/bin/
 
 # For arm64
-curl -SL https://github.com/abtreece/confd/releases/download/v0.33.0/confd-v0.33.0-linux-arm64.tar.gz | tar -xz -C /usr/local/bin/
+curl -SL https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-linux-arm64.tar.gz | tar -xz -C /usr/local/bin/
 ```
 
 Or manually:
 ```bash
-wget https://github.com/abtreece/confd/releases/download/v0.33.0/confd-v0.33.0-linux-amd64.tar.gz
-tar -xzf confd-v0.33.0-linux-amd64.tar.gz
+wget https://github.com/abtreece/confd/releases/download/v0.40.0/confd-v0.40.0-linux-amd64.tar.gz
+tar -xzf confd-v0.40.0-linux-amd64.tar.gz
 mv confd /usr/local/bin/
 ```
 
@@ -129,8 +129,8 @@ docker run --rm \
 
 Available image tags:
 - `latest` - Latest stable release
-- `v0.33.0` - Specific version
-- `v0.33.0-amd64`, `v0.33.0-arm64` - Architecture-specific images
+- `v0.40.0` - Specific version
+- `v0.40.0-amd64`, `v0.40.0-arm64` - Architecture-specific images
 
 See [Docker documentation](docker.md) for complete usage examples including Docker Compose and Kubernetes.
 
@@ -139,7 +139,7 @@ See [Docker documentation](docker.md) for complete usage examples including Dock
 To install confd in your own Docker image:
 
 ```dockerfile
-ARG CONFD_VERSION=0.33.0
+ARG CONFD_VERSION=0.40.0
 RUN CONFD_ARCH=$(arch | sed s/aarch64/arm64/ | sed s/x86_64/amd64/) \
     && curl -SL "https://github.com/abtreece/confd/releases/download/v${CONFD_VERSION}/confd-v${CONFD_VERSION}-linux-${CONFD_ARCH}.tar.gz" | tar -xz -C /usr/local/bin/ \
     && confd --version

@@ -120,13 +120,11 @@ type watchProcessor struct {
 
 // WatchProcessor creates a processor that watches for backend changes continuously.
 func WatchProcessor(config Config, stopChan, doneChan chan bool, errChan chan error, reloadChan <-chan struct{}) Processor {
-	var wg sync.WaitGroup
 	return &watchProcessor{
 		config:       config,
 		stopChan:     stopChan,
 		doneChan:     doneChan,
 		errChan:      errChan,
-		wg:           wg,
 		reloadChan:   reloadChan,
 		internalStop: make(chan bool),
 	}
@@ -289,7 +287,6 @@ type batchWatchProcessor struct {
 // BatchWatchProcessor creates a processor that batches changes before processing.
 // Changes from all templates are collected and processed together after the batch interval.
 func BatchWatchProcessor(config Config, stopChan, doneChan chan bool, errChan chan error, reloadChan <-chan struct{}) Processor {
-	var wg sync.WaitGroup
 	changeChan := make(chan *TemplateResource, 100)
 	return &batchWatchProcessor{
 		config:       config,
@@ -297,7 +294,6 @@ func BatchWatchProcessor(config Config, stopChan, doneChan chan bool, errChan ch
 		doneChan:     doneChan,
 		errChan:      errChan,
 		changeChan:   changeChan,
-		wg:           wg,
 		reloadChan:   reloadChan,
 		internalStop: make(chan bool),
 	}
