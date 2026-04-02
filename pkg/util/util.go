@@ -49,12 +49,10 @@ func ArrayShift(array *[]string, position int, value string) {
 	(*array)[position] = value
 }
 
-// isFileExist reports whether path exits.
+// IsFileExist reports whether path exists and is accessible.
 func IsFileExist(fpath string) bool {
-	if _, err := os.Stat(fpath); os.IsNotExist(err) {
-		return false
-	}
-	return true
+	_, err := os.Stat(fpath)
+	return err == nil
 }
 
 // IsConfigChanged reports whether src and dest config files are equal.

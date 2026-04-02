@@ -569,6 +569,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	var stopOnce sync.Once
 	for {
 		select {
 		case err := <-errChan:
@@ -593,7 +594,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 					log.Warning("Failed to notify systemd stopping: %v", err)
 				}
 				cancel() // Cancel context to signal all goroutines
-				close(stopChan)
+				stopOnce.Do(func() { close(stopChan) })
 				// Wait for processor to finish and close doneChan
 				// Perform graceful shutdown after processor exits
 				<-doneChan

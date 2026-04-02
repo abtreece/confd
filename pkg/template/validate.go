@@ -235,17 +235,18 @@ func validateResourceFile(path string, templateDir string) []ValidationError {
 		} else {
 			// Validate backend type is known
 			validBackends := map[string]bool{
-				"consul":         true,
-				"etcd":           true,
-				"vault":          true,
-				"redis":          true,
-				"zookeeper":      true,
-				"dynamodb":       true,
-				"ssm":            true,
 				"acm":            true,
-				"secretsmanager": true,
+				"consul":         true,
+				"dynamodb":       true,
 				"env":            true,
+				"etcd":           true,
 				"file":           true,
+				"imds":           true,
+				"redis":          true,
+				"secretsmanager": true,
+				"ssm":            true,
+				"vault":          true,
+				"zookeeper":      true,
 			}
 			if !validBackends[tc.BackendConfig.Backend] {
 				errs = append(errs, ValidationError{

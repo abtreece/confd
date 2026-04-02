@@ -35,10 +35,10 @@ func TestSeq(t *testing.T) {
 			expected: []int{-2, -1, 0, 1, 2},
 		},
 		{
-			name:     "empty when first > last",
+			name:     "descending sequence",
 			first:    5,
 			last:     1,
-			expected: nil,
+			expected: []int{5, 4, 3, 2, 1},
 		},
 	}
 

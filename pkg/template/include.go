@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"text/template"
 )
 
 const maxIncludeDepth = 10
 
 // IncludeContext tracks the include stack for cycle detection.
+// Created fresh per template render — not shared between goroutines.
 type IncludeContext struct {
-	mu       sync.Mutex
 	stack    []string
 	maxDepth int
 }
@@ -29,9 +28,6 @@ func NewIncludeContext() *IncludeContext {
 // Push adds a template to the include stack.
 // Returns an error if the template is already in the stack (cycle) or max depth exceeded.
 func (c *IncludeContext) Push(templatePath string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	// Check for cycle
 	for _, path := range c.stack {
 		if path == templatePath {
@@ -50,9 +46,6 @@ func (c *IncludeContext) Push(templatePath string) error {
 
 // Pop removes the most recent template from the include stack.
 func (c *IncludeContext) Pop() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if len(c.stack) > 0 {
 		c.stack = c.stack[:len(c.stack)-1]
 	}
@@ -60,8 +53,6 @@ func (c *IncludeContext) Pop() {
 
 // Depth returns the current include depth.
 func (c *IncludeContext) Depth() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return len(c.stack)
 }
 
