@@ -18,7 +18,7 @@ lint:
 	@echo "Running linters..."
 	@golangci-lint run ./...
 
-test: lint
+test:
 	@echo "Running tests..."
 	@go test `go list ./... | grep -v vendor/`
 

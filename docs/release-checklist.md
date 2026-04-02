@@ -24,38 +24,25 @@ make lint
 make build
 ```
 
-### 2. Update Version
+### 2. Update Documentation
 
-Update the version in `cmd/confd/version.go`:
-```go
-const Version = "0.XX.0"
-```
+Update version references in documentation:
+- `docs/installation.md` — binary download URLs, Docker ARG, package examples
+- `docs/docker.md` — image tag examples
+- `CHANGELOG` — ensure release notes are finalized
 
-**Important**: The version string must exactly match the tag (without the `v` prefix).
+**Note**: `cmd/confd/version.go` does NOT need manual updates. The version is injected
+at build time from the git tag via ldflags (see `.goreleaser.yml`).
 
-### 3. Update Installation Documentation
-
-Update version references in `docs/installation.md`:
-- Binary download URLs
-- Docker ARG CONFD_VERSION
-- Multi-stage build ARG CONFD_VERSION
-
-Example:
-```bash
-# Find and replace version
-sed -i '' 's/v0.30.0/v0.31.0/g' docs/installation.md
-sed -i '' 's/0.30.0/0.31.0/g' docs/installation.md
-```
-
-### 4. Commit Version Changes
+### 3. Commit Changes
 
 ```bash
-git add cmd/confd/version.go docs/installation.md
-git commit -m "chore: bump version to 0.XX.0"
+git add docs/ CHANGELOG
+git commit -m "docs: update documentation for vX.Y.Z release"
 git push origin main
 ```
 
-### 5. Create and Push Tag
+### 4. Create and Push Tag
 
 ```bash
 # Create annotated tag
@@ -92,26 +79,19 @@ For significant releases, use release candidates to allow testing before the fin
 ### RC Process
 
 ```bash
-# 1. Update version.go to RC version
-# Edit cmd/confd/version.go: const Version = "0.40.0-rc.1"
+# 1. Update docs/installation.md with RC version
 
-# 2. Update docs/installation.md with RC version
-
-# 3. Commit and tag
-git add cmd/confd/version.go docs/installation.md
-git commit -m "chore: bump version to 0.40.0-rc.1"
+# 2. Commit and tag
+git add docs/
+git commit -m "docs: update for 0.40.0-rc.1"
 git tag -a v0.40.0-rc.1 -m "v0.40.0-rc.1"
 git push origin main v0.40.0-rc.1
 
-# 4. If issues are found, fix them, then release rc.2
-git add cmd/confd/version.go docs/installation.md
-git commit -m "chore: bump version to 0.40.0-rc.2"
+# 3. If issues are found, fix them, then release rc.2
 git tag -a v0.40.0-rc.2 -m "v0.40.0-rc.2"
 git push origin main v0.40.0-rc.2
 
-# 5. When stable, release final version
-git add cmd/confd/version.go docs/installation.md
-git commit -m "chore: bump version to 0.40.0"
+# 4. When stable, release final version
 git tag -a v0.40.0 -m "v0.40.0"
 git push origin main v0.40.0
 ```

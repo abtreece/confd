@@ -23,9 +23,8 @@ docker pull ghcr.io/abtreece/confd:latest
 
 | Tag | Description |
 |-----|-------------|
-| `latest` | Latest stable release (not updated for RCs) |
+| `latest` | Latest stable release |
 | `v0.40.0` | Specific version |
-| `v0.40.0-rc.1` | Release candidate |
 | `v0.40.0-amd64` | Architecture-specific (amd64) |
 | `v0.40.0-arm64` | Architecture-specific (arm64) |
 
