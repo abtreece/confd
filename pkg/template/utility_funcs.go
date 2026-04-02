@@ -2,7 +2,9 @@ package template
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
+	"strings"
 )
 
 func utilityFuncMap() map[string]interface{} {
@@ -16,6 +18,11 @@ func utilityFuncMap() map[string]interface{} {
 	m["toJson"] = toJson
 	m["fromJson"] = fromJson
 	m["toPrettyJson"] = toPrettyJson
+	// Formatting
+	m["indent"] = indent
+	m["nindent"] = nindent
+	m["quote"] = quote
+	m["squote"] = squote
 	return m
 }
 
@@ -84,6 +91,30 @@ func toPrettyJson(val interface{}) (string, error) {
 		return "", err
 	}
 	return string(b), nil
+}
+
+// indent prepends each line of s with the given number of spaces.
+func indent(spaces int, s string) string {
+	if s == "" {
+		return ""
+	}
+	pad := strings.Repeat(" ", spaces)
+	return pad + strings.ReplaceAll(s, "\n", "\n"+pad)
+}
+
+// nindent is like indent but prepends a newline before the indented string.
+func nindent(spaces int, s string) string {
+	return "\n" + indent(spaces, s)
+}
+
+// quote wraps s in double quotes.
+func quote(s string) string {
+	return fmt.Sprintf("%q", s)
+}
+
+// squote wraps s in single quotes.
+func squote(s string) string {
+	return "'" + s + "'"
 }
 
 // coalesce returns the first non-empty value, or nil if all are empty.

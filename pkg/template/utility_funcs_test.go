@@ -259,3 +259,92 @@ func TestJsonRoundTrip(t *testing.T) {
 		t.Errorf("JSON round trip failed: got %v, want %v", result, original)
 	}
 }
+
+func TestIndent(t *testing.T) {
+	tests := []struct {
+		name     string
+		spaces   int
+		input    string
+		expected string
+	}{
+		{"simple", 4, "hello", "    hello"},
+		{"multiline", 2, "line1\nline2\nline3", "  line1\n  line2\n  line3"},
+		{"empty string", 4, "", ""},
+		{"zero spaces", 0, "hello", "hello"},
+		{"single newline", 2, "a\nb", "  a\n  b"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := indent(tt.spaces, tt.input)
+			if result != tt.expected {
+				t.Errorf("indent(%d, %q) = %q, want %q", tt.spaces, tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNindent(t *testing.T) {
+	tests := []struct {
+		name     string
+		spaces   int
+		input    string
+		expected string
+	}{
+		{"simple", 4, "hello", "\n    hello"},
+		{"multiline", 2, "a\nb", "\n  a\n  b"},
+		{"empty string", 4, "", "\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := nindent(tt.spaces, tt.input)
+			if result != tt.expected {
+				t.Errorf("nindent(%d, %q) = %q, want %q", tt.spaces, tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestQuote(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple", "hello", `"hello"`},
+		{"empty", "", `""`},
+		{"with spaces", "hello world", `"hello world"`},
+		{"with special chars", "line1\nline2", `"line1\nline2"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := quote(tt.input)
+			if result != tt.expected {
+				t.Errorf("quote(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSquote(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple", "hello", "'hello'"},
+		{"empty", "", "''"},
+		{"with spaces", "hello world", "'hello world'"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := squote(tt.input)
+			if result != tt.expected {
+				t.Errorf("squote(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
