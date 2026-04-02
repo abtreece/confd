@@ -2,7 +2,9 @@ package template
 
 import (
 	"reflect"
+	"strings"
 	"testing"
+	"text/template"
 )
 
 func TestIsEmpty(t *testing.T) {
@@ -784,5 +786,65 @@ func TestSha256sum(t *testing.T) {
 				t.Errorf("sha256sum(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestUtilityFuncsInTemplate(t *testing.T) {
+	tmplText := `{{- $d := default "fallback" "" -}}
+default: {{ $d }}
+ternary: {{ ternary "yes" "no" true }}
+coalesce: {{ coalesce "" nil "found" }}
+toJson: {{ toJson (list 1 2 3) }}
+indent: |
+{{ indent 4 "line1\nline2" }}
+quote: {{ quote "hello" }}
+squote: {{ squote "world" }}
+sha256: {{ sha256sum "test" }}
+hasKey: {{ hasKey (dict "a" 1) "a" }}
+regex: {{ regexMatch "^hello" "hello world" }}
+snake: {{ snakecase "HelloWorld" }}
+camel: {{ camelcase "hello_world" }}
+kebab: {{ kebabcase "HelloWorld" }}
+nospace: {{ nospace "a b c" }}
+repeat: {{ repeat 3 "ab" }}
+trimPrefix: {{ trimPrefix "Hello, World" "Hello, " }}
+empty_true: {{ empty "" }}
+empty_false: {{ empty "x" }}`
+
+	funcMap := newFuncMap()
+	tmpl, err := template.New("test").Funcs(template.FuncMap(funcMap)).Parse(tmplText)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, nil); err != nil {
+		t.Fatalf("execute error: %v", err)
+	}
+	output := buf.String()
+
+	checks := []string{
+		"default: fallback",
+		"ternary: yes",
+		"coalesce: found",
+		"toJson: [1,2,3]",
+		"    line1",
+		"    line2",
+		`quote: "hello"`,
+		"squote: 'world'",
+		"hasKey: true",
+		"regex: true",
+		"snake: hello_world",
+		"camel: helloWorld",
+		"kebab: hello-world",
+		"nospace: abc",
+		"repeat: ababab",
+		"trimPrefix: World",
+		"empty_true: true",
+		"empty_false: false",
+	}
+	for _, check := range checks {
+		if !strings.Contains(output, check) {
+			t.Errorf("output missing %q\nfull output:\n%s", check, output)
+		}
 	}
 }
