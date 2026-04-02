@@ -62,6 +62,8 @@ When a `[backend]` section is present, it overrides the global backend configure
 
 See the backend-specific documentation for additional options.
 
+When multiple template resources specify identical backend configurations, confd automatically shares a single connection via client caching. See [multi-backend.md](multi-backend.md) for architecture patterns and examples.
+
 ### Notes
 
 When using the `reload_cmd` feature it's important that the command exits on its own. The reload

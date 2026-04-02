@@ -244,16 +244,13 @@ confd --noop --diff --color etcd
 
 ## Documentation
 
-- [Quick Start Guide](docs/quick-start-guide.md)
-- [Installation](docs/installation.md)
-- [Docker](docs/docker.md)
-- [Command Line Flags](docs/command-line-flags.md)
-- [Configuration Guide](docs/configuration-guide.md)
-- [Template Resources](docs/template-resources.md)
-- [Template Functions](docs/templates.md)
-- [Service Deployment](docs/service-deployment.md)
-- [Logging](docs/logging.md)
-- [Architecture](docs/architecture.md)
+See the **[full documentation index](docs/README.md)** for all guides, organized by topic:
+
+- **Getting Started** — [Quick Start](docs/quick-start-guide.md), [Installation](docs/installation.md), [Docker](docs/docker.md)
+- **Configuration** — [Config Guide](docs/configuration-guide.md), [CLI Flags](docs/command-line-flags.md), [Template Resources](docs/template-resources.md), [Template Functions](docs/templates.md)
+- **Backends** — per-backend READMs, [Multi-Backend Architectures](docs/multi-backend.md), [DNS SRV Discovery](docs/dns-srv-records.md)
+- **Operating** — [Service Deployment](docs/service-deployment.md), [Logging](docs/logging.md), [Noop Mode](docs/noop-mode.md)
+- **Development** — [Dev Guide](docs/development.md), [Architecture](docs/architecture.md), [Contributing](CONTRIBUTING.md)
 
 ## Supported Backends
 

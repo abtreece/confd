@@ -53,17 +53,6 @@ Returns the KVPair where key matches its argument. Returns an error if key is no
 {{end}}
 ```
 
-### cget
-
-Returns the KVPair where key matches its argument and the value has been *encrypted*. Returns an error if key is not found.
-
-```
-{{with cget "/key"}}
-    key: {{.Key}}
-    value: {{.Value}}
-{{end}}
-```
-
 ### gets
 
 Returns all KVPair, []KVPair, where key matches its argument. Returns an error if key is not found.

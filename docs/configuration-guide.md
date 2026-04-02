@@ -21,9 +21,9 @@ Configuration is loaded from multiple sources in order of precedence (highest to
 * `interval` (int) - The backend polling interval in seconds. Default: `600`
 * `noop` (bool) - Enable noop mode. Process all template resources; skip target update. Default: `false`
 * `prefix` (string) - The string to prefix to keys. This prefix is concatenated with any prefix set in template resource files (e.g., global `production` + resource `myapp` = `/production/myapp`).
-* `sync_only` (bool) - Sync files without running check_cmd and reload_cmd. Default: `false`
+* `sync_only` (bool) - Write rendered templates to destination files but skip all `check_cmd` and `reload_cmd` execution. Useful when you want to update config files without triggering application reloads — for example, during initial provisioning before the application is running, or when an external orchestrator handles restarts. Default: `false`
 * `watch` (bool) - Enable watch support for backends that support it. Default: `false`
-* `keep_stage_file` (bool) - Keep staged files after processing (useful for debugging). Default: `false`
+* `keep_stage_file` (bool) - Preserve the staged (rendered) file after syncing to the destination. Stage files are created in the destination file's directory as a hidden dotfile (e.g., `.app.conf123456`). Normally, confd renders to this temporary file, compares it with the destination, and removes it after syncing. With this option, the staged file is copied rather than moved, leaving it in place for inspection. Useful for debugging template rendering issues. Default: `false`
 
 ## Logging Options
 

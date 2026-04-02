@@ -157,6 +157,7 @@ confd file --file myapp.yaml --watch
 
 - **Template Functions**: See [templates.md](templates.md) for available template functions
 - **Configuration**: See [configuration-guide.md](configuration-guide.md) for all configuration options
+- **Multi-Backend**: See [multi-backend.md](multi-backend.md) for using multiple backends (e.g., Consul + Vault)
 - **Backend Details**: Click the backend links above for authentication, advanced options, and examples
 
 ## Advanced Example
