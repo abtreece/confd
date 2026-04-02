@@ -71,6 +71,8 @@ func isEmpty(val interface{}) bool {
 		return v.Float() == 0
 	case reflect.Ptr, reflect.Interface:
 		return v.IsNil()
+	case reflect.Struct:
+		return v.IsZero()
 	default:
 		return false
 	}
@@ -123,6 +125,9 @@ func indent(spaces int, s string) string {
 	if s == "" {
 		return ""
 	}
+	if spaces < 0 {
+		spaces = 0
+	}
 	pad := strings.Repeat(" ", spaces)
 	return pad + strings.ReplaceAll(s, "\n", "\n"+pad)
 }
@@ -137,9 +142,9 @@ func quote(s string) string {
 	return fmt.Sprintf("%q", s)
 }
 
-// squote wraps s in single quotes.
+// squote wraps s in single quotes, escaping internal single quotes by doubling them.
 func squote(s string) string {
-	return "'" + s + "'"
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // regexMatch returns true if s matches the given regular expression pattern.
@@ -167,6 +172,9 @@ func regexReplaceAll(pattern, s, repl string) (string, error) {
 
 // repeat returns s repeated count times. Args are (count, s) for pipeline use.
 func repeat(count int, s string) string {
+	if count <= 0 {
+		return ""
+	}
 	return strings.Repeat(s, count)
 }
 
@@ -241,10 +249,15 @@ func camelcase(s string) string {
 		return ""
 	}
 	for i, w := range words {
+		lower := strings.ToLower(w)
 		if i == 0 {
-			words[i] = strings.ToLower(w)
+			words[i] = lower
 		} else {
-			words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
+			runes := []rune(lower)
+			if len(runes) > 0 {
+				runes[0] = unicode.ToUpper(runes[0])
+			}
+			words[i] = string(runes)
 		}
 	}
 	return strings.Join(words, "")

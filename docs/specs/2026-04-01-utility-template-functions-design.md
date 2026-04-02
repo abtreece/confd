@@ -125,7 +125,7 @@ No changes to `validate.go` required. `newValidationFuncMap()` calls `newFuncMap
 - `dict` returns error on odd argument count
 - `fromJson` returns error on malformed JSON
 - `toJson`/`toPrettyJson` return error on unmarshalable values
-- Collection functions that receive wrong types return zero values (not panics)
+- Collection functions (`hasKey`, `keys`, `values`) expect `map[string]interface{}`; passing nil or non-map values results in template execution errors
 
 ## Files Changed
 

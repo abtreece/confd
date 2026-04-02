@@ -31,7 +31,8 @@ func TestIsEmpty(t *testing.T) {
 		{"empty map", map[string]string{}, true},
 		{"non-empty map", map[string]string{"k": "v"}, false},
 		{"nil pointer", (*int)(nil), true},
-		{"struct", struct{}{}, false},
+		{"zero struct", struct{}{}, true},
+		{"non-zero struct", struct{ X int }{X: 1}, false},
 	}
 
 	for _, tt := range tests {
@@ -273,6 +274,7 @@ func TestIndent(t *testing.T) {
 		{"multiline", 2, "line1\nline2\nline3", "  line1\n  line2\n  line3"},
 		{"empty string", 4, "", ""},
 		{"zero spaces", 0, "hello", "hello"},
+		{"negative spaces", -1, "hello", "hello"},
 		{"single newline", 2, "a\nb", "  a\n  b"},
 	}
 
@@ -339,6 +341,8 @@ func TestSquote(t *testing.T) {
 		{"simple", "hello", "'hello'"},
 		{"empty", "", "''"},
 		{"with spaces", "hello world", "'hello world'"},
+		{"with single quote", "it's", "'it''s'"},
+		{"multiple quotes", "a'b'c", "'a''b''c'"},
 	}
 
 	for _, tt := range tests {
@@ -467,6 +471,7 @@ func TestRepeat(t *testing.T) {
 	}{
 		{"repeat 3", 3, "ab", "ababab"},
 		{"repeat 0", 0, "ab", ""},
+		{"repeat negative", -1, "ab", ""},
 		{"repeat 1", 1, "hello", "hello"},
 		{"empty string", 5, "", ""},
 	}
