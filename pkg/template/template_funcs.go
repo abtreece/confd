@@ -18,7 +18,8 @@ import (
 )
 
 func newFuncMap() map[string]interface{} {
-	m := make(map[string]interface{})
+	// Utility functions loaded as base layer; confd functions below override any conflicts.
+	m := utilityFuncMap()
 	m["base"] = path.Base
 	m["split"] = strings.Split
 	m["json"] = UnmarshalJsonObject
