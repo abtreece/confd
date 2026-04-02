@@ -50,6 +50,9 @@ func ArrayShift(array *[]string, position int, value string) {
 }
 
 // IsFileExist reports whether path exists and is accessible.
+// Returns false for any stat error, including permission denied.
+// Callers that need to distinguish not-found from not-accessible should
+// call os.Stat directly and inspect the error.
 func IsFileExist(fpath string) bool {
 	_, err := os.Stat(fpath)
 	return err == nil

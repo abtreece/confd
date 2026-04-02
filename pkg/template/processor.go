@@ -2,6 +2,7 @@ package template
 
 import (
 	"context"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -503,8 +504,8 @@ func (p *batchWatchProcessor) processBatch() {
 func getTemplateResources(config Config) ([]*TemplateResource, error) {
 	var lastError error
 	log.Debug("Loading template resources from confdir %s", config.ConfDir)
-	if !util.IsFileExist(config.ConfDir) {
-		log.Warning("Cannot load template resources: confdir '%s' does not exist", config.ConfDir)
+	if _, err := os.Stat(config.ConfDir); err != nil {
+		log.Warning("Cannot load template resources: confdir '%s': %v", config.ConfDir, err)
 		return nil, nil
 	}
 	paths, err := util.RecursiveFilesLookup(config.ConfigDir, "*toml")
