@@ -1,3 +1,14 @@
+### Unreleased
+
+* feat: Add 28 utility template functions (#272)
+  - Defaults & conditionals: `default`, `ternary`, `coalesce`, `empty`
+  - JSON: `toJson`, `fromJson`, `toPrettyJson`
+  - Formatting: `indent`, `nindent`, `quote`, `squote`
+  - Regex: `regexMatch`, `regexFind`, `regexReplaceAll`
+  - Strings: `trimPrefix`, `repeat`, `nospace`, `snakecase`, `camelcase`, `kebabcase`
+  - Collections: `dict`, `list`, `hasKey`, `keys`, `values`, `append`, `pluck`
+  - Hashing: `sha256sum`
+
 ### v0.40.0
 
 This release represents a significant evolution of confd with major architectural improvements, new features, and performance optimizations. The version jump from v0.33.0 to v0.40.0 reflects the scope of these changes.
