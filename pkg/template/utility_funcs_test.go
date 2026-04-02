@@ -604,3 +604,152 @@ func TestKebabcase(t *testing.T) {
 		})
 	}
 }
+
+func TestList(t *testing.T) {
+	tests := []struct {
+		name     string
+		vals     []interface{}
+		expected []interface{}
+	}{
+		{"multiple values", []interface{}{"a", 1, true}, []interface{}{"a", 1, true}},
+		{"empty", []interface{}{}, []interface{}{}},
+		{"single value", []interface{}{"only"}, []interface{}{"only"}},
+		{"nil values", []interface{}{nil, nil}, []interface{}{nil, nil}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := list(tt.vals...)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("list(%v) = %v, want %v", tt.vals, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestHasKey(t *testing.T) {
+	m := map[string]interface{}{"a": 1, "b": nil}
+
+	tests := []struct {
+		name     string
+		key      string
+		expected bool
+	}{
+		{"existing key", "a", true},
+		{"nil value key", "b", true},
+		{"missing key", "c", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasKey(m, tt.key)
+			if result != tt.expected {
+				t.Errorf("hasKey(m, %q) = %v, want %v", tt.key, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestKeys(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]interface{}
+		expected []string
+	}{
+		{
+			"sorted keys",
+			map[string]interface{}{"c": 3, "a": 1, "b": 2},
+			[]string{"a", "b", "c"},
+		},
+		{
+			"empty map",
+			map[string]interface{}{},
+			[]string{},
+		},
+		{
+			"single key",
+			map[string]interface{}{"only": 1},
+			[]string{"only"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := keys(tt.input)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("keys(%v) = %v, want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestValues(t *testing.T) {
+	t.Run("ordered by sorted keys", func(t *testing.T) {
+		m := map[string]interface{}{"c": 3, "a": 1, "b": 2}
+		expected := []interface{}{1, 2, 3}
+		result := values(m)
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("values(%v) = %v, want %v", m, result, expected)
+		}
+	})
+
+	t.Run("empty map", func(t *testing.T) {
+		m := map[string]interface{}{}
+		result := values(m)
+		if len(result) != 0 {
+			t.Errorf("values({}) = %v, want empty slice", result)
+		}
+	})
+}
+
+func TestAppendList(t *testing.T) {
+	tests := []struct {
+		name     string
+		list     []interface{}
+		val      interface{}
+		expected []interface{}
+	}{
+		{"append to list", []interface{}{"a", "b"}, "c", []interface{}{"a", "b", "c"}},
+		{"append to empty", []interface{}{}, "first", []interface{}{"first"}},
+		{"append nil", []interface{}{"a"}, nil, []interface{}{"a", nil}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := appendList(tt.list, tt.val)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("appendList(%v, %v) = %v, want %v", tt.list, tt.val, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPluck(t *testing.T) {
+	maps := []map[string]interface{}{
+		{"name": "Alice", "age": 30},
+		{"name": "Bob"},
+		{"age": 25},
+	}
+
+	t.Run("pluck existing key", func(t *testing.T) {
+		result := pluck("name", maps...)
+		expected := []interface{}{"Alice", "Bob"}
+		if !reflect.DeepEqual(result, expected) {
+			t.Errorf("pluck(\"name\", ...) = %v, want %v", result, expected)
+		}
+	})
+
+	t.Run("pluck missing key", func(t *testing.T) {
+		result := pluck("email", maps...)
+		if result != nil {
+			t.Errorf("pluck(\"email\", ...) = %v, want nil", result)
+		}
+	})
+
+	t.Run("pluck no maps", func(t *testing.T) {
+		result := pluck("name")
+		if result != nil {
+			t.Errorf("pluck(\"name\") = %v, want nil", result)
+		}
+	})
+}

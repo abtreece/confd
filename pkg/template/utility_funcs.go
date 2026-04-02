@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -36,6 +37,14 @@ func utilityFuncMap() map[string]interface{} {
 	m["snakecase"] = snakecase
 	m["camelcase"] = camelcase
 	m["kebabcase"] = kebabcase
+	// Collections
+	m["dict"] = CreateMap
+	m["list"] = list
+	m["hasKey"] = hasKey
+	m["keys"] = keys
+	m["values"] = values
+	m["append"] = appendList
+	m["pluck"] = pluck
 	return m
 }
 
@@ -248,6 +257,53 @@ func kebabcase(s string) string {
 		words[i] = strings.ToLower(w)
 	}
 	return strings.Join(words, "-")
+}
+
+// list creates a slice of interface{} from the given arguments.
+func list(vals ...interface{}) []interface{} {
+	return vals
+}
+
+// hasKey returns true if the map contains the given key.
+func hasKey(m map[string]interface{}, key string) bool {
+	_, ok := m[key]
+	return ok
+}
+
+// keys returns the sorted keys of a map.
+func keys(m map[string]interface{}) []string {
+	k := make([]string, 0, len(m))
+	for key := range m {
+		k = append(k, key)
+	}
+	sort.Strings(k)
+	return k
+}
+
+// values returns the values of a map, ordered by sorted keys.
+func values(m map[string]interface{}) []interface{} {
+	k := keys(m)
+	vals := make([]interface{}, len(k))
+	for i, key := range k {
+		vals[i] = m[key]
+	}
+	return vals
+}
+
+// appendList appends a value to a slice. Registered as "append" in the FuncMap.
+func appendList(l []interface{}, val interface{}) []interface{} {
+	return append(l, val)
+}
+
+// pluck extracts a key from each map and returns the collected values.
+func pluck(key string, maps ...map[string]interface{}) []interface{} {
+	var result []interface{}
+	for _, m := range maps {
+		if v, ok := m[key]; ok {
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 // coalesce returns the first non-empty value, or nil if all are empty.
