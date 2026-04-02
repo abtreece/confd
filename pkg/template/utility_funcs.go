@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 )
 
@@ -23,6 +24,10 @@ func utilityFuncMap() map[string]interface{} {
 	m["nindent"] = nindent
 	m["quote"] = quote
 	m["squote"] = squote
+	// Regex
+	m["regexMatch"] = regexMatch
+	m["regexFind"] = regexFind
+	m["regexReplaceAll"] = regexReplaceAll
 	return m
 }
 
@@ -115,6 +120,29 @@ func quote(s string) string {
 // squote wraps s in single quotes.
 func squote(s string) string {
 	return "'" + s + "'"
+}
+
+// regexMatch returns true if s matches the given regular expression pattern.
+func regexMatch(pattern, s string) (bool, error) {
+	return regexp.MatchString(pattern, s)
+}
+
+// regexFind returns the first match of pattern in s, or empty string if no match.
+func regexFind(pattern, s string) (string, error) {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return "", err
+	}
+	return re.FindString(s), nil
+}
+
+// regexReplaceAll replaces all matches of pattern in s with repl.
+func regexReplaceAll(pattern, s, repl string) (string, error) {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return "", err
+	}
+	return re.ReplaceAllString(s, repl), nil
 }
 
 // coalesce returns the first non-empty value, or nil if all are empty.

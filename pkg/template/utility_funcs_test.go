@@ -348,3 +348,110 @@ func TestSquote(t *testing.T) {
 		})
 	}
 }
+
+func TestRegexMatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		pattern     string
+		input       string
+		expected    bool
+		expectError bool
+	}{
+		{"simple match", `^hello`, "hello world", true, false},
+		{"no match", `^world`, "hello world", false, false},
+		{"full match", `^\d+$`, "12345", true, false},
+		{"empty pattern", ``, "anything", true, false},
+		{"empty string", `^$`, "", true, false},
+		{"invalid regex", `[invalid`, "", false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := regexMatch(tt.pattern, tt.input)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("regexMatch(%q, %q) expected error, got nil", tt.pattern, tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("regexMatch(%q, %q) unexpected error: %v", tt.pattern, tt.input, err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("regexMatch(%q, %q) = %v, want %v", tt.pattern, tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRegexFind(t *testing.T) {
+	tests := []struct {
+		name        string
+		pattern     string
+		input       string
+		expected    string
+		expectError bool
+	}{
+		{"find digits", `\d+`, "abc123def456", "123", false},
+		{"no match", `\d+`, "abcdef", "", false},
+		{"find word", `\w+`, "hello world", "hello", false},
+		{"empty pattern", ``, "anything", "", false},
+		{"invalid regex", `[invalid`, "", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := regexFind(tt.pattern, tt.input)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("regexFind(%q, %q) expected error, got nil", tt.pattern, tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("regexFind(%q, %q) unexpected error: %v", tt.pattern, tt.input, err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("regexFind(%q, %q) = %q, want %q", tt.pattern, tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRegexReplaceAll(t *testing.T) {
+	tests := []struct {
+		name        string
+		pattern     string
+		input       string
+		repl        string
+		expected    string
+		expectError bool
+	}{
+		{"replace digits", `\d+`, "abc123def456", "NUM", "abcNUMdefNUM", false},
+		{"no match", `\d+`, "abcdef", "NUM", "abcdef", false},
+		{"replace spaces", `\s+`, "hello  world", " ", "hello world", false},
+		{"empty replacement", `\d+`, "abc123", "", "abc", false},
+		{"invalid regex", `[invalid`, "input", "repl", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := regexReplaceAll(tt.pattern, tt.input, tt.repl)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("regexReplaceAll(%q, %q, %q) expected error, got nil", tt.pattern, tt.input, tt.repl)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("regexReplaceAll(%q, %q, %q) unexpected error: %v", tt.pattern, tt.input, tt.repl, err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("regexReplaceAll(%q, %q, %q) = %q, want %q", tt.pattern, tt.input, tt.repl, result, tt.expected)
+			}
+		})
+	}
+}
