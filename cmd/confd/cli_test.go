@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -846,5 +848,216 @@ func TestCLIEnvVarPrecedence(t *testing.T) {
 
 	if cli.Interval != 600 {
 		t.Errorf("CLI flag should override env var: expected 600, got %d", cli.Interval)
+	}
+}
+
+func makeCheckConfigCLI(t *testing.T) *CLI {
+	t.Helper()
+
+	confDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(confDir, "conf.d"), 0755); err != nil {
+		t.Fatalf("failed to create conf.d: %v", err)
+	}
+
+	return &CLI{
+		ConfDir:          confDir,
+		ConfigFile:       filepath.Join(confDir, "missing-confd.toml"),
+		CheckConfig:      true,
+		TemplateCache:    true,
+		StatCacheTTL:     DefaultStatCacheTTL,
+		DialTimeout:      DefaultDialTimeout,
+		ReadTimeout:      DefaultReadTimeout,
+		WriteTimeout:     DefaultWriteTimeout,
+		RetryMaxAttempts: DefaultRetryMaxAttempts,
+		RetryBaseDelay:   DefaultRetryBaseDelay,
+		RetryMaxDelay:    DefaultRetryMaxDelay,
+		FailureMode:      "best-effort",
+	}
+}
+
+func makeValidateCLI(t *testing.T) *CLI {
+	t.Helper()
+
+	confDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(confDir, "conf.d"), 0755); err != nil {
+		t.Fatalf("failed to create conf.d: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(confDir, "templates"), 0755); err != nil {
+		t.Fatalf("failed to create templates: %v", err)
+	}
+
+	return &CLI{
+		ConfDir:          confDir,
+		ConfigFile:       filepath.Join(confDir, "missing-confd.toml"),
+		Validate:         true,
+		TemplateCache:    true,
+		StatCacheTTL:     DefaultStatCacheTTL,
+		DialTimeout:      DefaultDialTimeout,
+		ReadTimeout:      DefaultReadTimeout,
+		WriteTimeout:     DefaultWriteTimeout,
+		RetryMaxAttempts: DefaultRetryMaxAttempts,
+		RetryBaseDelay:   DefaultRetryBaseDelay,
+		RetryMaxDelay:    DefaultRetryMaxDelay,
+		FailureMode:      "best-effort",
+	}
+}
+
+func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		run          func(*CLI) error
+		defaultNodes []string
+	}{
+		{
+			name: "consul",
+			run: func(cli *CLI) error {
+				cmd := &ConsulCmd{}
+				err := cmd.Run(cli)
+				if len(cmd.Node) != 1 || cmd.Node[0] != "127.0.0.1:8500" {
+					t.Fatalf("unexpected consul default nodes: %v", cmd.Node)
+				}
+				return err
+			},
+			defaultNodes: []string{"127.0.0.1:8500"},
+		},
+		{
+			name: "etcd",
+			run: func(cli *CLI) error {
+				cmd := &EtcdCmd{}
+				err := cmd.Run(cli)
+				if len(cmd.Node) != 1 || cmd.Node[0] != "http://127.0.0.1:2379" {
+					t.Fatalf("unexpected etcd default nodes: %v", cmd.Node)
+				}
+				return err
+			},
+			defaultNodes: []string{"http://127.0.0.1:2379"},
+		},
+		{
+			name: "vault",
+			run: func(cli *CLI) error {
+				cmd := &VaultCmd{}
+				err := cmd.Run(cli)
+				if len(cmd.Node) != 1 || cmd.Node[0] != "http://127.0.0.1:8200" {
+					t.Fatalf("unexpected vault default nodes: %v", cmd.Node)
+				}
+				return err
+			},
+			defaultNodes: []string{"http://127.0.0.1:8200"},
+		},
+		{
+			name: "redis",
+			run: func(cli *CLI) error {
+				cmd := &RedisCmd{}
+				err := cmd.Run(cli)
+				if len(cmd.Node) != 1 || cmd.Node[0] != "127.0.0.1:6379" {
+					t.Fatalf("unexpected redis default nodes: %v", cmd.Node)
+				}
+				return err
+			},
+			defaultNodes: []string{"127.0.0.1:6379"},
+		},
+		{
+			name: "zookeeper",
+			run: func(cli *CLI) error {
+				cmd := &ZookeeperCmd{}
+				err := cmd.Run(cli)
+				if len(cmd.Node) != 1 || cmd.Node[0] != "127.0.0.1:2181" {
+					t.Fatalf("unexpected zookeeper default nodes: %v", cmd.Node)
+				}
+				return err
+			},
+			defaultNodes: []string{"127.0.0.1:2181"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cli := makeCheckConfigCLI(t)
+			if err := tt.run(cli); err != nil {
+				t.Fatalf("Run() returned error: %v", err)
+			}
+		})
+	}
+}
+
+func TestAdditionalRunMethods_WithValidateMode(t *testing.T) {
+	cli := makeValidateCLI(t)
+
+	if err := (&EnvCmd{}).Run(cli); err != nil {
+		t.Fatalf("env Run() returned error: %v", err)
+	}
+
+	fileCmd := &FileCmd{
+		File:   []string{"test.yaml"},
+		Filter: "*.yaml",
+	}
+	if err := fileCmd.Run(cli); err != nil {
+		t.Fatalf("file Run() returned error: %v", err)
+	}
+
+	secretsCmd := &SecretsManagerCmd{
+		VersionStage: "AWSCURRENT",
+		NoFlatten:    true,
+	}
+	if err := secretsCmd.Run(cli); err != nil {
+		t.Fatalf("secretsmanager Run() returned error: %v", err)
+	}
+
+	acmCmd := &ACMCmd{ExportPrivateKey: true}
+	if err := acmCmd.Run(cli); err != nil {
+		t.Fatalf("acm Run() returned error: %v", err)
+	}
+
+	ssmCmd := &SSMCmd{}
+	if err := ssmCmd.Run(cli); err != nil {
+		t.Fatalf("ssm Run() returned error: %v", err)
+	}
+
+	dynamoCmd := &DynamoDBCmd{Table: "test-table"}
+	if err := dynamoCmd.Run(cli); err != nil {
+		t.Fatalf("dynamodb Run() returned error: %v", err)
+	}
+}
+
+func TestIMDSCmdRun(t *testing.T) {
+	t.Run("watch mode unsupported", func(t *testing.T) {
+		cli := makeCheckConfigCLI(t)
+		cli.Watch = true
+		cmd := &IMDSCmd{CacheTTL: "60s"}
+		err := cmd.Run(cli)
+		if err == nil || err.Error() != "watch mode not supported for imds backend" {
+			t.Fatalf("expected watch mode error, got %v", err)
+		}
+	})
+
+	t.Run("invalid cache ttl", func(t *testing.T) {
+		cli := makeCheckConfigCLI(t)
+		cmd := &IMDSCmd{CacheTTL: "bad-duration"}
+		err := cmd.Run(cli)
+		if err == nil {
+			t.Fatal("expected error for invalid cache ttl, got nil")
+		}
+		if !strings.Contains(err.Error(), "invalid imds-cache-ttl") {
+			t.Fatalf("expected invalid ttl error, got %v", err)
+		}
+	})
+
+	t.Run("valid cache ttl with check config", func(t *testing.T) {
+		cli := makeCheckConfigCLI(t)
+		cmd := &IMDSCmd{CacheTTL: "90s"}
+		if err := cmd.Run(cli); err != nil {
+			t.Fatalf("Run() returned error: %v", err)
+		}
+	})
+}
+
+func TestGetBackendNodesFromSRV_Error(t *testing.T) {
+	record := fmt.Sprintf("_confd-test._tcp.%d.invalid.", time.Now().UnixNano())
+	nodes, err := getBackendNodesFromSRV(record)
+	if err == nil {
+		t.Fatalf("expected error for invalid SRV record, got nil with nodes=%v", nodes)
+	}
+	if len(nodes) != 0 {
+		t.Fatalf("expected no nodes on lookup error, got %v", nodes)
 	}
 }
