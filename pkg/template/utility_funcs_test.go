@@ -455,3 +455,152 @@ func TestRegexReplaceAll(t *testing.T) {
 		})
 	}
 }
+
+func TestRepeat(t *testing.T) {
+	tests := []struct {
+		name     string
+		count    int
+		input    string
+		expected string
+	}{
+		{"repeat 3", 3, "ab", "ababab"},
+		{"repeat 0", 0, "ab", ""},
+		{"repeat 1", 1, "hello", "hello"},
+		{"empty string", 5, "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := repeat(tt.count, tt.input)
+			if result != tt.expected {
+				t.Errorf("repeat(%d, %q) = %q, want %q", tt.count, tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNospace(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"spaces", "hello world", "helloworld"},
+		{"tabs", "hello\tworld", "helloworld"},
+		{"newlines", "hello\nworld", "helloworld"},
+		{"mixed whitespace", " hello \t world \n ", "helloworld"},
+		{"no whitespace", "helloworld", "helloworld"},
+		{"empty string", "", ""},
+		{"only whitespace", "   ", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := nospace(tt.input)
+			if result != tt.expected {
+				t.Errorf("nospace(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSplitWords(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"camelCase", "helloWorld", []string{"hello", "World"}},
+		{"PascalCase", "HelloWorld", []string{"Hello", "World"}},
+		{"snake_case", "hello_world", []string{"hello", "world"}},
+		{"kebab-case", "hello-world", []string{"hello", "world"}},
+		{"consecutive upper", "HTTPServer", []string{"HTTP", "Server"}},
+		{"single word", "hello", []string{"hello"}},
+		{"empty", "", nil},
+		{"spaces", "hello world", []string{"hello", "world"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := splitWords(tt.input)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("splitWords(%q) = %v, want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSnakecase(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"PascalCase", "HelloWorld", "hello_world"},
+		{"camelCase", "helloWorld", "hello_world"},
+		{"snake_case", "hello_world", "hello_world"},
+		{"kebab-case", "hello-world", "hello_world"},
+		{"consecutive upper", "HTTPServer", "http_server"},
+		{"single word", "hello", "hello"},
+		{"empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := snakecase(tt.input)
+			if result != tt.expected {
+				t.Errorf("snakecase(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCamelcase(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"PascalCase", "HelloWorld", "helloWorld"},
+		{"camelCase", "helloWorld", "helloWorld"},
+		{"snake_case", "hello_world", "helloWorld"},
+		{"kebab-case", "hello-world", "helloWorld"},
+		{"consecutive upper", "HTTPServer", "httpServer"},
+		{"single word", "hello", "hello"},
+		{"empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := camelcase(tt.input)
+			if result != tt.expected {
+				t.Errorf("camelcase(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestKebabcase(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"PascalCase", "HelloWorld", "hello-world"},
+		{"camelCase", "helloWorld", "hello-world"},
+		{"snake_case", "hello_world", "hello-world"},
+		{"kebab-case", "hello-world", "hello-world"},
+		{"consecutive upper", "HTTPServer", "http-server"},
+		{"single word", "hello", "hello"},
+		{"empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := kebabcase(tt.input)
+			if result != tt.expected {
+				t.Errorf("kebabcase(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}

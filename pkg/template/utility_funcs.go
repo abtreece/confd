@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 func utilityFuncMap() map[string]interface{} {
@@ -28,6 +29,13 @@ func utilityFuncMap() map[string]interface{} {
 	m["regexMatch"] = regexMatch
 	m["regexFind"] = regexFind
 	m["regexReplaceAll"] = regexReplaceAll
+	// Strings
+	m["trimPrefix"] = strings.TrimPrefix
+	m["repeat"] = repeat
+	m["nospace"] = nospace
+	m["snakecase"] = snakecase
+	m["camelcase"] = camelcase
+	m["kebabcase"] = kebabcase
 	return m
 }
 
@@ -143,6 +151,103 @@ func regexReplaceAll(pattern, s, repl string) (string, error) {
 		return "", err
 	}
 	return re.ReplaceAllString(s, repl), nil
+}
+
+// repeat returns s repeated count times. Args are (count, s) for pipeline use.
+func repeat(count int, s string) string {
+	return strings.Repeat(s, count)
+}
+
+// nospace removes all whitespace from s.
+func nospace(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// splitWords splits a string into words on uppercase boundaries, underscores,
+// hyphens, and spaces.
+func splitWords(s string) []string {
+	if s == "" {
+		return nil
+	}
+	runes := []rune(s)
+	var words []string
+	var current []rune
+
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r == '_' || r == '-' || r == ' ' {
+			if len(current) > 0 {
+				words = append(words, string(current))
+				current = nil
+			}
+			continue
+		}
+		if unicode.IsUpper(r) {
+			// Check if this starts a new word
+			if len(current) > 0 {
+				// If next char is lowercase, split before this uppercase
+				// (handles "HTTPServer" -> "HTTP", "Server")
+				if i+1 < len(runes) && unicode.IsLower(runes[i+1]) {
+					words = append(words, string(current))
+					current = nil
+				} else if !unicode.IsUpper(runes[i-1]) {
+					// Previous was lowercase, start new word
+					words = append(words, string(current))
+					current = nil
+				}
+			}
+		}
+		current = append(current, r)
+	}
+	if len(current) > 0 {
+		words = append(words, string(current))
+	}
+	return words
+}
+
+// snakecase converts a string to snake_case.
+func snakecase(s string) string {
+	words := splitWords(s)
+	if len(words) == 0 {
+		return ""
+	}
+	for i, w := range words {
+		words[i] = strings.ToLower(w)
+	}
+	return strings.Join(words, "_")
+}
+
+// camelcase converts a string to camelCase.
+func camelcase(s string) string {
+	words := splitWords(s)
+	if len(words) == 0 {
+		return ""
+	}
+	for i, w := range words {
+		if i == 0 {
+			words[i] = strings.ToLower(w)
+		} else {
+			words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
+		}
+	}
+	return strings.Join(words, "")
+}
+
+// kebabcase converts a string to kebab-case.
+func kebabcase(s string) string {
+	words := splitWords(s)
+	if len(words) == 0 {
+		return ""
+	}
+	for i, w := range words {
+		words[i] = strings.ToLower(w)
+	}
+	return strings.Join(words, "-")
 }
 
 // coalesce returns the first non-empty value, or nil if all are empty.
