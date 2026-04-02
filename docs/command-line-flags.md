@@ -310,15 +310,46 @@ confd --preflight consul --node 127.0.0.1:8500
 
 ### --validate
 
-Validates template syntax without processing. Can be combined with `--mock-data` to test template rendering:
+Validates template syntax without processing. No backend connection is required — confd uses stub functions that return empty values for `getv`, `gets`, `ls`, etc.
 
 ```bash
 # Syntax check only
 confd --validate consul
 
-# With mock data for full validation
-confd --validate --mock-data /path/to/mock.json consul
+# Validate a specific resource file
+confd --validate --resource nginx.toml consul
 ```
+
+### --mock-data
+
+Provides a JSON file to test template execution during `--validate`. The JSON object is passed as Go's template dot context (`.`), so templates access it via `{{ .key }}` syntax. This is useful for templates that receive data via `include` or use the dot context directly.
+
+Note: confd's store functions (`getv`, `gets`, etc.) still use stubs during validation. Mock data does not populate the store — it populates the template's dot context.
+
+```bash
+confd --validate --mock-data mock.json consul
+```
+
+**Mock data format** — a flat or nested JSON object:
+
+```json
+{
+  "name": "myapp",
+  "port": 8080,
+  "features": ["auth", "logging"]
+}
+```
+
+**Template using mock data:**
+
+```
+{
+  "app_name": "{{ .name }}",
+  "listen_port": {{ .port }}
+}
+```
+
+When combined with `output_format = "json"` in the template resource, this also validates that the rendered output is valid JSON.
 
 ### --resource
 
@@ -328,6 +359,36 @@ Validates a specific resource file instead of all resources:
 confd --check-config --resource nginx.toml consul
 confd --validate --resource nginx.toml consul
 ```
+
+## Operational Mode Flags
+
+### --sync-only
+
+Writes rendered templates to destination files but skips all `check_cmd` and `reload_cmd` execution. The template is still rendered, compared, and synced — only the commands are suppressed.
+
+Use cases:
+- **Initial provisioning**: Lay down config files before the application is installed or running
+- **External orchestration**: When a separate tool (systemd, Kubernetes, etc.) handles service restarts
+- **Bulk updates**: Update many config files without triggering cascading reloads
+
+```bash
+# Write all configs without restarting services
+confd --sync-only etcd --onetime
+```
+
+### --keep-stage-file
+
+Preserves the staged (rendered) template file in `/tmp` after syncing to the destination. Normally, confd renders to a temporary file, compares it with the destination, and removes the temp file. With this flag, the staged file is copied (not moved) so it remains for inspection.
+
+```bash
+confd --keep-stage-file etcd --onetime
+ls /tmp/confd-*  # Examine rendered output before sync
+```
+
+This is useful for debugging when:
+- Template output doesn't match expectations
+- You want to inspect the rendered result without affecting the destination
+- Diagnosing file permission or ownership issues
 
 ## Dry-Run and Diff Flags
 
@@ -383,6 +444,16 @@ Configure timeouts for various operations:
 | `--preflight-timeout` | Timeout for preflight checks | `10s` |
 | `--watch-error-backoff` | Backoff duration after watch errors | `2s` |
 | `--shutdown-timeout` | Graceful shutdown timeout | `30s` |
+
+### --watch-error-backoff
+
+When running in `--watch` mode, confd maintains a persistent watch connection to the backend. If `WatchPrefix` returns an error — due to network issues, backend restarts, authentication expiry, or connection timeouts — confd sleeps for this duration before retrying. This prevents tight error loops from overwhelming the backend or consuming excessive CPU during outages.
+
+The default of `2s` is appropriate for most deployments. Increase it if your backend has slow recovery (e.g., Vault unsealing) or if you want to reduce retry pressure during extended outages:
+
+```bash
+confd --watch --watch-error-backoff 5s consul
+```
 
 ### Example: Production timeout configuration
 
