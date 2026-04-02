@@ -1,6 +1,7 @@
 package template
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -45,6 +46,8 @@ func utilityFuncMap() map[string]interface{} {
 	m["values"] = values
 	m["append"] = appendList
 	m["pluck"] = pluck
+	// Hashing
+	m["sha256sum"] = sha256sum
 	return m
 }
 
@@ -304,6 +307,12 @@ func pluck(key string, maps ...map[string]interface{}) []interface{} {
 		}
 	}
 	return result
+}
+
+// sha256sum returns the SHA-256 hex digest of s.
+func sha256sum(s string) string {
+	hash := sha256.Sum256([]byte(s))
+	return fmt.Sprintf("%x", hash)
 }
 
 // coalesce returns the first non-empty value, or nil if all are empty.

@@ -753,3 +753,36 @@ func TestPluck(t *testing.T) {
 		}
 	})
 }
+
+func TestSha256sum(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"hello",
+			"hello",
+			"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+		},
+		{
+			"empty string",
+			"",
+			"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		},
+		{
+			"hello world",
+			"hello world",
+			"b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sha256sum(tt.input)
+			if result != tt.expected {
+				t.Errorf("sha256sum(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
