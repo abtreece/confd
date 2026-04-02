@@ -1,62 +1,3 @@
-### v0.40.0-rc.2
-
-Release candidate for v0.40.0 with Linux packaging and critical bug fixes.
-
-**New Features**:
-
-* feat(packaging): Add RPM and DEB package support via nFPM (#520)
-  - Systemd service with security hardening
-  - Environment file configuration (`/etc/default/confd` or `/etc/sysconfig/confd`)
-  - Packages for amd64, arm64, and armv7 architectures
-* feat(cli): Add comprehensive environment variable support (#516)
-
-**Bug Fixes**:
-
-* fix: Address high severity bugs - goroutine leaks, FD leaks, data races (#493, #494, #496, #497)
-* fix: File backend wildcard keys filtered out (#498)
-* fix: Preflight now uses per-resource backend for key checks (#495)
-* fix(redis): Support multiple prefixes in WatchPrefix (#510)
-* fix(imds): Close response body in HealthCheck and New (#511)
-* fix(imds): Avoid trailing slash in user-data cache key (#500)
-* fix(backends): Respect context cancellation in WatchPrefix stubs (#512)
-* fix(template): Use atomic.Bool for reloadRequested to prevent data race (#504)
-* fix(template): Reduce backend fetch log verbosity (#506)
-* fix(config): Return error for invalid duration values in confd.toml (#505)
-* fix(zookeeper): Propagate errors from recursive nodeWalk calls (#499)
-
-**Testing**:
-
-* test(template): Add integration tests for watch reconnection after backend failures (#519)
-* Complete E2E test migration to Go testcontainers framework (#464-476)
-
-**Documentation**:
-
-* docs: Add Linux package installation instructions
-* docs: Update service deployment guide with package-based setup
-
-Install via packages:
-```bash
-# Debian/Ubuntu
-curl -LO https://github.com/abtreece/confd/releases/download/v0.40.0-rc.2/confd_0.40.0-rc.2_linux_amd64.deb
-sudo dpkg -i confd_0.40.0-rc.2_linux_amd64.deb
-
-# RHEL/Fedora
-curl -LO https://github.com/abtreece/confd/releases/download/v0.40.0-rc.2/confd-0.40.0.rc.2-1.x86_64.rpm
-sudo rpm -i confd-0.40.0.rc.2-1.x86_64.rpm
-```
-
-### v0.40.0-rc.1
-
-Release candidate for v0.40.0 with Docker container support.
-
-**New in this RC**:
-
-* feat: Add official Docker images published to Docker Hub and GHCR
-* feat: Multi-architecture support (linux/amd64, linux/arm64)
-* feat: Add workflow_dispatch for manual release triggers
-
-Docker images: `abtreece/confd:v0.40.0-rc.1` or `ghcr.io/abtreece/confd:v0.40.0-rc.1`
-
 ### v0.40.0
 
 This release represents a significant evolution of confd with major architectural improvements, new features, and performance optimizations. The version jump from v0.33.0 to v0.40.0 reflects the scope of these changes.
@@ -83,6 +24,10 @@ This release represents a significant evolution of confd with major architectura
 * feat: Add per-resource backend configuration support (#359)
 * feat: Add configuration validation, template enhancements, and watch mode improvements (#360)
 * feat(redis): Implement exponential backoff for connection retries (#405)
+* feat: Add official Docker images published to Docker Hub and GHCR (#463)
+* feat: Multi-architecture Docker support (linux/amd64, linux/arm64)
+* feat(packaging): Add RPM and DEB package support via nFPM (#520)
+* feat(cli): Add comprehensive environment variable support (#516)
 
 **Performance Improvements**:
 
@@ -97,10 +42,21 @@ This release represents a significant evolution of confd with major architectura
 
 **Bug Fixes**:
 
+* fix: Address high severity bugs - goroutine leaks, FD leaks, data races (#493, #494, #496, #497)
+* fix: File backend wildcard keys filtered out (#498)
+* fix: Preflight now uses per-resource backend for key checks (#495)
+* fix: Inject version from git tag at build time (#522)
+* fix(redis): Support multiple prefixes in WatchPrefix (#510)
+* fix(imds): Close response body in HealthCheck and New (#511)
+* fix(imds): Avoid trailing slash in user-data cache key (#500)
+* fix(backends): Respect context cancellation in WatchPrefix stubs (#512)
+* fix(template): Use atomic.Bool for reloadRequested to prevent data race (#504)
+* fix(template): Reduce backend fetch log verbosity (#506)
+* fix(config): Return error for invalid duration values in confd.toml (#505)
+* fix(zookeeper): Propagate errors from recursive nodeWalk calls (#499)
 * fix: Exclude timeout fields from client cache hash (#455)
 * fix(vault): Improve flatten() function type safety (#433)
 * fix(redis): Add automatic reconnection for PubSub watch mode (#408)
-* fix: Improve code quality and fix potential issues (#380)
 
 **Refactoring**:
 
@@ -113,6 +69,8 @@ This release represents a significant evolution of confd with major architectura
 
 **Testing**:
 
+* Complete E2E test migration to Go testcontainers framework (#464-476)
+* test(template): Add integration tests for watch reconnection after backend failures (#519)
 * Comprehensive integration test suite reorganized into categorical structure (#432)
 * Test coverage improved significantly across all backends
 * Added integration tests for health, metrics, failure modes, includes, and signals (#430)
