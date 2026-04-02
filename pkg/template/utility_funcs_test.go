@@ -117,3 +117,145 @@ func TestCoalesce(t *testing.T) {
 		})
 	}
 }
+
+func TestToJson(t *testing.T) {
+	tests := []struct {
+		name        string
+		val         interface{}
+		expected    string
+		expectError bool
+	}{
+		{"string", "hello", `"hello"`, false},
+		{"int", 42, "42", false},
+		{"map", map[string]string{"a": "b"}, `{"a":"b"}`, false},
+		{"slice", []int{1, 2, 3}, "[1,2,3]", false},
+		{"nil", nil, "null", false},
+		{"bool", true, "true", false},
+		{"unmarshalable", make(chan int), "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := toJson(tt.val)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("toJson(%v) expected error, got nil", tt.val)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("toJson(%v) unexpected error: %v", tt.val, err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("toJson(%v) = %s, want %s", tt.val, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFromJson(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    interface{}
+		expectError bool
+	}{
+		{"object", `{"key":"value"}`, map[string]interface{}{"key": "value"}, false},
+		{"array", `[1,2,3]`, []interface{}{float64(1), float64(2), float64(3)}, false},
+		{"string", `"hello"`, "hello", false},
+		{"number", `42`, float64(42), false},
+		{"bool", `true`, true, false},
+		{"null", `null`, nil, false},
+		{"invalid json", `{invalid}`, nil, true},
+		{"empty string", ``, nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := fromJson(tt.input)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("fromJson(%s) expected error, got nil", tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("fromJson(%s) unexpected error: %v", tt.input, err)
+				return
+			}
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("fromJson(%s) = %v, want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestToPrettyJson(t *testing.T) {
+	tests := []struct {
+		name        string
+		val         interface{}
+		expected    string
+		expectError bool
+	}{
+		{
+			"simple map",
+			map[string]string{"key": "value"},
+			"{\n  \"key\": \"value\"\n}",
+			false,
+		},
+		{
+			"nil",
+			nil,
+			"null",
+			false,
+		},
+		{
+			"unmarshalable",
+			make(chan int),
+			"",
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := toPrettyJson(tt.val)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("toPrettyJson(%v) expected error, got nil", tt.val)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("toPrettyJson(%v) unexpected error: %v", tt.val, err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("toPrettyJson(%v) = %s, want %s", tt.val, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestJsonRoundTrip(t *testing.T) {
+	original := map[string]interface{}{
+		"name":   "test",
+		"count":  float64(42),
+		"active": true,
+	}
+
+	jsonStr, err := toJson(original)
+	if err != nil {
+		t.Fatalf("toJson error: %v", err)
+	}
+
+	result, err := fromJson(jsonStr)
+	if err != nil {
+		t.Fatalf("fromJson error: %v", err)
+	}
+
+	if !reflect.DeepEqual(result, original) {
+		t.Errorf("JSON round trip failed: got %v, want %v", result, original)
+	}
+}

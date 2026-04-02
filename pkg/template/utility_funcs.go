@@ -1,6 +1,7 @@
 package template
 
 import (
+	"encoding/json"
 	"reflect"
 )
 
@@ -11,6 +12,10 @@ func utilityFuncMap() map[string]interface{} {
 	m["ternary"] = ternary
 	m["coalesce"] = coalesce
 	m["empty"] = isEmpty
+	// JSON
+	m["toJson"] = toJson
+	m["fromJson"] = fromJson
+	m["toPrettyJson"] = toPrettyJson
 	return m
 }
 
@@ -54,6 +59,31 @@ func ternary(trueVal, falseVal interface{}, condition bool) interface{} {
 		return trueVal
 	}
 	return falseVal
+}
+
+// toJson marshals val to a JSON string.
+func toJson(val interface{}) (string, error) {
+	b, err := json.Marshal(val)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// fromJson unmarshals a JSON string into an interface{}.
+func fromJson(s string) (interface{}, error) {
+	var result interface{}
+	err := json.Unmarshal([]byte(s), &result)
+	return result, err
+}
+
+// toPrettyJson marshals val to a pretty-printed JSON string with 2-space indent.
+func toPrettyJson(val interface{}) (string, error) {
+	b, err := json.MarshalIndent(val, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 // coalesce returns the first non-empty value, or nil if all are empty.
