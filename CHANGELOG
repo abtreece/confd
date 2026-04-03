@@ -1,5 +1,8 @@
 ### Unreleased
 
+* perf: Cache template resources across interval cycles — eliminates per-tick filesystem walk, TOML parse, and TemplateResource construction in intervalProcessor; resources loaded once at startup, reloaded only on SIGHUP (#553)
+* perf: Replace time.After with time.NewTicker in intervalProcessor — avoids per-tick timer allocation and timer goroutine leak on shutdown (#553)
+
 * feat: Add 28 utility template functions (#272)
   - Defaults & conditionals: `default`, `ternary`, `coalesce`, `empty`
   - JSON: `toJson`, `fromJson`, `toPrettyJson`
