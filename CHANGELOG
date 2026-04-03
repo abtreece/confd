@@ -1,5 +1,7 @@
 ### Unreleased
 
+* fix: Close cached per-resource backend clients on shutdown — prevents connection/resource leaks when template resources override the global backend; lock is released before Close() to prevent deadlock (#564)
+
 * perf: Cache template resources across interval cycles — eliminates per-tick filesystem walk, TOML parse, and TemplateResource construction in intervalProcessor; resources loaded once at startup, reloaded only on SIGHUP (#553)
 * perf: Replace time.After with time.NewTicker in intervalProcessor — avoids per-tick timer allocation and timer goroutine leak on shutdown (#553)
 
