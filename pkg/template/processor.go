@@ -85,16 +85,19 @@ func (p *intervalProcessor) Process() {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	for {
-		ts, err := getTemplateResources(p.config)
-		if err != nil {
-			if len(ts) == 0 {
-				log.Error("Failed to load any template resources: %s", err.Error())
-				p.errChan <- err
-				return
-			}
-			log.Warning("Some template resources failed to load: %s", err.Error())
+
+	// Load template resources once at startup. Only reload on SIGHUP (reloadChan).
+	ts, err := getTemplateResources(p.config)
+	if err != nil {
+		if len(ts) == 0 {
+			log.Error("Failed to load any template resources: %s", err.Error())
+			p.errChan <- err
+			return
 		}
+		log.Warning("Some template resources failed to load: %s", err.Error())
+	}
+
+	for {
 		process(ts, p.config.FailureMode)
 		select {
 		case <-ctx.Done():
@@ -104,10 +107,16 @@ func (p *intervalProcessor) Process() {
 			return
 		case <-p.reloadChan:
 			log.Info("Reloading template resources (interval processor)")
-			// Re-load templates from conf.d/ on next iteration
-			continue
+			ts, err = getTemplateResources(p.config)
+			if err != nil {
+				if len(ts) == 0 {
+					log.Error("Failed to load any template resources: %s", err.Error())
+					p.errChan <- err
+					return
+				}
+				log.Warning("Some template resources failed to load: %s", err.Error())
+			}
 		case <-time.After(time.Duration(p.interval) * time.Second):
-			continue
 		}
 	}
 }

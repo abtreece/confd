@@ -1218,3 +1218,74 @@ prefix = "/"
 	}
 }
 
+// TestIntervalProcessor_CachesResourcesAcrossTicks verifies that intervalProcessor
+// does NOT re-walk confdir on every tick and DOES re-walk on reload.
+func TestIntervalProcessor_CachesResourcesAcrossTicks(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	env := newProcessorTestEnv(t)
+
+	// Template 1: present at startup
+	env.writeTemplate("app.tmpl", `value={{ getv "/app/key" "default" }}`)
+	env.writeConfig("app.toml", fmt.Sprintf(`[template]
+src = "app.tmpl"
+dest = "%s"
+keys = ["/app/key"]
+`, env.destPath("app.conf")))
+
+	env.writeData("app.yaml", "/app/key: hello")
+
+	config := env.createConfig(ctx)
+	config.FailureMode = FailModeBestEffort
+
+	stopChan := make(chan bool)
+	doneChan := make(chan bool)
+	errChan := make(chan error, testErrorChannelBuffer)
+	reloadChan := make(chan struct{}, 1)
+
+	// Fast interval so the test doesn't take long
+	const tickInterval = 1
+
+	processor := IntervalProcessor(config, stopChan, doneChan, errChan, tickInterval, reloadChan)
+	go processor.Process()
+
+	// Wait for the first tick to process app.conf.
+	// waitForFile is a package-level helper in this file; pass "" for expectedContent
+	// to check existence only.
+	if err := waitForFile(t, env.destPath("app.conf"), 3*time.Second, ""); err != nil {
+		t.Fatal("app.conf should be written on first tick:", err)
+	}
+
+	// Add a second template AFTER the processor has started
+	env.writeTemplate("extra.tmpl", `extra={{ getv "/extra/key" "none" }}`)
+	env.writeConfig("extra.toml", fmt.Sprintf(`[template]
+src = "extra.tmpl"
+dest = "%s"
+keys = ["/extra/key"]
+`, env.destPath("extra.conf")))
+	env.writeData("extra.yaml", "/extra/key: world")
+
+	// Wait 3 ticks — extra.conf should NOT appear (resources are cached)
+	time.Sleep(time.Duration(tickInterval)*time.Second*3 + 200*time.Millisecond)
+	_, statErr := os.Stat(env.destPath("extra.conf"))
+	if !os.IsNotExist(statErr) {
+		t.Fatal("extra.conf must not exist before reload — resources should be cached")
+	}
+
+	// Send reload signal; extra.conf SHOULD appear now
+	reloadChan <- struct{}{}
+
+	if err := waitForFile(t, env.destPath("extra.conf"), 3*time.Second, ""); err != nil {
+		t.Fatal("extra.conf should be written after reload:", err)
+	}
+
+	// Shutdown
+	close(stopChan)
+	select {
+	case <-doneChan:
+	case <-time.After(testShutdownTimeout):
+		t.Error("processor did not shut down in time")
+	}
+}
+
