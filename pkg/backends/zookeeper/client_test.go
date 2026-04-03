@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	zk "github.com/go-zookeeper/zk"
 )
@@ -562,6 +563,31 @@ func TestGetValues_RecursiveError(t *testing.T) {
 	_, err := client.GetValues(context.Background(), []string{"/app"})
 	if err != expectedErr {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
+	}
+}
+
+func TestGetValues_ContextCancellation(t *testing.T) {
+	blockCh := make(chan struct{})
+	mock := &mockZkConn{
+		existsFunc: func(path string) (bool, *zk.Stat, error) {
+			<-blockCh // blocks until closed, simulating a slow ZK server
+			return true, &zk.Stat{}, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &Client{client: mock}
+
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+
+	_, err := client.GetValues(ctx, []string{"/app/key"})
+	close(blockCh) // unblock the goroutine so it can exit
+
+	if err != context.Canceled {
+		t.Errorf("GetValues() with cancelled context error = %v, want context.Canceled", err)
 	}
 }
 

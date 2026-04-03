@@ -514,43 +514,43 @@ func TestNew_MissingAuthType(t *testing.T) {
 
 // mockVaultLogical implements the vaultLogical interface for testing
 type mockVaultLogical struct {
-	listFunc    func(path string) (*vaultapi.Secret, error)
-	readFunc    func(path string) (*vaultapi.Secret, error)
-	readRawFunc func(path string) (*vaultapi.Response, error)
-	writeFunc   func(path string, data map[string]interface{}) (*vaultapi.Secret, error)
+	listFunc    func(ctx context.Context, path string) (*vaultapi.Secret, error)
+	readFunc    func(ctx context.Context, path string) (*vaultapi.Secret, error)
+	readRawFunc func(ctx context.Context, path string) (*vaultapi.Response, error)
+	writeFunc   func(ctx context.Context, path string, data map[string]interface{}) (*vaultapi.Secret, error)
 }
 
-func (m *mockVaultLogical) List(path string) (*vaultapi.Secret, error) {
+func (m *mockVaultLogical) ListWithContext(ctx context.Context, path string) (*vaultapi.Secret, error) {
 	if m.listFunc != nil {
-		return m.listFunc(path)
+		return m.listFunc(ctx, path)
 	}
 	return nil, nil
 }
 
-func (m *mockVaultLogical) Read(path string) (*vaultapi.Secret, error) {
+func (m *mockVaultLogical) ReadWithContext(ctx context.Context, path string) (*vaultapi.Secret, error) {
 	if m.readFunc != nil {
-		return m.readFunc(path)
+		return m.readFunc(ctx, path)
 	}
 	return nil, nil
 }
 
-func (m *mockVaultLogical) ReadRaw(path string) (*vaultapi.Response, error) {
+func (m *mockVaultLogical) ReadRawWithContext(ctx context.Context, path string) (*vaultapi.Response, error) {
 	if m.readRawFunc != nil {
-		return m.readRawFunc(path)
+		return m.readRawFunc(ctx, path)
 	}
 	return nil, nil
 }
 
-func (m *mockVaultLogical) Write(path string, data map[string]interface{}) (*vaultapi.Secret, error) {
+func (m *mockVaultLogical) WriteWithContext(ctx context.Context, path string, data map[string]interface{}) (*vaultapi.Secret, error) {
 	if m.writeFunc != nil {
-		return m.writeFunc(path, data)
+		return m.writeFunc(ctx, path, data)
 	}
 	return nil, nil
 }
 
 func TestListSecretWithLogical_Version1(t *testing.T) {
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			if path == "/secret/mykey" {
 				return &vaultapi.Secret{
 					Data: map[string]interface{}{
@@ -562,7 +562,7 @@ func TestListSecretWithLogical_Version1(t *testing.T) {
 		},
 	}
 
-	result, err := listSecretWithLogical(mock, "/secret", "/mykey", "1")
+	result, err := listSecretWithLogical(context.Background(), mock, "/secret", "/mykey", "1")
 	if err != nil {
 		t.Fatalf("listSecretWithLogical() unexpected error: %v", err)
 	}
@@ -578,7 +578,7 @@ func TestListSecretWithLogical_Version1(t *testing.T) {
 
 func TestListSecretWithLogical_Version2(t *testing.T) {
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			if path == "/secret/metadata//mykey" {
 				return &vaultapi.Secret{
 					Data: map[string]interface{}{
@@ -590,7 +590,7 @@ func TestListSecretWithLogical_Version2(t *testing.T) {
 		},
 	}
 
-	result, err := listSecretWithLogical(mock, "/secret", "/mykey", "2")
+	result, err := listSecretWithLogical(context.Background(), mock, "/secret", "/mykey", "2")
 	if err != nil {
 		t.Fatalf("listSecretWithLogical() unexpected error: %v", err)
 	}
@@ -606,7 +606,7 @@ func TestListSecretWithLogical_Version2(t *testing.T) {
 
 func TestListSecretWithLogical_EmptyVersion(t *testing.T) {
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"secret1"},
@@ -616,7 +616,7 @@ func TestListSecretWithLogical_EmptyVersion(t *testing.T) {
 	}
 
 	// Empty version should behave like version 1
-	result, err := listSecretWithLogical(mock, "/secret", "/key", "")
+	result, err := listSecretWithLogical(context.Background(), mock, "/secret", "/key", "")
 	if err != nil {
 		t.Fatalf("listSecretWithLogical() unexpected error: %v", err)
 	}
@@ -628,7 +628,7 @@ func TestListSecretWithLogical_EmptyVersion(t *testing.T) {
 func TestListSecretWithLogical_UnsupportedVersion(t *testing.T) {
 	mock := &mockVaultLogical{}
 
-	result, err := listSecretWithLogical(mock, "/secret", "/key", "unsupported")
+	result, err := listSecretWithLogical(context.Background(), mock, "/secret", "/key", "unsupported")
 	if err != nil {
 		t.Errorf("listSecretWithLogical() unexpected error: %v", err)
 	}
@@ -640,12 +640,12 @@ func TestListSecretWithLogical_UnsupportedVersion(t *testing.T) {
 func TestListSecretWithLogical_Error(t *testing.T) {
 	expectedErr := errors.New("vault error")
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return nil, expectedErr
 		},
 	}
 
-	_, err := listSecretWithLogical(mock, "/secret", "/key", "1")
+	_, err := listSecretWithLogical(context.Background(), mock, "/secret", "/key", "1")
 	if err != expectedErr {
 		t.Errorf("listSecretWithLogical() error = %v, want %v", err, expectedErr)
 	}
@@ -653,7 +653,7 @@ func TestListSecretWithLogical_Error(t *testing.T) {
 
 func TestRecursiveListSecretWithLogical_SingleSecret_V1(t *testing.T) {
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"mysecret"},
@@ -662,7 +662,7 @@ func TestRecursiveListSecretWithLogical_SingleSecret_V1(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	if len(result) == 0 {
 		t.Error("recursiveListSecretWithLogical() returned empty result")
 	}
@@ -682,7 +682,7 @@ func TestRecursiveListSecretWithLogical_SingleSecret_V1(t *testing.T) {
 
 func TestRecursiveListSecretWithLogical_SingleSecret_V2(t *testing.T) {
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"mysecret"},
@@ -691,7 +691,7 @@ func TestRecursiveListSecretWithLogical_SingleSecret_V2(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "2")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "2")
 	if len(result) == 0 {
 		t.Error("recursiveListSecretWithLogical() returned empty result")
 	}
@@ -712,7 +712,7 @@ func TestRecursiveListSecretWithLogical_SingleSecret_V2(t *testing.T) {
 func TestRecursiveListSecretWithLogical_WithSubdirectory_V1(t *testing.T) {
 	callCount := 0
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			callCount++
 			if callCount == 1 {
 				// First call returns a directory
@@ -731,7 +731,7 @@ func TestRecursiveListSecretWithLogical_WithSubdirectory_V1(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	if len(result) < 2 {
 		t.Errorf("recursiveListSecretWithLogical() returned %d paths, want at least 2", len(result))
 	}
@@ -739,12 +739,12 @@ func TestRecursiveListSecretWithLogical_WithSubdirectory_V1(t *testing.T) {
 
 func TestRecursiveListSecretWithLogical_NilSecretList_V1(t *testing.T) {
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return nil, nil
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	// When secretList is nil, an empty slice should be returned
 	if len(result) != 0 {
 		t.Errorf("recursiveListSecretWithLogical() expected empty slice when list returns nil, got %v", result)
@@ -753,12 +753,12 @@ func TestRecursiveListSecretWithLogical_NilSecretList_V1(t *testing.T) {
 
 func TestRecursiveListSecretWithLogical_NilSecretList_V2(t *testing.T) {
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return nil, nil
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "2")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "2")
 	// When secretList is nil, an empty slice should be returned
 	if len(result) != 0 {
 		t.Errorf("recursiveListSecretWithLogical() expected empty slice when list returns nil, got %v", result)
@@ -768,7 +768,7 @@ func TestRecursiveListSecretWithLogical_NilSecretList_V2(t *testing.T) {
 func TestRecursiveListSecretWithLogical_UnsupportedVersion(t *testing.T) {
 	mock := &mockVaultLogical{}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "unsupported")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "unsupported")
 	// For unsupported version, an empty slice should be returned since listSecretWithLogical returns nil
 	if len(result) != 0 {
 		t.Errorf("recursiveListSecretWithLogical() expected empty slice for unsupported version, got %v", result)
@@ -777,7 +777,7 @@ func TestRecursiveListSecretWithLogical_UnsupportedVersion(t *testing.T) {
 
 func TestRecursiveListSecretWithLogical_KeysNotSlice(t *testing.T) {
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": "not a slice", // Wrong type
@@ -786,7 +786,7 @@ func TestRecursiveListSecretWithLogical_KeysNotSlice(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	if len(result) != 0 {
 		t.Errorf("recursiveListSecretWithLogical() expected empty slice when keys is not a slice, got %v", result)
 	}
@@ -794,7 +794,7 @@ func TestRecursiveListSecretWithLogical_KeysNotSlice(t *testing.T) {
 
 func TestRecursiveListSecretWithLogical_KeyNotString(t *testing.T) {
 	mock := &mockVaultLogical{
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{123, "valid_secret"}, // First key is not a string
@@ -803,7 +803,7 @@ func TestRecursiveListSecretWithLogical_KeyNotString(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	// Should skip the non-string key and only return the valid one
 	if len(result) != 1 {
 		t.Errorf("recursiveListSecretWithLogical() expected 1 result, got %d: %v", len(result), result)
@@ -1060,7 +1060,7 @@ func TestGetKVVersion(t *testing.T) {
 
 func TestGetValues_KVv1(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			if path == "/sys/internal/ui/mounts//secret" {
 				return createMockResponse(t, map[string]interface{}{
 					"type": "kv",
@@ -1071,7 +1071,7 @@ func TestGetValues_KVv1(t *testing.T) {
 			}
 			return nil, nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			if path == "/secret" {
 				return &vaultapi.Secret{
 					Data: map[string]interface{}{
@@ -1081,7 +1081,7 @@ func TestGetValues_KVv1(t *testing.T) {
 			}
 			return nil, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			if path == "/secret/mykey" {
 				return &vaultapi.Secret{
 					Data: map[string]interface{}{
@@ -1111,7 +1111,7 @@ func TestGetValues_KVv1(t *testing.T) {
 
 func TestGetValues_KVv2(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			if path == "/sys/internal/ui/mounts//secret" {
 				return createMockResponse(t, map[string]interface{}{
 					"type": "kv",
@@ -1122,7 +1122,7 @@ func TestGetValues_KVv2(t *testing.T) {
 			}
 			return nil, nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			if path == "/secret/metadata/" {
 				return &vaultapi.Secret{
 					Data: map[string]interface{}{
@@ -1132,7 +1132,7 @@ func TestGetValues_KVv2(t *testing.T) {
 			}
 			return nil, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			if path == "/secret/data/mykey" {
 				return &vaultapi.Secret{
 					Data: map[string]interface{}{
@@ -1167,7 +1167,7 @@ func TestGetValues_KVv2(t *testing.T) {
 
 func TestGetValues_ReadRawError(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return nil, errors.New("connection refused")
 		},
 	}
@@ -1185,7 +1185,7 @@ func TestGetValues_ReadRawError(t *testing.T) {
 
 func TestGetValues_EmptyResponse(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return nil, nil
 		},
 	}
@@ -1202,7 +1202,7 @@ func TestGetValues_EmptyResponse(t *testing.T) {
 
 func TestGetValues_UnsupportedEngine(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return createMockResponse(t, map[string]interface{}{
 				"type": "transit", // Not a kv engine
 			}), nil
@@ -1221,7 +1221,7 @@ func TestGetValues_UnsupportedEngine(t *testing.T) {
 
 func TestGetValues_MultiplePaths(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
@@ -1229,7 +1229,7 @@ func TestGetValues_MultiplePaths(t *testing.T) {
 				},
 			}), nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			switch path {
 			case "/secret":
 				return &vaultapi.Secret{
@@ -1246,7 +1246,7 @@ func TestGetValues_MultiplePaths(t *testing.T) {
 			}
 			return nil, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			switch path {
 			case "/secret/app1":
 				return &vaultapi.Secret{
@@ -1283,7 +1283,7 @@ func TestGetValues_MultiplePaths(t *testing.T) {
 func TestGetValues_DuplicateMounts(t *testing.T) {
 	callCount := 0
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			callCount++
 			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
@@ -1292,14 +1292,14 @@ func TestGetValues_DuplicateMounts(t *testing.T) {
 				},
 			}), nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"key"},
 				},
 			}, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"value": "test",
@@ -1322,7 +1322,7 @@ func TestGetValues_DuplicateMounts(t *testing.T) {
 
 func TestGetValues_SecretReadError(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
@@ -1330,14 +1330,14 @@ func TestGetValues_SecretReadError(t *testing.T) {
 				},
 			}), nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"secret1", "secret2"},
 				},
 			}, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			if path == "/secret/secret1" {
 				return nil, errors.New("permission denied")
 			}
@@ -1366,7 +1366,7 @@ func TestGetValues_SecretReadError(t *testing.T) {
 
 func TestGetValues_NilSecretData(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
@@ -1374,14 +1374,14 @@ func TestGetValues_NilSecretData(t *testing.T) {
 				},
 			}), nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"key"},
 				},
 			}, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: nil,
 			}, nil
@@ -1401,7 +1401,7 @@ func TestGetValues_NilSecretData(t *testing.T) {
 
 func TestGetValues_KVv2_NilDataField(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
@@ -1409,14 +1409,14 @@ func TestGetValues_KVv2_NilDataField(t *testing.T) {
 				},
 			}), nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"key"},
 				},
 			}, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			// KVv2 returns data under "data" key, but it's nil
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
@@ -1455,7 +1455,7 @@ func TestGetValues_EmptyPaths(t *testing.T) {
 
 func TestGetValues_NilSecretFromParse(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			// Return a response that will parse to nil secret.Data
 			body := []byte(`{}`) // Empty JSON, will result in nil Data
 			return &vaultapi.Response{
@@ -1479,7 +1479,7 @@ func TestGetValues_NilSecretFromParse(t *testing.T) {
 
 func TestGetValues_KVv2_SecretReadError(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
@@ -1487,14 +1487,14 @@ func TestGetValues_KVv2_SecretReadError(t *testing.T) {
 				},
 			}), nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"secret1", "secret2"},
 				},
 			}, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			if path == "/secret/data/secret1" {
 				return nil, errors.New("permission denied")
 			}
@@ -1525,7 +1525,7 @@ func TestGetValues_KVv2_SecretReadError(t *testing.T) {
 
 func TestGetValues_KVv2_NilSecretResponse(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
@@ -1533,14 +1533,14 @@ func TestGetValues_KVv2_NilSecretResponse(t *testing.T) {
 				},
 			}), nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"secret1"},
 				},
 			}, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			// Return nil secret
 			return nil, nil
 		},
@@ -1558,7 +1558,7 @@ func TestGetValues_KVv2_NilSecretResponse(t *testing.T) {
 
 func TestGetValues_KVv1_MarshalError(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
@@ -1566,14 +1566,14 @@ func TestGetValues_KVv1_MarshalError(t *testing.T) {
 				},
 			}), nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"secret1"},
 				},
 			}, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			// Return data with a channel which can't be marshaled to JSON
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
@@ -1596,7 +1596,7 @@ func TestGetValues_KVv1_MarshalError(t *testing.T) {
 
 func TestGetValues_KVv2_MarshalError(t *testing.T) {
 	mock := &mockVaultLogical{
-		readRawFunc: func(path string) (*vaultapi.Response, error) {
+		readRawFunc: func(_ context.Context, path string) (*vaultapi.Response, error) {
 			return createMockResponse(t, map[string]interface{}{
 				"type": "kv",
 				"options": map[string]interface{}{
@@ -1604,14 +1604,14 @@ func TestGetValues_KVv2_MarshalError(t *testing.T) {
 				},
 			}), nil
 		},
-		listFunc: func(path string) (*vaultapi.Secret, error) {
+		listFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
 					"keys": []interface{}{"secret1"},
 				},
 			}, nil
 		},
-		readFunc: func(path string) (*vaultapi.Secret, error) {
+		readFunc: func(_ context.Context, path string) (*vaultapi.Secret, error) {
 			// Return data with a channel which can't be marshaled to JSON
 			return &vaultapi.Secret{
 				Data: map[string]interface{}{
@@ -1629,6 +1629,26 @@ func TestGetValues_KVv2_MarshalError(t *testing.T) {
 	// Should handle marshal error gracefully (skip the secret, return empty but with error)
 	if len(vars) != 0 {
 		t.Errorf("GetValues() v2 should handle marshal error, got %v", vars)
+	}
+}
+
+func TestGetValues_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	mock := &mockVaultLogical{
+		readRawFunc: func(ctx context.Context, path string) (*vaultapi.Response, error) {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			return nil, nil
+		},
+	}
+
+	client := &Client{logical: mock}
+	_, err := client.GetValues(ctx, []string{"/secret/data"})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("GetValues() with cancelled context error = %v, want context.Canceled", err)
 	}
 }
 

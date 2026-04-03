@@ -40,15 +40,78 @@ func NewZookeeperClient(machines []string, dialTimeout time.Duration) (*Client, 
 	}, nil
 }
 
-func nodeWalk(prefix string, c *Client, vars map[string]string) error {
+// existsCtx wraps Exists with context cancellation support.
+// go-zookeeper does not expose context-aware methods, so we run the blocking
+// call in a goroutine and select on ctx.Done(). The buffered channel ensures
+// the goroutine can exit cleanly even if the caller has already returned.
+func existsCtx(ctx context.Context, conn zkConn, path string) (bool, *zk.Stat, error) {
+	type result struct {
+		ok   bool
+		stat *zk.Stat
+		err  error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		ok, stat, err := conn.Exists(path)
+		ch <- result{ok, stat, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return false, nil, ctx.Err()
+	case r := <-ch:
+		return r.ok, r.stat, r.err
+	}
+}
+
+// childrenCtx wraps Children with context cancellation support.
+func childrenCtx(ctx context.Context, conn zkConn, path string) ([]string, *zk.Stat, error) {
+	type result struct {
+		children []string
+		stat     *zk.Stat
+		err      error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		children, stat, err := conn.Children(path)
+		ch <- result{children, stat, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	case r := <-ch:
+		return r.children, r.stat, r.err
+	}
+}
+
+// getCtx wraps Get with context cancellation support.
+func getCtx(ctx context.Context, conn zkConn, path string) ([]byte, *zk.Stat, error) {
+	type result struct {
+		data []byte
+		stat *zk.Stat
+		err  error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		data, stat, err := conn.Get(path)
+		ch <- result{data, stat, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	case r := <-ch:
+		return r.data, r.stat, r.err
+	}
+}
+
+func nodeWalk(ctx context.Context, prefix string, c *Client, vars map[string]string) error {
 	var s string
-	l, stat, err := c.client.Children(prefix)
+	l, stat, err := childrenCtx(ctx, c.client, prefix)
 	if err != nil {
 		return err
 	}
 
 	if stat.NumChildren == 0 {
-		b, _, err := c.client.Get(prefix)
+		b, _, err := getCtx(ctx, c.client, prefix)
 		if err != nil {
 			return err
 		}
@@ -61,18 +124,18 @@ func nodeWalk(prefix string, c *Client, vars map[string]string) error {
 			} else {
 				s = prefix + "/" + key
 			}
-			_, stat, err := c.client.Exists(s)
+			_, stat, err := existsCtx(ctx, c.client, s)
 			if err != nil {
 				return err
 			}
 			if stat.NumChildren == 0 {
-				b, _, err := c.client.Get(s)
+				b, _, err := getCtx(ctx, c.client, s)
 				if err != nil {
 					return err
 				}
 				vars[s] = string(b)
 			} else {
-				if err := nodeWalk(s, c, vars); err != nil {
+				if err := nodeWalk(ctx, s, c, vars); err != nil {
 					return err
 				}
 			}
@@ -85,11 +148,11 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 	vars := make(map[string]string)
 	for _, v := range keys {
 		v = strings.Replace(v, "/*", "", -1)
-		_, _, err := c.client.Exists(v)
+		_, _, err := existsCtx(ctx, c.client, v)
 		if err != nil {
 			return vars, err
 		}
-		err = nodeWalk(v, c, vars)
+		err = nodeWalk(ctx, v, c, vars)
 		if err != nil {
 			return vars, err
 		}
