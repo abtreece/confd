@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -66,10 +65,13 @@ func (s *ShutdownManager) Shutdown(ctx context.Context) error {
 	log.Info("Phase 2: Closing backend connections")
 	if s.storeClient != nil {
 		if err := s.storeClient.Close(); err != nil {
+			// Log but do not return — the process is exiting and the OS will
+			// reclaim the socket. Failing shutdown on a close error would mask
+			// the fact that everything else completed cleanly.
 			log.Warning("Backend connection close error: %v", err)
-			return fmt.Errorf("failed to close backend: %w", err)
+		} else {
+			log.Info("Backend connections closed successfully")
 		}
-		log.Info("Backend connections closed successfully")
 	}
 
 	log.Info("Graceful shutdown completed")

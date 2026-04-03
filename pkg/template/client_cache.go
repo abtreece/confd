@@ -82,18 +82,23 @@ func configHash(cfg backends.Config) string {
 // to release connections held by per-resource backend configurations.
 // All clients are attempted regardless of individual close errors; a
 // combined error is returned if any close failed.
+//
+// The map is swapped out under the lock and closed outside the critical
+// section so that client.Close() (which may block on network I/O) does
+// not hold the mutex.
 func CloseAllCachedClients() error {
 	clientCacheMu.Lock()
-	defer clientCacheMu.Unlock()
+	cached := clientCache
+	clientCache = make(map[string]backends.StoreClient)
+	clientCacheMu.Unlock()
 
 	var errs []error
-	for hash, client := range clientCache {
+	for hash, client := range cached {
 		if err := client.Close(); err != nil {
 			log.Warning("Failed to close cached backend client %s: %v", hash, err)
 			errs = append(errs, err)
 		}
 	}
-	clientCache = make(map[string]backends.StoreClient)
 
 	if len(errs) > 0 {
 		return fmt.Errorf("closed cached clients with %d error(s); first: %w", len(errs), errs[0])

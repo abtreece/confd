@@ -59,16 +59,18 @@ func TestShutdown_ClosesStoreClient(t *testing.T) {
 }
 
 func TestShutdown_StoreClientCloseError(t *testing.T) {
+	// Close errors during shutdown are non-fatal: the process is exiting
+	// and the OS will reclaim the socket. Shutdown should return nil and
+	// log a warning rather than propagating the error.
 	closeErr := errors.New("connection reset")
 	client := &mockStoreClient{closeErr: closeErr}
 	mgr := NewShutdownManager(5*time.Second, nil, client)
 
-	err := mgr.Shutdown(context.Background())
-	if err == nil {
-		t.Fatal("expected error from Shutdown, got nil")
+	if err := mgr.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown should not return error on close failure, got: %v", err)
 	}
-	if !errors.Is(err, closeErr) {
-		t.Errorf("error = %v, want to wrap %v", err, closeErr)
+	if !client.closed {
+		t.Error("expected storeClient.Close() to be called even on error")
 	}
 }
 
