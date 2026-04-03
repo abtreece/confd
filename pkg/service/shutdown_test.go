@@ -80,15 +80,12 @@ func TestShutdown_NilStoreClient(t *testing.T) {
 }
 
 func TestShutdown_WithMetricsServer(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	// Convert httptest.Server to http.Server for shutdown
-	httpSrv := &http.Server{Addr: srv.Listener.Addr().String()}
-	httpSrv.Handler = http.DefaultServeMux
-	// Start the server on the test listener
-	go func() { _ = httpSrv.Serve(srv.Listener) }()
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	t.Cleanup(srv.Close)
+	srv.Start()
 
 	client := &mockStoreClient{}
-	mgr := NewShutdownManager(5*time.Second, httpSrv, client)
+	mgr := NewShutdownManager(5*time.Second, srv.Config, client)
 
 	if err := mgr.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown returned error: %v", err)
