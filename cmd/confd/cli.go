@@ -601,6 +601,9 @@ func run(cli *CLI, backendCfg backends.Config) error {
 					log.Error("Shutdown error: %v", err)
 					return err
 				}
+				if err := template.CloseAllCachedClients(); err != nil {
+					log.Warning("Error closing per-resource backend clients: %v", err)
+				}
 				return nil
 			}
 		case <-doneChan:
@@ -608,6 +611,9 @@ func run(cli *CLI, backendCfg backends.Config) error {
 			if err := shutdownMgr.Shutdown(context.Background()); err != nil {
 				log.Error("Shutdown error: %v", err)
 				return err
+			}
+			if err := template.CloseAllCachedClients(); err != nil {
+				log.Warning("Error closing per-resource backend clients: %v", err)
 			}
 			return nil
 		}
