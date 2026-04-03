@@ -1,6 +1,8 @@
 package template
 
 import (
+	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -8,6 +10,24 @@ import (
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
 )
+
+// mockClosableClient is a StoreClient whose Close behaviour is controllable.
+type mockClosableClient struct {
+	closed   bool
+	closeErr error
+}
+
+func (m *mockClosableClient) GetValues(_ context.Context, _ []string) (map[string]string, error) {
+	return nil, nil
+}
+func (m *mockClosableClient) WatchPrefix(_ context.Context, _ string, _ []string, _ uint64, _ chan bool) (uint64, error) {
+	return 0, nil
+}
+func (m *mockClosableClient) HealthCheck(_ context.Context) error { return nil }
+func (m *mockClosableClient) Close() error {
+	m.closed = true
+	return m.closeErr
+}
 
 func TestConfigHash(t *testing.T) {
 	log.SetLevel("warn")
@@ -318,5 +338,95 @@ func TestConfigHashExcludesIMDSCacheTTL(t *testing.T) {
 	}
 	if configHash(cfg1) != configHash(cfg2) {
 		t.Error("IMDSCacheTTL differences should not affect hash")
+	}
+}
+
+func TestCloseAllCachedClients_ClosesAndClears(t *testing.T) {
+	log.SetLevel("warn")
+
+	// Inject two mock clients directly into the cache.
+	c1 := &mockClosableClient{}
+	c2 := &mockClosableClient{}
+	clientCacheMu.Lock()
+	clientCache = map[string]backends.StoreClient{"key1": c1, "key2": c2}
+	clientCacheMu.Unlock()
+
+	if err := CloseAllCachedClients(); err != nil {
+		t.Fatalf("CloseAllCachedClients returned error: %v", err)
+	}
+
+	if !c1.closed {
+		t.Error("expected c1.Close() to be called")
+	}
+	if !c2.closed {
+		t.Error("expected c2.Close() to be called")
+	}
+
+	// Cache should be empty after close.
+	clientCacheMu.RLock()
+	size := len(clientCache)
+	clientCacheMu.RUnlock()
+	if size != 0 {
+		t.Errorf("expected empty cache after CloseAllCachedClients, got %d entries", size)
+	}
+}
+
+func TestCloseAllCachedClients_EmptyCache(t *testing.T) {
+	log.SetLevel("warn")
+	clearClientCache()
+
+	// Should not panic or error on an empty cache.
+	if err := CloseAllCachedClients(); err != nil {
+		t.Fatalf("CloseAllCachedClients on empty cache returned error: %v", err)
+	}
+}
+
+func TestCloseAllCachedClients_ReturnsErrorOnCloseFailure(t *testing.T) {
+	log.SetLevel("warn")
+
+	closeErr := errors.New("connection reset")
+	c := &mockClosableClient{closeErr: closeErr}
+	clientCacheMu.Lock()
+	clientCache = map[string]backends.StoreClient{"key1": c}
+	clientCacheMu.Unlock()
+
+	err := CloseAllCachedClients()
+	if err == nil {
+		t.Fatal("expected error from CloseAllCachedClients, got nil")
+	}
+	if !errors.Is(err, closeErr) {
+		t.Errorf("error = %v, want to wrap %v", err, closeErr)
+	}
+
+	// Cache should still be cleared even when close fails.
+	clientCacheMu.RLock()
+	size := len(clientCache)
+	clientCacheMu.RUnlock()
+	if size != 0 {
+		t.Errorf("expected empty cache after failed close, got %d entries", size)
+	}
+}
+
+func TestCloseAllCachedClients_ContinuesOnPartialFailure(t *testing.T) {
+	log.SetLevel("warn")
+
+	closeErr := errors.New("partial failure")
+	good := &mockClosableClient{}
+	bad := &mockClosableClient{closeErr: closeErr}
+	clientCacheMu.Lock()
+	clientCache = map[string]backends.StoreClient{"good": good, "bad": bad}
+	clientCacheMu.Unlock()
+
+	err := CloseAllCachedClients()
+	if err == nil {
+		t.Fatal("expected error when one client fails to close")
+	}
+
+	// Both clients should have had Close() called despite the error.
+	if !good.closed {
+		t.Error("expected good client to be closed")
+	}
+	if !bad.closed {
+		t.Error("expected bad client to have Close() called")
 	}
 }
