@@ -140,7 +140,11 @@ func isPathWithin(path, dir string) bool {
 		return false
 	}
 
-	// A path outside the directory will have ".." as first component.
-	// Check rel != "." to reject the case where path equals dir itself.
-	return rel != "." && !filepath.IsAbs(rel) && !strings.HasPrefix(rel, "..")
+	// A path outside the directory will be ".." or will start with ".."
+	// followed by a path separator. Check rel != "." to reject the case
+	// where path equals dir itself.
+	return rel != "." &&
+		!filepath.IsAbs(rel) &&
+		rel != ".." &&
+		!strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

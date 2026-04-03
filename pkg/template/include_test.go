@@ -261,6 +261,12 @@ func TestIsPathWithin(t *testing.T) {
 			dir:      "/base/templates",
 			expected: true, // dotfiles inside baseDir are valid includes
 		},
+		{
+			name:     "double-dot prefix filename within dir",
+			path:     "/base/templates/..partial.tmpl",
+			dir:      "/base/templates",
+			expected: true, // ..partial.tmpl is a valid filename, not a traversal
+		},
 	}
 
 	for _, tt := range tests {
