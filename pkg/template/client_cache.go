@@ -3,6 +3,7 @@ package template
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -80,8 +81,9 @@ func configHash(cfg backends.Config) string {
 // CloseAllCachedClients closes every client in the cache and resets it.
 // It should be called during shutdown after the processor has stopped,
 // to release connections held by per-resource backend configurations.
-// All clients are attempted regardless of individual close errors; a
-// combined error is returned if any close failed.
+// All clients are attempted regardless of individual close errors; if any
+// close fails, a combined error wrapping all failures is returned so
+// callers can inspect every failure via errors.Is/As.
 //
 // The map is swapped out under the lock and closed outside the critical
 // section so that client.Close() (which may block on network I/O) does
@@ -101,7 +103,7 @@ func CloseAllCachedClients() error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("closed cached clients with %d error(s); first: %w", len(errs), errs[0])
+		return fmt.Errorf("closed cached clients with %d error(s): %w", len(errs), errors.Join(errs...))
 	}
 	return nil
 }

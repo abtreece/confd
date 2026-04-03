@@ -13,8 +13,9 @@ import (
 
 // mockClosableClient is a StoreClient whose Close behaviour is controllable.
 type mockClosableClient struct {
-	closed   bool
-	closeErr error
+	closed    bool
+	closeErr  error
+	closeFunc func() error // optional; called instead of returning closeErr when set
 }
 
 func (m *mockClosableClient) GetValues(_ context.Context, _ []string) (map[string]string, error) {
@@ -26,6 +27,9 @@ func (m *mockClosableClient) WatchPrefix(_ context.Context, _ string, _ []string
 func (m *mockClosableClient) HealthCheck(_ context.Context) error { return nil }
 func (m *mockClosableClient) Close() error {
 	m.closed = true
+	if m.closeFunc != nil {
+		return m.closeFunc()
+	}
 	return m.closeErr
 }
 
@@ -421,6 +425,10 @@ func TestCloseAllCachedClients_ContinuesOnPartialFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when one client fails to close")
 	}
+	// All individual errors must be inspectable via errors.Is.
+	if !errors.Is(err, closeErr) {
+		t.Errorf("errors.Is(err, closeErr) = false, want true; err = %v", err)
+	}
 
 	// Both clients should have had Close() called despite the error.
 	if !good.closed {
@@ -428,5 +436,50 @@ func TestCloseAllCachedClients_ContinuesOnPartialFailure(t *testing.T) {
 	}
 	if !bad.closed {
 		t.Error("expected bad client to have Close() called")
+	}
+}
+
+// TestCloseAllCachedClients_LockReleasedBeforeClose is a deadlock regression
+// test. If client.Close() were called while holding clientCacheMu, any
+// goroutine that tried to acquire the mutex during Close() (e.g. a template
+// processor still running) would deadlock. The test proves the lock is
+// released before Close() is invoked by acquiring it from inside closeFunc.
+func TestCloseAllCachedClients_LockReleasedBeforeClose(t *testing.T) {
+	log.SetLevel("warn")
+
+	lockAcquired := make(chan struct{})
+	c := &mockClosableClient{
+		closeFunc: func() error {
+			// Spawn a goroutine that acquires the cache read-lock while Close()
+			// is executing. If the write-lock were still held at this point,
+			// this goroutine would block and the select below would time out.
+			go func() {
+				clientCacheMu.RLock()
+				close(lockAcquired)
+				clientCacheMu.RUnlock()
+			}()
+			select {
+			case <-lockAcquired:
+				// Lock was acquired during Close() — correct behaviour.
+			case <-time.After(time.Second):
+				// Timeout: the mutex is still held, which would cause a deadlock
+				// in production. The test will catch this below.
+			}
+			return nil
+		},
+	}
+	clientCacheMu.Lock()
+	clientCache = map[string]backends.StoreClient{"key1": c}
+	clientCacheMu.Unlock()
+
+	if err := CloseAllCachedClients(); err != nil {
+		t.Fatalf("CloseAllCachedClients returned unexpected error: %v", err)
+	}
+
+	select {
+	case <-lockAcquired:
+		// Pass: cache mutex was acquirable during client.Close().
+	default:
+		t.Error("cache mutex was still held during client.Close() — would deadlock in production")
 	}
 }
