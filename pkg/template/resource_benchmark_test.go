@@ -1,6 +1,7 @@
 package template
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -338,4 +339,63 @@ func BenchmarkDeferOverhead(b *testing.B) {
 			}()
 		}
 	})
+}
+
+// BenchmarkGetTemplateResources measures the cost eliminated from each
+// intervalProcessor tick by the resource-caching optimization (issue #547).
+// Run with: go test -bench=BenchmarkGetTemplateResources -benchmem ./pkg/template/
+func BenchmarkGetTemplateResources(b *testing.B) {
+	log.SetLevel("error")
+
+	for _, n := range []int{1, 5, 20} {
+		n := n
+		b.Run(fmt.Sprintf("%d_templates", n), func(b *testing.B) {
+			confDir := b.TempDir()
+			templDir := filepath.Join(confDir, "templates")
+			confdDir := filepath.Join(confDir, "conf.d")
+			destDir := filepath.Join(confDir, "dest")
+			for _, d := range []string{templDir, confdDir, destDir} {
+				if err := os.MkdirAll(d, 0755); err != nil {
+					b.Fatalf("mkdir %s: %v", d, err)
+				}
+			}
+
+			// Write N template + resource pairs
+			for i := 0; i < n; i++ {
+				name := fmt.Sprintf("tmpl%d", i)
+				if err := os.WriteFile(
+					filepath.Join(templDir, name+".tmpl"),
+					[]byte(`value={{ getv "/k" "v" }}`), 0644); err != nil {
+					b.Fatal(err)
+				}
+				if err := os.WriteFile(
+					filepath.Join(confdDir, name+".toml"),
+					[]byte(fmt.Sprintf("[template]\nsrc = \"%s.tmpl\"\ndest = \"%s\"\nkeys = [\"/k\"]\n",
+						name, filepath.Join(destDir, name+".conf"))),
+					0644); err != nil {
+					b.Fatal(err)
+				}
+			}
+
+			storeClient, err := env.NewEnvClient()
+			if err != nil {
+				b.Fatalf("env client: %v", err)
+			}
+			config := Config{
+				ConfDir:     confDir,
+				ConfigDir:   confdDir,
+				TemplateDir: templDir,
+				StoreClient: storeClient,
+			}
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				ts, err := getTemplateResources(config)
+				if err != nil {
+					b.Fatalf("getTemplateResources: %v", err)
+				}
+				_ = ts
+			}
+		})
+	}
 }
