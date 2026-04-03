@@ -555,8 +555,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	go processor.Process()
 
 	// Create shutdown manager for graceful shutdown coordination
-	var inFlightCmds sync.WaitGroup
-	shutdownMgr := service.NewShutdownManager(cli.ShutdownTimeout, metricsServer, storeClient, &inFlightCmds)
+	shutdownMgr := service.NewShutdownManager(cli.ShutdownTimeout, metricsServer, storeClient)
 
 	// Create systemd notifier and start watchdog if enabled
 	systemdNotifier := service.NewSystemdNotifier(cli.SystemdNotify, cli.WatchdogInterval)
