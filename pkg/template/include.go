@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -139,6 +140,7 @@ func isPathWithin(path, dir string) bool {
 		return false
 	}
 
-	// Check if the relative path starts with ".." which means it's outside
-	return rel != ".." && !filepath.IsAbs(rel) && len(rel) >= 1 && rel[0] != '.'
+	// A path outside the directory will have ".." as first component.
+	// Check rel != "." to reject the case where path equals dir itself.
+	return rel != "." && !filepath.IsAbs(rel) && !strings.HasPrefix(rel, "..")
 }

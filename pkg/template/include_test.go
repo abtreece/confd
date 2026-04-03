@@ -255,6 +255,12 @@ func TestIsPathWithin(t *testing.T) {
 			dir:      "/base/templates",
 			expected: false, // path is the dir itself, not within
 		},
+		{
+			name:     "dotfile within dir",
+			path:     "/base/templates/.partial.tmpl",
+			dir:      "/base/templates",
+			expected: true, // dotfiles inside baseDir are valid includes
+		},
 	}
 
 	for _, tt := range tests {
