@@ -97,6 +97,9 @@ func (p *intervalProcessor) Process() {
 		log.Warning("Some template resources failed to load: %s", err.Error())
 	}
 
+	ticker := time.NewTicker(time.Duration(p.interval) * time.Second)
+	defer ticker.Stop()
+
 	for {
 		process(ts, p.config.FailureMode)
 		select {
@@ -116,7 +119,7 @@ func (p *intervalProcessor) Process() {
 				}
 				log.Warning("Some template resources failed to load: %s", err.Error())
 			}
-		case <-time.After(time.Duration(p.interval) * time.Second):
+		case <-ticker.C:
 		}
 	}
 }
