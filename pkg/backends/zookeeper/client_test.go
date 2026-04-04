@@ -599,5 +599,36 @@ func TestHealthCheck_Error(t *testing.T) {
 	}
 }
 
+func TestGetValues_ContextCancellation(t *testing.T) {
+	// Block inside Exists until the test signals, then check ctx is respected.
+	ready := make(chan struct{})
+	mock := &mockZkConn{
+		existsFunc: func(path string) (bool, *zk.Stat, error) {
+			<-ready // block until unblocked
+			return true, &zk.Stat{}, nil
+		},
+	}
+
+	client := &Client{client: mock}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := client.GetValues(ctx, []string{"/app/key"})
+		errCh <- err
+	}()
+
+	// Cancel context while GetValues is blocked inside existsWithContext.
+	cancel()
+
+	// Unblock the mock so its goroutine can exit.
+	close(ready)
+
+	err := <-errCh
+	if err != context.Canceled {
+		t.Errorf("GetValues() with cancelled context: error = %v, want context.Canceled", err)
+	}
+}
+
 // Note: Full integration tests require a running Zookeeper instance.
 // These are covered by integration tests in .github/workflows/integration-tests.yml
