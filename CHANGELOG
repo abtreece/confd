@@ -1,5 +1,7 @@
 ### Unreleased
 
+* fix: Propagate context through Vault and Zookeeper GetValues — `--backend-timeout` and caller cancellation now take effect for Vault (updated vaultLogical interface to use `*WithContext` variants) and Zookeeper (goroutine+select wrappers for blocking calls) (#566)
+
 * fix: Close cached per-resource backend clients on shutdown — prevents connection/resource leaks when template resources override the global backend; lock is released before Close() to prevent deadlock (#564)
 
 * perf: Cache template resources across interval cycles — eliminates per-tick filesystem walk, TOML parse, and TemplateResource construction in intervalProcessor; resources loaded once at startup, reloaded only on SIGHUP (#553)
