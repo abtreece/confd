@@ -22,10 +22,10 @@ import (
 // vaultLogical defines the interface for Vault logical operations.
 // This allows for mocking in tests.
 type vaultLogical interface {
-	List(path string) (*vaultapi.Secret, error)
-	Read(path string) (*vaultapi.Secret, error)
-	ReadRaw(path string) (*vaultapi.Response, error)
-	Write(path string, data map[string]interface{}) (*vaultapi.Secret, error)
+	ListWithContext(ctx context.Context, path string) (*vaultapi.Secret, error)
+	ReadWithContext(ctx context.Context, path string) (*vaultapi.Secret, error)
+	ReadRawWithContext(ctx context.Context, path string) (*vaultapi.Response, error)
+	WriteWithContext(ctx context.Context, path string, data map[string]interface{}) (*vaultapi.Secret, error)
 }
 
 // Client is a wrapper around the vault client
@@ -232,7 +232,7 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 
 	var errs []error
 	for _, mount := range mounts {
-		resp, err := c.logical.ReadRaw("/sys/internal/ui/mounts/" + mount)
+		resp, err := c.logical.ReadRawWithContext(ctx, "/sys/internal/ui/mounts/"+mount)
 		if err != nil {
 			log.Warning("failed to get mount info for %s: %v", mount, err)
 			errs = append(errs, fmt.Errorf("mount %s: failed to get mount info: %w", mount, err))
@@ -265,11 +265,11 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 				continue
 			}
 			var key string
-			secrets := recursiveListSecretWithLogical(c.logical, mount, key, version)
+			secrets := recursiveListSecretWithLogical(ctx, c.logical, mount, key, version)
 			switch version {
 			case "", "1":
 				for _, secretPath := range secrets {
-					secretResp, err := c.logical.Read(secretPath)
+					secretResp, err := c.logical.ReadWithContext(ctx, secretPath)
 					if err != nil {
 						log.Warning("failed to read secret %s: %v", secretPath, err)
 						errs = append(errs, fmt.Errorf("secret %s: failed to read: %w", secretPath, err))
@@ -289,7 +289,7 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 				}
 			case "2":
 				for _, secretPath := range secrets {
-					secretResp, err := c.logical.Read(secretPath)
+					secretResp, err := c.logical.ReadWithContext(ctx, secretPath)
 					if err != nil {
 						log.Warning("failed to read secret %s: %v", secretPath, err)
 						errs = append(errs, fmt.Errorf("secret %s: failed to read: %w", secretPath, err))
@@ -399,9 +399,9 @@ func buildSecretPath(basePath, key, version string) string {
 }
 
 // listSecretWithLogical returns a list of secrets from Vault using the vaultLogical interface
-func listSecretWithLogical(logical vaultLogical, path string, key string, version string) (*vaultapi.Secret, error) {
+func listSecretWithLogical(ctx context.Context, logical vaultLogical, path string, key string, version string) (*vaultapi.Secret, error) {
 	listPath := buildListPath(path, key, version)
-	secret, err := logical.List(listPath)
+	secret, err := logical.ListWithContext(ctx, listPath)
 	if err != nil {
 		log.Warning("Couldn't list from the Vault: %v", err)
 	}
@@ -409,9 +409,9 @@ func listSecretWithLogical(logical vaultLogical, path string, key string, versio
 }
 
 // recursiveListSecretWithLogical returns a list of secrets paths from Vault using the vaultLogical interface
-func recursiveListSecretWithLogical(logical vaultLogical, basePath string, key string, version string) []string {
+func recursiveListSecretWithLogical(ctx context.Context, logical vaultLogical, basePath string, key string, version string) []string {
 	var results []string
-	secretList, err := listSecretWithLogical(logical, basePath, key, version)
+	secretList, err := listSecretWithLogical(ctx, logical, basePath, key, version)
 	if err != nil || secretList == nil || secretList.Data == nil {
 		return results
 	}
@@ -429,7 +429,7 @@ func recursiveListSecretWithLogical(logical vaultLogical, basePath string, key s
 		if strings.HasSuffix(secretStr, "/") {
 			// It's a directory, recurse
 			newKey := key + "/" + strings.TrimSuffix(secretStr, "/")
-			subResults := recursiveListSecretWithLogical(logical, basePath, newKey, version)
+			subResults := recursiveListSecretWithLogical(ctx, logical, basePath, newKey, version)
 			results = append(results, subResults...)
 		} else {
 			// It's a secret

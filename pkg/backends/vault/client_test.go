@@ -520,28 +520,28 @@ type mockVaultLogical struct {
 	writeFunc   func(path string, data map[string]interface{}) (*vaultapi.Secret, error)
 }
 
-func (m *mockVaultLogical) List(path string) (*vaultapi.Secret, error) {
+func (m *mockVaultLogical) ListWithContext(_ context.Context, path string) (*vaultapi.Secret, error) {
 	if m.listFunc != nil {
 		return m.listFunc(path)
 	}
 	return nil, nil
 }
 
-func (m *mockVaultLogical) Read(path string) (*vaultapi.Secret, error) {
+func (m *mockVaultLogical) ReadWithContext(_ context.Context, path string) (*vaultapi.Secret, error) {
 	if m.readFunc != nil {
 		return m.readFunc(path)
 	}
 	return nil, nil
 }
 
-func (m *mockVaultLogical) ReadRaw(path string) (*vaultapi.Response, error) {
+func (m *mockVaultLogical) ReadRawWithContext(_ context.Context, path string) (*vaultapi.Response, error) {
 	if m.readRawFunc != nil {
 		return m.readRawFunc(path)
 	}
 	return nil, nil
 }
 
-func (m *mockVaultLogical) Write(path string, data map[string]interface{}) (*vaultapi.Secret, error) {
+func (m *mockVaultLogical) WriteWithContext(_ context.Context, path string, data map[string]interface{}) (*vaultapi.Secret, error) {
 	if m.writeFunc != nil {
 		return m.writeFunc(path, data)
 	}
@@ -562,7 +562,7 @@ func TestListSecretWithLogical_Version1(t *testing.T) {
 		},
 	}
 
-	result, err := listSecretWithLogical(mock, "/secret", "/mykey", "1")
+	result, err := listSecretWithLogical(context.Background(), mock, "/secret", "/mykey", "1")
 	if err != nil {
 		t.Fatalf("listSecretWithLogical() unexpected error: %v", err)
 	}
@@ -590,7 +590,7 @@ func TestListSecretWithLogical_Version2(t *testing.T) {
 		},
 	}
 
-	result, err := listSecretWithLogical(mock, "/secret", "/mykey", "2")
+	result, err := listSecretWithLogical(context.Background(), mock, "/secret", "/mykey", "2")
 	if err != nil {
 		t.Fatalf("listSecretWithLogical() unexpected error: %v", err)
 	}
@@ -616,7 +616,7 @@ func TestListSecretWithLogical_EmptyVersion(t *testing.T) {
 	}
 
 	// Empty version should behave like version 1
-	result, err := listSecretWithLogical(mock, "/secret", "/key", "")
+	result, err := listSecretWithLogical(context.Background(), mock, "/secret", "/key", "")
 	if err != nil {
 		t.Fatalf("listSecretWithLogical() unexpected error: %v", err)
 	}
@@ -628,7 +628,7 @@ func TestListSecretWithLogical_EmptyVersion(t *testing.T) {
 func TestListSecretWithLogical_UnsupportedVersion(t *testing.T) {
 	mock := &mockVaultLogical{}
 
-	result, err := listSecretWithLogical(mock, "/secret", "/key", "unsupported")
+	result, err := listSecretWithLogical(context.Background(), mock, "/secret", "/key", "unsupported")
 	if err != nil {
 		t.Errorf("listSecretWithLogical() unexpected error: %v", err)
 	}
@@ -645,7 +645,7 @@ func TestListSecretWithLogical_Error(t *testing.T) {
 		},
 	}
 
-	_, err := listSecretWithLogical(mock, "/secret", "/key", "1")
+	_, err := listSecretWithLogical(context.Background(), mock, "/secret", "/key", "1")
 	if err != expectedErr {
 		t.Errorf("listSecretWithLogical() error = %v, want %v", err, expectedErr)
 	}
@@ -662,7 +662,7 @@ func TestRecursiveListSecretWithLogical_SingleSecret_V1(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	if len(result) == 0 {
 		t.Error("recursiveListSecretWithLogical() returned empty result")
 	}
@@ -691,7 +691,7 @@ func TestRecursiveListSecretWithLogical_SingleSecret_V2(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "2")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "2")
 	if len(result) == 0 {
 		t.Error("recursiveListSecretWithLogical() returned empty result")
 	}
@@ -731,7 +731,7 @@ func TestRecursiveListSecretWithLogical_WithSubdirectory_V1(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	if len(result) < 2 {
 		t.Errorf("recursiveListSecretWithLogical() returned %d paths, want at least 2", len(result))
 	}
@@ -744,7 +744,7 @@ func TestRecursiveListSecretWithLogical_NilSecretList_V1(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	// When secretList is nil, an empty slice should be returned
 	if len(result) != 0 {
 		t.Errorf("recursiveListSecretWithLogical() expected empty slice when list returns nil, got %v", result)
@@ -758,7 +758,7 @@ func TestRecursiveListSecretWithLogical_NilSecretList_V2(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "2")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "2")
 	// When secretList is nil, an empty slice should be returned
 	if len(result) != 0 {
 		t.Errorf("recursiveListSecretWithLogical() expected empty slice when list returns nil, got %v", result)
@@ -768,7 +768,7 @@ func TestRecursiveListSecretWithLogical_NilSecretList_V2(t *testing.T) {
 func TestRecursiveListSecretWithLogical_UnsupportedVersion(t *testing.T) {
 	mock := &mockVaultLogical{}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "unsupported")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "unsupported")
 	// For unsupported version, an empty slice should be returned since listSecretWithLogical returns nil
 	if len(result) != 0 {
 		t.Errorf("recursiveListSecretWithLogical() expected empty slice for unsupported version, got %v", result)
@@ -786,7 +786,7 @@ func TestRecursiveListSecretWithLogical_KeysNotSlice(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	if len(result) != 0 {
 		t.Errorf("recursiveListSecretWithLogical() expected empty slice when keys is not a slice, got %v", result)
 	}
@@ -803,7 +803,7 @@ func TestRecursiveListSecretWithLogical_KeyNotString(t *testing.T) {
 		},
 	}
 
-	result := recursiveListSecretWithLogical(mock, "/secret", "", "1")
+	result := recursiveListSecretWithLogical(context.Background(), mock, "/secret", "", "1")
 	// Should skip the non-string key and only return the valid one
 	if len(result) != 1 {
 		t.Errorf("recursiveListSecretWithLogical() expected 1 result, got %d: %v", len(result), result)
@@ -1719,6 +1719,23 @@ func TestHealthCheck_ConnectionRefused(t *testing.T) {
 	err = client.HealthCheck(context.Background())
 	if err == nil {
 		t.Error("HealthCheck() expected error for connection refused")
+	}
+}
+
+func TestGetValues_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // pre-cancel
+
+	mock := &mockVaultLogical{
+		readRawFunc: func(path string) (*vaultapi.Response, error) {
+			return nil, ctx.Err()
+		},
+	}
+
+	client := &Client{logical: mock}
+	_, err := client.GetValues(ctx, []string{"/secret/data"})
+	if err == nil {
+		t.Error("GetValues() with cancelled context: expected error, got nil")
 	}
 }
 
