@@ -1,8 +1,123 @@
 package template
 
 import (
+	"context"
+	"errors"
 	"testing"
+	"time"
+
+	"github.com/abtreece/confd/pkg/backends"
+	"github.com/abtreece/confd/pkg/log"
 )
+
+// erroringStoreClient is a mock StoreClient that returns errors from WatchPrefix
+// immediately unless the context is cancelled or the stop channel is closed.
+type erroringStoreClient struct{}
+
+func (c *erroringStoreClient) GetValues(_ context.Context, _ []string) (map[string]string, error) {
+	return nil, nil
+}
+
+func (c *erroringStoreClient) WatchPrefix(ctx context.Context, _ string, _ []string, _ uint64, stopChan chan bool) (uint64, error) {
+	select {
+	case <-stopChan:
+		return 0, errors.New("watch stopped")
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+		return 0, errors.New("simulated backend error")
+	}
+}
+
+func (c *erroringStoreClient) HealthCheck(_ context.Context) error { return nil }
+func (c *erroringStoreClient) Close() error                        { return nil }
+
+var _ backends.StoreClient = (*erroringStoreClient)(nil)
+
+// TestMonitorPrefix_NonBlockingErrChan verifies that monitorPrefix does not
+// deadlock when errChan is full. With the old blocking send (p.errChan <- err),
+// the goroutine would stall on the first error when there is no reader. After
+// the fix (non-blocking select), errors are dropped and the goroutine exits
+// cleanly when the context is cancelled.
+func TestMonitorPrefix_NonBlockingErrChan(t *testing.T) {
+	// Suppress the expected "error dropped" Warning logs — this test intentionally
+	// floods errChan to verify the goroutine doesn't deadlock, so dropped-error
+	// warnings are noise rather than signal here.
+	log.SetLevel("error")
+	t.Cleanup(func() { log.SetLevel("info") })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	p := &watchProcessor{
+		config: Config{
+			Ctx:               ctx,
+			WatchErrorBackoff: time.Millisecond,
+		},
+		errChan:      make(chan error), // unbuffered, no reader — fills instantly
+		internalStop: make(chan bool),
+	}
+
+	tr := &TemplateResource{
+		storeClient:  &erroringStoreClient{},
+		prefixedKeys: []string{"/test"},
+		Dest:         "/tmp/test.conf",
+	}
+
+	p.wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		p.monitorPrefix(tr)
+	}()
+
+	select {
+	case <-done:
+		// goroutine exited cleanly — non-blocking errChan confirmed
+	case <-time.After(time.Second):
+		t.Fatal("monitorPrefix blocked on full errChan (deadlock regression)")
+	}
+}
+
+// TestMonitorForBatch_NonBlockingErrChan verifies that monitorForBatch does not
+// deadlock when errChan is full, using the same approach as TestMonitorPrefix_NonBlockingErrChan.
+func TestMonitorForBatch_NonBlockingErrChan(t *testing.T) {
+	log.SetLevel("error")
+	t.Cleanup(func() { log.SetLevel("info") })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	p := &batchWatchProcessor{
+		config: Config{
+			Ctx:               ctx,
+			WatchErrorBackoff: time.Millisecond,
+		},
+		errChan:      make(chan error), // unbuffered, no reader
+		changeChan:   make(chan *TemplateResource, 1),
+		internalStop: make(chan bool),
+	}
+
+	tr := &TemplateResource{
+		storeClient:  &erroringStoreClient{},
+		prefixedKeys: []string{"/test"},
+		Dest:         "/tmp/test.conf",
+	}
+
+	p.wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		p.monitorForBatch(tr)
+	}()
+
+	select {
+	case <-done:
+		// goroutine exited cleanly
+	case <-time.After(time.Second):
+		t.Fatal("monitorForBatch blocked on full errChan (deadlock regression)")
+	}
+}
 
 func TestIntervalProcessor_Creation(t *testing.T) {
 	config := Config{}
