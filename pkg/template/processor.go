@@ -12,6 +12,17 @@ import (
 	util "github.com/abtreece/confd/pkg/util"
 )
 
+// trySendErr attempts a non-blocking send of err to ch.
+// If ch is full, it logs a warning that includes dest so operators can identify
+// which template resource triggered the drop.
+func trySendErr(ch chan error, err error, dest string) {
+	select {
+	case ch <- err:
+	default:
+		log.Warning("error dropped (errChan full) for %s: %s", dest, err)
+	}
+}
+
 // Processor defines the interface for template processing strategies.
 type Processor interface {
 	Process()
@@ -246,7 +257,7 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 				log.Debug("Context cancelled, stopping watch for %s", t.Dest)
 				return
 			}
-			p.errChan <- err
+			trySendErr(p.errChan, err, t.Dest)
 			// Prevent backend errors from consuming all resources.
 			time.Sleep(p.config.WatchErrorBackoff)
 			continue
@@ -269,7 +280,7 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 				// Debounce period elapsed, process the template
 				log.Debug("Debounce period elapsed for %s, processing", t.Dest)
 				if err := t.process(); err != nil {
-					p.errChan <- err
+					trySendErr(p.errChan, err, t.Dest)
 				}
 			case <-p.internalStop:
 				return
@@ -285,7 +296,7 @@ func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
 			default:
 				// No debouncing, process immediately
 				if err := t.process(); err != nil {
-					p.errChan <- err
+					trySendErr(p.errChan, err, t.Dest)
 				}
 			}
 		}
@@ -415,7 +426,7 @@ func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {
 				log.Debug("Context cancelled, stopping batch watch for %s", t.Dest)
 				return
 			}
-			p.errChan <- err
+			trySendErr(p.errChan, err, t.Dest)
 			time.Sleep(p.config.WatchErrorBackoff)
 			continue
 		}

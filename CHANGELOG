@@ -1,5 +1,7 @@
 ### Unreleased
 
+* fix: Non-blocking errChan sends in monitorPrefix and monitorForBatch — prevents watch goroutines from stalling under error bursts when all backends fail simultaneously; dropped errors are logged at Warning level (#560)
+
 * fix: Propagate context through Vault and Zookeeper GetValues — `--backend-timeout` and caller cancellation now take effect for Vault (updated vaultLogical interface to use `*WithContext` variants) and Zookeeper (goroutine+select wrappers for blocking calls) (#566)
 
 * fix: Close cached per-resource backend clients on shutdown — prevents connection/resource leaks when template resources override the global backend; lock is released before Close() to prevent deadlock (#564)
