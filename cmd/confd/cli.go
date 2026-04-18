@@ -566,6 +566,17 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		log.Warning("Failed to notify systemd ready: %v", err)
 	}
 
+	shutdown := func() error {
+		if err := shutdownMgr.Shutdown(context.Background()); err != nil {
+			log.Error("Shutdown error: %v", err)
+			return err
+		}
+		if err := template.CloseAllCachedClients(); err != nil {
+			log.Warning("Error closing per-resource backend clients: %v", err)
+		}
+		return nil
+	}
+
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	var stopOnce sync.Once
@@ -594,28 +605,11 @@ func run(cli *CLI, backendCfg backends.Config) error {
 				}
 				cancel() // Cancel context to signal all goroutines
 				stopOnce.Do(func() { close(stopChan) })
-				// Wait for processor to finish and close doneChan
-				// Perform graceful shutdown after processor exits
 				<-doneChan
-				if err := shutdownMgr.Shutdown(context.Background()); err != nil {
-					log.Error("Shutdown error: %v", err)
-					return err
-				}
-				if err := template.CloseAllCachedClients(); err != nil {
-					log.Warning("Error closing per-resource backend clients: %v", err)
-				}
-				return nil
+				return shutdown()
 			}
 		case <-doneChan:
-			// Perform graceful shutdown on normal exit
-			if err := shutdownMgr.Shutdown(context.Background()); err != nil {
-				log.Error("Shutdown error: %v", err)
-				return err
-			}
-			if err := template.CloseAllCachedClients(); err != nil {
-				log.Warning("Error closing per-resource backend clients: %v", err)
-			}
-			return nil
+			return shutdown()
 		}
 	}
 }

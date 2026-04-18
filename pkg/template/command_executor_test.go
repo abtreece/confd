@@ -12,10 +12,6 @@ import (
 )
 
 func TestExecuteCheck_Success(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
 	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -24,25 +20,25 @@ func TestExecuteCheck_Success(t *testing.T) {
 	tmpFile.WriteString("test content")
 	tmpFile.Close()
 
+	checkCmd := "cat {{.src}}"
+	if runtime.GOOS == "windows" {
+		checkCmd = "type {{.src}}"
+	}
+
 	executor, err := newCommandExecutor(commandExecutorConfig{
-		CheckCmd: "cat {{.src}}",
+		CheckCmd: checkCmd,
 		SyncOnly: false,
 	})
 	if err != nil {
 		t.Fatalf("newCommandExecutor() unexpected error: %v", err)
 	}
 
-	err = executor.executeCheck(tmpFile.Name())
-	if err != nil {
+	if err = executor.executeCheck(tmpFile.Name()); err != nil {
 		t.Errorf("executeCheck() unexpected error: %v", err)
 	}
 }
 
 func TestExecuteCheck_Failure(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
 	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -63,7 +59,7 @@ func TestExecuteCheck_Failure(t *testing.T) {
 		t.Error("executeCheck() expected error for exit 1, got nil")
 	}
 	if err != nil && err.Error() != "config check failed: exit status 1" {
-		t.Errorf("executeCheck() expected 'config check failed' prefix, got: %v", err)
+		t.Errorf("executeCheck() expected 'config check failed: exit status 1', got: %v", err)
 	}
 }
 
@@ -112,10 +108,6 @@ func TestExecuteCheck_SyncOnlyMode(t *testing.T) {
 }
 
 func TestExecuteReload_Success(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
 	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -145,9 +137,6 @@ func TestExecuteReload_Success(t *testing.T) {
 }
 
 func TestExecuteReload_Failure(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
 
 	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
 	if err != nil {
@@ -215,9 +204,6 @@ func TestExecuteReload_SyncOnlyMode(t *testing.T) {
 }
 
 func TestExecuteReload_RateLimiting(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
 
 	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
 	if err != nil {
@@ -251,9 +237,6 @@ func TestExecuteReload_RateLimiting(t *testing.T) {
 }
 
 func TestExecuteReload_RateLimitingAllowsAfterInterval(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
 
 	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
 	if err != nil {
@@ -287,9 +270,6 @@ func TestExecuteReload_RateLimitingAllowsAfterInterval(t *testing.T) {
 }
 
 func TestExecuteReload_NoRateLimitingWhenIntervalNotSet(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
 
 	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
 	if err != nil {
@@ -322,9 +302,6 @@ func TestExecuteReload_NoRateLimitingWhenIntervalNotSet(t *testing.T) {
 }
 
 func TestExecuteReload_TemplateSubstitution(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
 
 	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
 	if err != nil {
@@ -348,10 +325,6 @@ func TestExecuteReload_TemplateSubstitution(t *testing.T) {
 }
 
 func TestExecuteCheck_Timeout(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
 	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -359,8 +332,13 @@ func TestExecuteCheck_Timeout(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
+	sleepCmd := "sleep 5"
+	if runtime.GOOS == "windows" {
+		sleepCmd = "ping -n 6 127.0.0.1 > nul"
+	}
+
 	executor, err := newCommandExecutor(commandExecutorConfig{
-		CheckCmd:        "sleep 5",
+		CheckCmd:        sleepCmd,
 		CheckCmdTimeout: 100 * time.Millisecond,
 		Ctx:             context.Background(),
 	})
@@ -378,10 +356,6 @@ func TestExecuteCheck_Timeout(t *testing.T) {
 }
 
 func TestExecuteReload_Timeout(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
 	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -389,8 +363,13 @@ func TestExecuteReload_Timeout(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
+	sleepCmd := "sleep 5"
+	if runtime.GOOS == "windows" {
+		sleepCmd = "ping -n 6 127.0.0.1 > nul"
+	}
+
 	executor, err := newCommandExecutor(commandExecutorConfig{
-		ReloadCmd:        "sleep 5",
+		ReloadCmd:        sleepCmd,
 		ReloadCmdTimeout: 100 * time.Millisecond,
 		Ctx:              context.Background(),
 	})
@@ -408,10 +387,6 @@ func TestExecuteReload_Timeout(t *testing.T) {
 }
 
 func TestExecuteCheck_NoTimeout(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
 	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -436,10 +411,6 @@ func TestExecuteCheck_NoTimeout(t *testing.T) {
 }
 
 func TestExecuteCheck_ContextCancellation(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
 	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -450,8 +421,13 @@ func TestExecuteCheck_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
+	sleepCmd := "sleep 1"
+	if runtime.GOOS == "windows" {
+		sleepCmd = "ping -n 2 127.0.0.1 > nul"
+	}
+
 	executor, err := newCommandExecutor(commandExecutorConfig{
-		CheckCmd:        "sleep 1",
+		CheckCmd:        sleepCmd,
 		CheckCmdTimeout: 10 * time.Second,
 		Ctx:             ctx,
 	})
@@ -469,10 +445,6 @@ func TestExecuteCheck_ContextCancellation(t *testing.T) {
 }
 
 func TestExecuteReload_ContextCancellation(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
 	tmpFile, err := os.CreateTemp("", "confd-reload-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -483,8 +455,13 @@ func TestExecuteReload_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
+	sleepCmd := "sleep 1"
+	if runtime.GOOS == "windows" {
+		sleepCmd = "ping -n 2 127.0.0.1 > nul"
+	}
+
 	executor, err := newCommandExecutor(commandExecutorConfig{
-		ReloadCmd:        "sleep 1",
+		ReloadCmd:        sleepCmd,
 		ReloadCmdTimeout: 10 * time.Second,
 		Ctx:              ctx,
 	})
@@ -503,9 +480,10 @@ func TestExecuteReload_ContextCancellation(t *testing.T) {
 
 func TestExecuteCheck_LongCommandWithTimeout(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
+		// Killing cmd.exe leaves child processes (e.g. ping) as orphans on Windows;
+		// CombinedOutput blocks until the orphan exits, so the timing assertion fails.
+		t.Skip("Skipping: Windows does not support process-group kill")
 	}
-
 	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -513,9 +491,14 @@ func TestExecuteCheck_LongCommandWithTimeout(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
+	sleepCmd := "sleep 10"
+	if runtime.GOOS == "windows" {
+		sleepCmd = "ping -n 11 127.0.0.1 > nul"
+	}
+
 	start := time.Now()
 	executor, err := newCommandExecutor(commandExecutorConfig{
-		CheckCmd:        "sleep 10",
+		CheckCmd:        sleepCmd,
 		CheckCmdTimeout: 200 * time.Millisecond,
 		Ctx:             context.Background(),
 	})

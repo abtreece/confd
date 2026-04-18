@@ -49,7 +49,7 @@ key = "{{ getv "/benchmark/key" }}"
 	// Create resource config
 	resourceContent := `[template]
 src = "bench.tmpl"
-dest = "` + filepath.Join(destDir, "bench.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "bench.conf")) + `"
 keys = ["/benchmark/key"]
 `
 	resourcePath := filepath.Join(confdDir, "bench.toml")
@@ -238,7 +238,7 @@ key = "{{ getv "/test/key" }}"
 
 	resourceContent := `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/test/key"]
 `
 	resourcePath := filepath.Join(confdDir, "test.toml")
@@ -371,7 +371,7 @@ func BenchmarkGetTemplateResources(b *testing.B) {
 				if err := os.WriteFile(
 					filepath.Join(confdDir, name+".toml"),
 					[]byte(fmt.Sprintf("[template]\nsrc = \"%s.tmpl\"\ndest = \"%s\"\nkeys = [\"/k\"]\n",
-						name, filepath.Join(destDir, name+".conf"))),
+						name, filepath.ToSlash(filepath.Join(destDir, name+".conf")))),
 					0644); err != nil {
 					b.Fatal(err)
 				}

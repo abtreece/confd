@@ -228,6 +228,7 @@ func TestProcessTemplateResources(t *testing.T) {
 		t.Errorf("Failed to create destFile: %s", err.Error())
 	}
 	defer os.Remove(destFile.Name())
+	destFile.Close() // Windows requires the file handle to be closed before rename-over
 
 	// Create the template resource configuration file.
 	templateResourcePath := filepath.Join(tempConfDir, "conf.d", "foo.toml")
@@ -241,7 +242,7 @@ func TestProcessTemplateResources(t *testing.T) {
 	}
 	data := make(map[string]string)
 	data["src"] = "foo.tmpl"
-	data["dest"] = destFile.Name()
+	data["dest"] = filepath.ToSlash(destFile.Name())
 	err = tmpl.Execute(templateResourceFile, data)
 	if err != nil {
 		t.Error(err)
@@ -1038,8 +1039,8 @@ func TestSetFileMode_ExistingFile(t *testing.T) {
 		t.Errorf("setFileMode() unexpected error: %v", err)
 	}
 
-	// Should inherit mode from existing file
-	if tr.FileMode != 0755 {
+	// Should inherit mode from existing file (Windows only honors read-only bit)
+	if runtime.GOOS != "windows" && tr.FileMode != 0755 {
 		t.Errorf("setFileMode() FileMode = %v, want 0755", tr.FileMode)
 	}
 }
@@ -1269,5 +1270,37 @@ func TestSync_CheckCmdFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "config check failed") {
 		t.Errorf("sync() error = %v, want error containing 'config check failed'", err)
+	}
+}
+
+// TestResolveOwnership_Defaults verifies that resolveOwnership returns the
+// current process uid/gid when owner and group are not specified.
+// This exercises the platform-specific implementations on all CI runners.
+func TestResolveOwnership_Defaults(t *testing.T) {
+	uid, gid, err := resolveOwnership("", "", -1, -1)
+	if err != nil {
+		t.Fatalf("resolveOwnership() unexpected error: %v", err)
+	}
+	if uid == -1 || gid == -1 {
+		// -1 is the sentinel "unset" value; a resolved value should differ.
+		// On Windows os.Getuid()/Getegid() also return -1, so skip the check there.
+		if runtime.GOOS != "windows" {
+			t.Errorf("resolveOwnership() uid=%d gid=%d — expected non-sentinel values on non-Windows", uid, gid)
+		}
+	}
+}
+
+// TestResolveOwnership_ExplicitValues verifies that pre-set uid/gid are passed
+// through unchanged, regardless of platform.
+func TestResolveOwnership_ExplicitValues(t *testing.T) {
+	uid, gid, err := resolveOwnership("", "", 42, 43)
+	if err != nil {
+		t.Fatalf("resolveOwnership() unexpected error: %v", err)
+	}
+	if uid != 42 {
+		t.Errorf("resolveOwnership() uid = %d, want 42", uid)
+	}
+	if gid != 43 {
+		t.Errorf("resolveOwnership() gid = %d, want 43", gid)
 	}
 }

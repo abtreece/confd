@@ -134,9 +134,11 @@ func (e *processorTestEnv) readDest(name string) (string, error) {
 	return string(content), nil
 }
 
-// destPath returns the full path to a destination file.
+// destPath returns the full path to a destination file, using forward slashes
+// so the path is safe to embed in TOML strings on all platforms.
+// Windows accepts forward slashes for file I/O, so this is safe end-to-end.
 func (e *processorTestEnv) destPath(name string) string {
-	return filepath.Join(e.destDir, name)
+	return filepath.ToSlash(filepath.Join(e.destDir, name))
 }
 
 // createConfig creates a Config for the test environment.

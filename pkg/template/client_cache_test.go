@@ -14,8 +14,7 @@ import (
 // mockClosableClient is a StoreClient whose Close behaviour is controllable.
 type mockClosableClient struct {
 	closed    bool
-	closeErr  error
-	closeFunc func() error // optional; called instead of returning closeErr when set
+	closeFunc func() error
 }
 
 func (m *mockClosableClient) GetValues(_ context.Context, _ []string) (map[string]string, error) {
@@ -30,7 +29,7 @@ func (m *mockClosableClient) Close() error {
 	if m.closeFunc != nil {
 		return m.closeFunc()
 	}
-	return m.closeErr
+	return nil
 }
 
 func TestConfigHash(t *testing.T) {
@@ -389,7 +388,7 @@ func TestCloseAllCachedClients_ReturnsErrorOnCloseFailure(t *testing.T) {
 	log.SetLevel("warn")
 
 	closeErr := errors.New("connection reset")
-	c := &mockClosableClient{closeErr: closeErr}
+	c := &mockClosableClient{closeFunc: func() error { return closeErr }}
 	clientCacheMu.Lock()
 	clientCache = map[string]backends.StoreClient{"key1": c}
 	clientCacheMu.Unlock()
@@ -416,7 +415,7 @@ func TestCloseAllCachedClients_ContinuesOnPartialFailure(t *testing.T) {
 
 	closeErr := errors.New("partial failure")
 	good := &mockClosableClient{}
-	bad := &mockClosableClient{closeErr: closeErr}
+	bad := &mockClosableClient{closeFunc: func() error { return closeErr }}
 	clientCacheMu.Lock()
 	clientCache = map[string]backends.StoreClient{"good": good, "bad": bad}
 	clientCacheMu.Unlock()
