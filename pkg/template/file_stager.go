@@ -133,7 +133,7 @@ func (s *fileStager) applyPermissions(filePath string) error {
 	if err := os.Chmod(filePath, s.fileMode); err != nil {
 		return fmt.Errorf("failed to chmod stage file: %w", err)
 	}
-	if err := os.Chown(filePath, s.uid, s.gid); err != nil {
+	if err := chownFile(filePath, s.uid, s.gid); err != nil {
 		return fmt.Errorf("failed to chown stage file: %w", err)
 	}
 	return nil
@@ -243,7 +243,7 @@ func (s *fileStager) writeToDestination(stagePath, destPath string) error {
 
 	// Ensure owner and group match, in case the file was created with WriteFile
 	chownStart := time.Now()
-	if err := os.Chown(destPath, s.uid, s.gid); err != nil {
+	if err := chownFile(destPath, s.uid, s.gid); err != nil {
 		logger.ErrorContext(context.Background(), "Failed to chown destination",
 			"duration_ms", time.Since(start).Milliseconds(),
 			"error", err.Error())
