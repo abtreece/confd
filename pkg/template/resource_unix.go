@@ -33,11 +33,11 @@ func resolveOwnership(owner, group string, uid, gid int) (int, int, error) {
 		if group != "" {
 			g, err := user.LookupGroup(group)
 			if err != nil {
-				return 0, 0, fmt.Errorf("Cannot find group's GID - %s", err.Error())
+				return 0, 0, fmt.Errorf("cannot find group's GID for group %q: %w", group, err)
 			}
 			gid, err = strconv.Atoi(g.Gid)
 			if err != nil {
-				return 0, 0, fmt.Errorf("Cannot convert string to int - %s", err.Error())
+				return 0, 0, fmt.Errorf("cannot convert group GID %q to int for group %q: %w", g.Gid, group, err)
 			}
 		} else {
 			gid = os.Getegid()

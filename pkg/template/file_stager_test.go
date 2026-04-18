@@ -76,13 +76,15 @@ func TestCreateStageFile_Success(t *testing.T) {
 		t.Errorf("createStageFile() content = %v, want %v", string(readContent), string(content))
 	}
 
-	// Verify file mode
-	info, err := os.Stat(stageFile.Name())
-	if err != nil {
-		t.Fatalf("Failed to stat stage file: %v", err)
-	}
-	if info.Mode().Perm() != 0644 {
-		t.Errorf("createStageFile() mode = %v, want %v", info.Mode().Perm(), 0644)
+	// Verify file mode — Windows chmod only honours the read-only bit.
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(stageFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to stat stage file: %v", err)
+		}
+		if info.Mode().Perm() != 0644 {
+			t.Errorf("createStageFile() mode = %v, want %v", info.Mode().Perm(), 0644)
+		}
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -761,7 +762,10 @@ func TestComputeMD5_FileNotExist(t *testing.T) {
 
 func TestRecursiveFilesLookup_UnreadableDirectory(t *testing.T) {
 	// Bug #486: recursiveLookup ignores filepath.Walk errors
-	// Skip on non-Unix systems where permissions work differently
+	// Windows ignores chmod 0000 on directories; root bypasses permission checks.
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping: Windows does not honour chmod 0000 on directories")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("Skipping permission test when running as root")
 	}
@@ -792,7 +796,10 @@ func TestRecursiveFilesLookup_UnreadableDirectory(t *testing.T) {
 
 func TestRecursiveDirsLookup_UnreadableDirectory(t *testing.T) {
 	// Bug #486: recursiveLookup ignores filepath.Walk errors
-	// Skip on non-Unix systems where permissions work differently
+	// Windows ignores chmod 0000 on directories; root bypasses permission checks.
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping: Windows does not honour chmod 0000 on directories")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("Skipping permission test when running as root")
 	}
