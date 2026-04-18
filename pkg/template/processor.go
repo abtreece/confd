@@ -526,7 +526,7 @@ func (p *batchWatchProcessor) processBatch() {
 
 func getTemplateResources(config Config) ([]*TemplateResource, error) {
 	var lastError error
-	log.Debug("Loading template resources from confdir %s", config.ConfDir)
+	log.Debug("Loading template resources from config dir %s", config.ConfigDir)
 	if _, err := os.Stat(config.ConfigDir); err != nil {
 		log.Warning("Cannot load template resources: config dir '%s': %v", config.ConfigDir, err)
 		return nil, nil
