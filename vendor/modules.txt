@@ -86,7 +86,7 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2
 # github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/internal/ini
-# github.com/aws/aws-sdk-go-v2/service/acm v1.37.23
+# github.com/aws/aws-sdk-go-v2/service/acm v1.38.1
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/service/acm
 github.com/aws/aws-sdk-go-v2/service/acm/internal/endpoints
