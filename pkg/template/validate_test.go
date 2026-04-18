@@ -44,7 +44,7 @@ func TestValidateResourceFile(t *testing.T) {
 			name: "valid config",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 `,
 			expectError: false,
@@ -52,7 +52,7 @@ keys = ["/app/test"]
 		{
 			name: "missing src",
 			content: `[template]
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 `,
 			expectError: true,
@@ -71,7 +71,7 @@ keys = ["/app/test"]
 			name: "missing keys",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 `,
 			expectError: true,
 			errorFields: []string{"keys"},
@@ -80,7 +80,7 @@ dest = "` + filepath.Join(destDir, "test.conf") + `"
 			name: "invalid mode",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 mode = "invalid"
 `,
@@ -91,7 +91,7 @@ mode = "invalid"
 			name: "valid octal mode",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 mode = "0644"
 `,
@@ -101,7 +101,7 @@ mode = "0644"
 			name: "template not found",
 			content: `[template]
 src = "nonexistent.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 `,
 			expectError: true,
@@ -121,7 +121,7 @@ keys = ["/app/test"]
 			name: "empty key in array",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test", ""]
 `,
 			expectError: true,
@@ -131,7 +131,7 @@ keys = ["/app/test", ""]
 			name: "valid config with backend section",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 
 [backend]
@@ -143,7 +143,7 @@ backend = "env"
 			name: "backend section missing backend type",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 
 [backend]
@@ -156,7 +156,7 @@ nodes = ["127.0.0.1:8500"]
 			name: "unknown backend type",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 
 [backend]
@@ -169,7 +169,7 @@ backend = "unknown"
 			name: "valid output_format json",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 output_format = "json"
 `,
@@ -179,7 +179,7 @@ output_format = "json"
 			name: "valid output_format yaml",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 output_format = "yaml"
 `,
@@ -189,7 +189,7 @@ output_format = "yaml"
 			name: "valid output_format yml",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 output_format = "yml"
 `,
@@ -199,7 +199,7 @@ output_format = "yml"
 			name: "valid output_format toml",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 output_format = "toml"
 `,
@@ -209,7 +209,7 @@ output_format = "toml"
 			name: "valid output_format xml",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 output_format = "xml"
 `,
@@ -219,7 +219,7 @@ output_format = "xml"
 			name: "invalid output_format",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 output_format = "invalid"
 `,
@@ -230,7 +230,7 @@ output_format = "invalid"
 			name: "valid min_reload_interval",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 min_reload_interval = "30s"
 `,
@@ -240,7 +240,7 @@ min_reload_interval = "30s"
 			name: "valid min_reload_interval 1 minute",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 min_reload_interval = "1m"
 `,
@@ -250,7 +250,7 @@ min_reload_interval = "1m"
 			name: "invalid min_reload_interval",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 min_reload_interval = "invalid"
 `,
@@ -261,7 +261,7 @@ min_reload_interval = "invalid"
 			name: "valid debounce",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 debounce = "2s"
 `,
@@ -271,7 +271,7 @@ debounce = "2s"
 			name: "valid debounce milliseconds",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 debounce = "500ms"
 `,
@@ -281,7 +281,7 @@ debounce = "500ms"
 			name: "invalid debounce",
 			content: `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 debounce = "invalid"
 `,
@@ -358,7 +358,7 @@ func TestValidateConfig(t *testing.T) {
 		// Write valid config
 		content := `[template]
 src = "valid.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 `
 		if err := os.WriteFile(filepath.Join(confDir, "valid.toml"), []byte(content), 0644); err != nil {
@@ -375,7 +375,7 @@ keys = ["/app/test"]
 	t.Run("specific resource file", func(t *testing.T) {
 		content := `[template]
 src = "valid.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 `
 		configFile := filepath.Join(confDir, "specific.toml")
@@ -466,7 +466,7 @@ func TestValidateTemplates(t *testing.T) {
 		// Create resource file
 		resourceContent := `[template]
 src = "nginx.conf.tmpl"
-dest = "` + filepath.Join(destDir, "nginx.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "nginx.conf")) + `"
 keys = ["/nginx"]
 `
 		if err := os.WriteFile(filepath.Join(confDir, "nginx.toml"), []byte(resourceContent), 0644); err != nil {
@@ -494,7 +494,7 @@ keys = ["/nginx"]
 		// Create resource file
 		resourceContent := `[template]
 src = "bad.conf.tmpl"
-dest = "` + filepath.Join(destDir, "bad.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "bad.conf")) + `"
 keys = ["/app"]
 `
 		if err := os.WriteFile(filepath.Join(confDir, "bad.toml"), []byte(resourceContent), 0644); err != nil {
@@ -523,7 +523,7 @@ keys = ["/app"]
 		// Create resource file
 		resourceContent := `[template]
 src = "config.json.tmpl"
-dest = "` + filepath.Join(destDir, "config.json") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "config.json")) + `"
 keys = ["/app"]
 output_format = "json"
 `
@@ -564,7 +564,7 @@ output_format = "json"
 		// Create resource file
 		resourceContent := `[template]
 src = "simple.tmpl"
-dest = "` + filepath.Join(destDir, "simple.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "simple.conf")) + `"
 keys = ["/test"]
 `
 		if err := os.WriteFile(filepath.Join(confDir, "simple.toml"), []byte(resourceContent), 0644); err != nil {

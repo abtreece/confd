@@ -339,7 +339,7 @@ keys = ["/app/test"]
 
 [backend]
 backend = "file"
-file = ["` + filepath.Join(dataDir, "config.yaml") + `"]
+file = ["` + filepath.ToSlash(filepath.Join(dataDir, "config.yaml")) + `"]
 `
 	if err := os.WriteFile(filepath.Join(confDir, "test.toml"), []byte(resourceContent), 0644); err != nil {
 		t.Fatalf("Failed to create resource: %v", err)

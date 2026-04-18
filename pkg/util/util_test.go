@@ -143,6 +143,9 @@ func createDirStructure() (string, error) {
 }
 
 func TestRecursiveFilesLookup(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping: Windows requires elevated privileges for symlinks")
+	}
 	log.SetLevel("warn")
 	// Setup temporary directories
 	rootDir, err := createDirStructure()
@@ -391,6 +394,9 @@ func TestArrayShift(t *testing.T) {
 }
 
 func TestRecursiveDirsLookup(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping: Windows requires elevated privileges for symlinks")
+	}
 	log.SetLevel("warn")
 	// Setup temporary directories
 	rootDir, err := createDirStructure()
@@ -526,6 +532,9 @@ func TestIsConfigChanged_DifferentSize(t *testing.T) {
 }
 
 func TestIsConfigChanged_DifferentMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping: Windows does not honour chmod mode bits")
+	}
 	log.SetLevel("warn")
 	src, err := os.CreateTemp("", "src")
 	if err != nil {

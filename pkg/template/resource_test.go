@@ -1038,8 +1038,8 @@ func TestSetFileMode_ExistingFile(t *testing.T) {
 		t.Errorf("setFileMode() unexpected error: %v", err)
 	}
 
-	// Should inherit mode from existing file
-	if tr.FileMode != 0755 {
+	// Should inherit mode from existing file (Windows only honors read-only bit)
+	if runtime.GOOS != "windows" && tr.FileMode != 0755 {
 		t.Errorf("setFileMode() FileMode = %v, want 0755", tr.FileMode)
 	}
 }
