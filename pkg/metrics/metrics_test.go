@@ -153,6 +153,9 @@ func TestFileMetrics_Initialized(t *testing.T) {
 	if FileChangedTotal == nil {
 		t.Error("FileChangedTotal should not be nil")
 	}
+	if StageFileCleanupErrors == nil {
+		t.Error("StageFileCleanupErrors should not be nil")
+	}
 
 	// Cleanup
 	Registry = nil
@@ -183,6 +186,7 @@ func TestMetrics_CanBeRecorded(t *testing.T) {
 
 	FileSyncTotal.WithLabelValues("/etc/nginx/nginx.conf").Inc()
 	FileChangedTotal.Inc()
+	StageFileCleanupErrors.Inc()
 
 	// Verify we can gather metrics
 	metricFamilies, err := Registry.Gather()
@@ -201,6 +205,7 @@ func TestMetrics_CanBeRecorded(t *testing.T) {
 		"confd_backend_request_total",
 		"confd_template_process_total",
 		"confd_command_total",
+		"confd_stage_file_cleanup_errors_total",
 	}
 
 	for _, metric := range expectedMetrics {
