@@ -1,5 +1,10 @@
 ### Unreleased
 
+* fix: Resolve gosec code scanning alerts (2026-04-18) (#578)
+  - Suppress false positives with `#nosec` annotations for G117, G204, G304, G703, G115 — all operator-configured paths/commands or internal-only hash input
+  - Handle previously unhandled errors from `Close()` and `os.Remove()` calls in redis, vault, and template packages with warning/error logging
+  - Extract `closePubSubLocked()` and `removeStageFile()` helpers to deduplicate repeated cleanup patterns
+
 ### v0.41.0 (2026-04-18)
 
 * fix: Windows support — skip chown and owner/group lookup on Windows (#574)

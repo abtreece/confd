@@ -393,6 +393,17 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	}
 }
 
+// closePubSubLocked closes and nils c.pubsub, logging any error.
+// Must be called with c.pubsubMu held.
+func (c *Client) closePubSubLocked() {
+	if c.pubsub != nil {
+		if err := c.pubsub.Close(); err != nil {
+			log.Warning("Failed to close Redis PubSub: %v", err)
+		}
+		c.pubsub = nil
+	}
+}
+
 // stopWatch cancels the long-lived watch goroutine and cleans up resources.
 func (c *Client) stopWatch() {
 	c.pubsubMu.Lock()
@@ -403,10 +414,7 @@ func (c *Client) stopWatch() {
 		c.watchCancel = nil
 		c.watchCtx = nil
 	}
-	if c.pubsub != nil {
-		c.pubsub.Close()
-		c.pubsub = nil
-	}
+	c.closePubSubLocked()
 	// Clear watched prefixes so they can be re-registered if watch restarts
 	c.watchedPrefixes = make(map[string]struct{})
 }
@@ -433,10 +441,7 @@ func (c *Client) watchWithReconnect(ctx context.Context) {
 
 	defer func() {
 		c.pubsubMu.Lock()
-		if c.pubsub != nil {
-			c.pubsub.Close()
-			c.pubsub = nil
-		}
+		c.closePubSubLocked()
 		// Clear watchCtx/watchCancel so a new watcher can be started if needed.
 		// Only clear if they still refer to this watcher's context to avoid
 		// racing with stopWatch() or a concurrently started new watcher.
@@ -446,7 +451,9 @@ func (c *Client) watchWithReconnect(ctx context.Context) {
 		}
 		c.pubsubMu.Unlock()
 		if rClient != nil {
-			rClient.Close()
+			if err := rClient.Close(); err != nil {
+				log.Warning("Failed to close Redis client: %v", err)
+			}
 		}
 	}()
 
@@ -527,13 +534,12 @@ func (c *Client) watchWithReconnect(ctx context.Context) {
 
 					// Clean up current connection before reconnecting
 					c.pubsubMu.Lock()
-					if c.pubsub != nil {
-						c.pubsub.Close()
-						c.pubsub = nil
-					}
+					c.closePubSubLocked()
 					c.pubsubMu.Unlock()
 					if rClient != nil {
-						rClient.Close()
+						if err := rClient.Close(); err != nil {
+							log.Warning("Failed to close Redis client during reconnect: %v", err)
+						}
 						rClient = nil
 					}
 

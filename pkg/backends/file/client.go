@@ -36,7 +36,7 @@ func NewFileClient(filepath []string, filter string) (*Client, error) {
 }
 
 func readFile(path string, vars map[string]string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is from configured filepath list, not user input
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", path, err)
 	}

@@ -148,7 +148,7 @@ func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure b
 	}
 
 	if caCert != "" {
-		certBytes, err := os.ReadFile(caCert)
+		certBytes, err := os.ReadFile(caCert) // #nosec G304 -- caCert is operator-configured TLS path
 		if err != nil {
 			return &Client{}, fmt.Errorf("failed to read CA certificate file: %w", err)
 		}
@@ -368,7 +368,7 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	notify := make(chan int64)
 	// Wait for all watches
 	for _, v := range watches {
-		go v.WaitNext(watchCtx, int64(waitIndex), notify)
+		go v.WaitNext(watchCtx, int64(waitIndex), notify) // #nosec G115 -- etcd revisions are int64 internally; uint64 overflow is not reachable in practice
 	}
 	select {
 	case nextRevision := <-notify:
