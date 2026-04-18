@@ -1,5 +1,15 @@
 ### Unreleased
 
+* chore: Ignore root-level confd binary in .gitignore (2026-04-18) (#580)
+
+* fix: Handle os.Remove errors when cleaning stage files (2026-04-18) (#579)
+  - Replace all bare `os.Remove` calls on stage files with `removeStageFile` helper
+  - Silently ignore `ErrNotExist` (expected after atomic rename), log Warning for other errors
+  - Add `stage_file_cleanup_errors_total` Prometheus counter for observability
+  - Move `removeStageFile` to `file_stager.go` alongside all other staging logic
+  - Extend metrics tests to cover `StageFileCleanupErrors` initialization and recording
+  - Closes #556
+
 * fix: Resolve gosec code scanning alerts (2026-04-18) (#578)
   - Suppress false positives with `#nosec` annotations for G117, G204, G304, G703, G115 — all operator-configured paths/commands or internal-only hash input
   - Handle previously unhandled errors from `Close()` and `os.Remove()` calls in redis, vault, and template packages with warning/error logging
