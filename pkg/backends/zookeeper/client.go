@@ -40,65 +40,38 @@ func NewZookeeperClient(machines []string, dialTimeout time.Duration) (*Client, 
 	}, nil
 }
 
-// childrenWithContext wraps Children with context cancellation support.
-// Uses a buffered channel so the goroutine can exit even if ctx is done first.
-func (c *Client) childrenWithContext(ctx context.Context, path string) ([]string, *zk.Stat, error) {
+// zkCall runs fn in a goroutine and returns its result, or cancels if ctx is
+// done first. The buffered channel ensures the goroutine never leaks.
+func zkCall[T any](ctx context.Context, fn func() (T, *zk.Stat, error)) (T, *zk.Stat, error) {
 	type result struct {
-		children []string
-		stat     *zk.Stat
-		err      error
-	}
-	ch := make(chan result, 1)
-	go func() {
-		l, s, err := c.client.Children(path)
-		ch <- result{l, s, err}
-	}()
-	select {
-	case <-ctx.Done():
-		return nil, nil, ctx.Err()
-	case r := <-ch:
-		return r.children, r.stat, r.err
-	}
-}
-
-// getWithContext wraps Get with context cancellation support.
-func (c *Client) getWithContext(ctx context.Context, path string) ([]byte, *zk.Stat, error) {
-	type result struct {
-		data []byte
+		val  T
 		stat *zk.Stat
 		err  error
 	}
 	ch := make(chan result, 1)
 	go func() {
-		b, s, err := c.client.Get(path)
-		ch <- result{b, s, err}
+		v, s, err := fn()
+		ch <- result{v, s, err}
 	}()
 	select {
 	case <-ctx.Done():
-		return nil, nil, ctx.Err()
+		var zero T
+		return zero, nil, ctx.Err()
 	case r := <-ch:
-		return r.data, r.stat, r.err
+		return r.val, r.stat, r.err
 	}
 }
 
-// existsWithContext wraps Exists with context cancellation support.
+func (c *Client) childrenWithContext(ctx context.Context, path string) ([]string, *zk.Stat, error) {
+	return zkCall(ctx, func() ([]string, *zk.Stat, error) { return c.client.Children(path) })
+}
+
+func (c *Client) getWithContext(ctx context.Context, path string) ([]byte, *zk.Stat, error) {
+	return zkCall(ctx, func() ([]byte, *zk.Stat, error) { return c.client.Get(path) })
+}
+
 func (c *Client) existsWithContext(ctx context.Context, path string) (bool, *zk.Stat, error) {
-	type result struct {
-		exists bool
-		stat   *zk.Stat
-		err    error
-	}
-	ch := make(chan result, 1)
-	go func() {
-		ok, s, err := c.client.Exists(path)
-		ch <- result{ok, s, err}
-	}()
-	select {
-	case <-ctx.Done():
-		return false, nil, ctx.Err()
-	case r := <-ch:
-		return r.exists, r.stat, r.err
-	}
+	return zkCall(ctx, func() (bool, *zk.Stat, error) { return c.client.Exists(path) })
 }
 
 func nodeWalk(ctx context.Context, prefix string, c *Client, vars map[string]string) error {
@@ -150,8 +123,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		if err != nil {
 			return vars, err
 		}
-		err = nodeWalk(ctx, v, c, vars)
-		if err != nil {
+		if err := nodeWalk(ctx, v, c, vars); err != nil {
 			return vars, err
 		}
 	}
