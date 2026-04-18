@@ -83,9 +83,7 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 		if closeErr := temp.Close(); closeErr != nil {
 			log.Error("Failed to close temp file during cleanup: %v", closeErr)
 		}
-		if removeErr := os.Remove(temp.Name()); removeErr != nil {
-			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
-		}
+		removeStageFile(temp.Name())
 		logger.ErrorContext(context.Background(), "Failed to write to stage file",
 			"duration_ms", time.Since(start).Milliseconds(),
 			"write_duration_ms", time.Since(writeStart).Milliseconds(),
@@ -100,9 +98,7 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 		if closeErr := temp.Close(); closeErr != nil {
 			log.Error("Failed to close temp file during cleanup: %v", closeErr)
 		}
-		if removeErr := os.Remove(temp.Name()); removeErr != nil {
-			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
-		}
+		removeStageFile(temp.Name())
 		logger.ErrorContext(context.Background(), "Failed to apply permissions",
 			"duration_ms", time.Since(start).Milliseconds(),
 			"error", err.Error())
@@ -113,9 +109,7 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 	// Close the file before returning - content is flushed to disk
 	// The file handle remains valid for Name() calls
 	if err := temp.Close(); err != nil {
-		if removeErr := os.Remove(temp.Name()); removeErr != nil {
-			log.Error("Failed to remove temp file during cleanup: %v", removeErr)
-		}
+		removeStageFile(temp.Name())
 		return nil, fmt.Errorf("failed to close stage file: %w", err)
 	}
 
@@ -174,7 +168,7 @@ func (s *fileStager) syncFiles(stagePath, destPath string) error {
 	}
 
 	// Otherwise, try atomic rename first (moves the file)
-	defer os.Remove(stagePath)
+	defer removeStageFile(stagePath)
 
 	renameStart := time.Now()
 	err := os.Rename(stagePath, destPath)
@@ -259,6 +253,17 @@ func (s *fileStager) writeToDestination(stagePath, destPath string) error {
 		"file_size_bytes", len(contents))
 
 	return nil
+}
+
+// removeStageFile removes a staged temp file. Cleanup failures are non-fatal
+// but logged and counted — they indicate filesystem issues worth observing.
+func removeStageFile(path string) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Warning("Failed to remove stage file %s: %v", path, err)
+		if metrics.Enabled() {
+			metrics.StageFileCleanupErrors.Inc()
+		}
+	}
 }
 
 // showDiffOutput generates and displays a diff between the staged and destination files.

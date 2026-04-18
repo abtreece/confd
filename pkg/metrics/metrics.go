@@ -48,8 +48,9 @@ var (
 
 // File sync metrics
 var (
-	FileSyncTotal    *prometheus.CounterVec
-	FileChangedTotal prometheus.Counter
+	FileSyncTotal             *prometheus.CounterVec
+	FileChangedTotal          prometheus.Counter
+	StageFileCleanupErrors    prometheus.Counter
 )
 
 // Initialize creates and registers all metrics with a new registry.
@@ -258,6 +259,15 @@ func Initialize() {
 		},
 	)
 	Registry.MustRegister(FileChangedTotal)
+
+	StageFileCleanupErrors = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "stage_file_cleanup_errors_total",
+			Help:      "Total number of errors encountered when removing stage files.",
+		},
+	)
+	Registry.MustRegister(StageFileCleanupErrors)
 }
 
 // Enabled returns true if metrics are enabled.

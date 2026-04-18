@@ -554,9 +554,3 @@ func (t *TemplateResource) setFileMode() error {
 	return nil
 }
 
-// removeStageFile removes a staged temp file, logging any error.
-func removeStageFile(path string) {
-	if err := os.Remove(path); err != nil {
-		log.Error("Failed to remove stage file %s: %v", path, err)
-	}
-}
