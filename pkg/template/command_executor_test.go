@@ -479,6 +479,11 @@ func TestExecuteReload_ContextCancellation(t *testing.T) {
 }
 
 func TestExecuteCheck_LongCommandWithTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Killing cmd.exe leaves child processes (e.g. ping) as orphans on Windows;
+		// CombinedOutput blocks until the orphan exits, so the timing assertion fails.
+		t.Skip("Skipping: Windows does not support process-group kill")
+	}
 	tmpFile, err := os.CreateTemp("", "confd-check-test-*.conf")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)

@@ -117,7 +117,7 @@ func TestPreflight_SuccessWithKeys(t *testing.T) {
 	// Create resource file
 	resourceContent := `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 `
 	if err := os.WriteFile(filepath.Join(confDir, "test.toml"), []byte(resourceContent), 0644); err != nil {
@@ -172,7 +172,7 @@ func TestPreflight_NoKeysFound(t *testing.T) {
 	// Create resource file
 	resourceContent := `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 `
 	if err := os.WriteFile(filepath.Join(confDir, "test.toml"), []byte(resourceContent), 0644); err != nil {
@@ -226,7 +226,7 @@ func TestPreflight_GetValuesError(t *testing.T) {
 	// Create resource file
 	resourceContent := `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 `
 	if err := os.WriteFile(filepath.Join(confDir, "test.toml"), []byte(resourceContent), 0644); err != nil {
@@ -334,7 +334,7 @@ func TestPreflight_PerResourceBackend(t *testing.T) {
 	// Keys exist in the file backend but NOT in the global backend
 	resourceContent := `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 
 [backend]
@@ -397,7 +397,7 @@ func TestPreflight_PerResourceBackendHealthCheckFailure(t *testing.T) {
 	// Create resource file with per-resource backend pointing to non-existent file
 	resourceContent := `[template]
 src = "test.tmpl"
-dest = "` + filepath.Join(destDir, "test.conf") + `"
+dest = "` + filepath.ToSlash(filepath.Join(destDir, "test.conf")) + `"
 keys = ["/app/test"]
 
 [backend]
