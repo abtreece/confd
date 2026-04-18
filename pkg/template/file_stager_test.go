@@ -99,10 +99,6 @@ func TestCreateStageFile_InvalidDestDir(t *testing.T) {
 }
 
 func TestApplyPermissions(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping permission test on Windows")
-	}
-
 	tmpFile, err := os.CreateTemp("", "perm-test-")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -116,18 +112,32 @@ func TestApplyPermissions(t *testing.T) {
 		FileMode: 0600,
 	})
 
-	err = stager.applyPermissions(tmpFile.Name())
-	if err != nil {
-		t.Errorf("applyPermissions() unexpected error: %v", err)
+	if err = stager.applyPermissions(tmpFile.Name()); err != nil {
+		t.Fatalf("applyPermissions() unexpected error: %v", err)
 	}
 
-	// Verify mode was applied
-	info, err := os.Stat(tmpFile.Name())
-	if err != nil {
-		t.Fatalf("Failed to stat file: %v", err)
+	// Windows chmod only honours the read-only bit; full mode bits are Unix-only.
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(tmpFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to stat file: %v", err)
+		}
+		if info.Mode().Perm() != 0600 {
+			t.Errorf("applyPermissions() mode = %v, want %v", info.Mode().Perm(), 0600)
+		}
 	}
-	if info.Mode().Perm() != 0600 {
-		t.Errorf("applyPermissions() mode = %v, want %v", info.Mode().Perm(), 0600)
+}
+
+func TestChownFile(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "chown-test-")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	if err := chownFile(tmpFile.Name(), os.Getuid(), os.Getegid()); err != nil {
+		t.Fatalf("chownFile() unexpected error: %v", err)
 	}
 }
 
