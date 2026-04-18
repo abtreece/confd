@@ -228,6 +228,7 @@ func TestProcessTemplateResources(t *testing.T) {
 		t.Errorf("Failed to create destFile: %s", err.Error())
 	}
 	defer os.Remove(destFile.Name())
+	destFile.Close() // Windows requires the file handle to be closed before rename-over
 
 	// Create the template resource configuration file.
 	templateResourcePath := filepath.Join(tempConfDir, "conf.d", "foo.toml")
