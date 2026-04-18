@@ -190,11 +190,12 @@ func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duratio
 		defer cancel()
 	}
 
+	// All commands are operator-configured via template resources, not user input.
 	var c *exec.Cmd
 	if runtime.GOOS == "windows" {
-		c = exec.CommandContext(ctx, "cmd", "/C", cmd)
+		c = exec.CommandContext(ctx, "cmd", "/C", cmd) // #nosec G204
 	} else {
-		c = exec.CommandContext(ctx, "/bin/sh", "-c", cmd)
+		c = exec.CommandContext(ctx, "/bin/sh", "-c", cmd) // #nosec G204
 		// Set up process group handling for proper child process cleanup
 		setupProcessGroup(c)
 	}
@@ -257,11 +258,12 @@ func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duratio
 // It returns nil if the command returns 0, otherwise returns the error.
 func runCommand(cmd string) error {
 	log.Debug("Running %s", cmd)
+	// All commands are operator-configured via template resources, not user input.
 	var c *exec.Cmd
 	if runtime.GOOS == "windows" {
-		c = exec.Command("cmd", "/C", cmd)
+		c = exec.Command("cmd", "/C", cmd) // #nosec G204
 	} else {
-		c = exec.Command("/bin/sh", "-c", cmd)
+		c = exec.Command("/bin/sh", "-c", cmd) // #nosec G204
 	}
 
 	output, err := c.CombinedOutput()

@@ -244,7 +244,9 @@ func (c *Client) GetValues(ctx context.Context, paths []string) (map[string]stri
 		}
 
 		secret, err := vaultapi.ParseSecret(resp.Body)
-		resp.Body.Close() // Close immediately after parsing to avoid resource leak in loop
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Warning("Failed to close Vault response body: %v", closeErr)
+		}
 		if err != nil {
 			log.Warning("failed to parse secret for %s: %v", mount, err)
 			errs = append(errs, fmt.Errorf("mount %s: failed to parse secret: %w", mount, err))

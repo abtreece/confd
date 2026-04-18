@@ -345,7 +345,7 @@ func (t *TemplateResource) createStageFile() error {
 	// Validate output format if specified
 	if err := t.fmtValidator.validate(temp.Name()); err != nil {
 		// temp is already closed by fileStager.createStageFile()
-		os.Remove(temp.Name())
+		removeStageFile(temp.Name())
 		return err
 	}
 
@@ -391,7 +391,7 @@ func (t *TemplateResource) sync() error {
 		}
 		// Clean up stage file in noop mode
 		if !t.keepStageFile {
-			os.Remove(staged)
+			removeStageFile(staged)
 		}
 		return nil
 	}
@@ -400,7 +400,7 @@ func (t *TemplateResource) sync() error {
 	if !changed {
 		log.Debug("Target config %s in sync", t.Dest)
 		if !t.keepStageFile {
-			os.Remove(staged)
+			removeStageFile(staged)
 		}
 		return nil
 	}
@@ -410,7 +410,7 @@ func (t *TemplateResource) sync() error {
 	if !t.syncOnly && t.CheckCmd != "" {
 		if err := t.check(); err != nil {
 			if !t.keepStageFile {
-				os.Remove(staged)
+				removeStageFile(staged)
 			}
 			return fmt.Errorf("config check failed: %w", err)
 		}
@@ -552,4 +552,11 @@ func (t *TemplateResource) setFileMode() error {
 	}
 
 	return nil
+}
+
+// removeStageFile removes a staged temp file, logging any error.
+func removeStageFile(path string) {
+	if err := os.Remove(path); err != nil {
+		log.Error("Failed to remove stage file %s: %s", path, err)
+	}
 }

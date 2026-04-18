@@ -68,7 +68,8 @@ func configHash(cfg backends.Config) string {
 	cfg.RetryMaxDelay = 0
 	cfg.IMDSCacheTTL = 0
 
-	// Marshal config to JSON for consistent hashing
+	// Marshal config to JSON for consistent hashing.
+	// #nosec G117 -- JSON is used only as SHA256 hash input, never logged or transmitted
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		// Fallback to a simple string representation

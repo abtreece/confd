@@ -221,7 +221,7 @@ func (s *fileStager) writeToDestination(stagePath, destPath string) error {
 	logger := log.With("stage_path", stagePath, "dest_path", destPath)
 
 	readStart := time.Now()
-	contents, err := os.ReadFile(stagePath)
+	contents, err := os.ReadFile(stagePath) // #nosec G304 -- stagePath is an internal temp file created by confd
 	readDuration := time.Since(readStart)
 
 	if err != nil {
@@ -232,7 +232,7 @@ func (s *fileStager) writeToDestination(stagePath, destPath string) error {
 	}
 
 	writeStart := time.Now()
-	if err := os.WriteFile(destPath, contents, s.fileMode); err != nil {
+	if err := os.WriteFile(destPath, contents, s.fileMode); err != nil { // #nosec G703 -- destPath is operator-configured, not user input
 		logger.ErrorContext(context.Background(), "Failed to write to destination",
 			"duration_ms", time.Since(start).Milliseconds(),
 			"file_size_bytes", len(contents),
