@@ -241,7 +241,7 @@ func TestProcessTemplateResources(t *testing.T) {
 	}
 	data := make(map[string]string)
 	data["src"] = "foo.tmpl"
-	data["dest"] = destFile.Name()
+	data["dest"] = filepath.ToSlash(destFile.Name())
 	err = tmpl.Execute(templateResourceFile, data)
 	if err != nil {
 		t.Error(err)
