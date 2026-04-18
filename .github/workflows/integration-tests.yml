@@ -151,21 +151,24 @@ jobs:
     container: ubuntu:22.04
     services:
       vault:
-        image: hashicorp/vault
+        image: hashicorp/vault:1.17.6
+        options: >-
+          --cap-add=IPC_LOCK
         ports:
           - 8200:8200
         env:
           VAULT_DEV_ROOT_TOKEN_ID: "super-secret-token"
+          VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
 
     steps:
       - name: Install dependencies
         run: |
           apt-get -q update
-          DEBIAN_FRONTEND="noninteractive" apt-get install -y git curl make sudo gnupg2 lsb-release
-          echo "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main" >> /etc/apt/sources.list
-          curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
-          apt-get -q update
-          DEBIAN_FRONTEND="noninteractive" apt-get install -y vault
+          DEBIAN_FRONTEND="noninteractive" apt-get install -y git curl make sudo unzip
+          curl -fsSL "https://releases.hashicorp.com/vault/1.17.6/vault_1.17.6_linux_amd64.zip" -o /tmp/vault.zip
+          unzip -o /tmp/vault.zip -d /usr/local/bin/
+          chmod +x /usr/local/bin/vault
+          rm /tmp/vault.zip
 
       - name: Check out repository code
         uses: actions/checkout@v6
