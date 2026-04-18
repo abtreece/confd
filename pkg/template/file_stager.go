@@ -255,6 +255,17 @@ func (s *fileStager) writeToDestination(stagePath, destPath string) error {
 	return nil
 }
 
+// removeStageFile removes a staged temp file. Cleanup failures are non-fatal
+// but logged and counted — they indicate filesystem issues worth observing.
+func removeStageFile(path string) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Warning("Failed to remove stage file %s: %v", path, err)
+		if metrics.Enabled() {
+			metrics.StageFileCleanupErrors.Inc()
+		}
+	}
+}
+
 // showDiffOutput generates and displays a diff between the staged and destination files.
 func (s *fileStager) showDiffOutput(stagePath, destPath string) error {
 	diff, err := util.GenerateDiff(stagePath, destPath, s.diffContext)
