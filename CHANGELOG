@@ -1,5 +1,13 @@
 ### Unreleased
 
+* fix: Windows support — skip chown and owner/group lookup on Windows (#574)
+  - `os.Chown` is unsupported on Windows; `chownFile` is now a no-op on Windows
+  - `user.Lookup`/`user.LookupGroup` return SID strings on Windows that cannot be
+    parsed as numeric IDs; `resolveOwnership` skips user/group lookup on Windows
+    and logs a warning if `owner`/`group` are set in the template config
+  - Add `cross-platform.yml` CI workflow running unit tests on `windows-latest`
+    and `macos-latest`
+
 * fix: Non-blocking errChan sends in monitorPrefix and monitorForBatch — prevents watch goroutines from stalling under error bursts when all backends fail simultaneously; dropped errors are logged at Warning level (#560)
 
 * fix: Propagate context through Vault and Zookeeper GetValues — `--backend-timeout` and caller cancellation now take effect for Vault (updated vaultLogical interface to use `*WithContext` variants) and Zookeeper (goroutine+select wrappers for blocking calls) (#566)

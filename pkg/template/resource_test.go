@@ -1271,3 +1271,35 @@ func TestSync_CheckCmdFails(t *testing.T) {
 		t.Errorf("sync() error = %v, want error containing 'config check failed'", err)
 	}
 }
+
+// TestResolveOwnership_Defaults verifies that resolveOwnership returns the
+// current process uid/gid when owner and group are not specified.
+// This exercises the platform-specific implementations on all CI runners.
+func TestResolveOwnership_Defaults(t *testing.T) {
+	uid, gid, err := resolveOwnership("", "", -1, -1)
+	if err != nil {
+		t.Fatalf("resolveOwnership() unexpected error: %v", err)
+	}
+	if uid == -1 || gid == -1 {
+		// -1 is the sentinel "unset" value; a resolved value should differ.
+		// On Windows os.Getuid()/Getegid() also return -1, so skip the check there.
+		if runtime.GOOS != "windows" {
+			t.Errorf("resolveOwnership() uid=%d gid=%d — expected non-sentinel values on non-Windows", uid, gid)
+		}
+	}
+}
+
+// TestResolveOwnership_ExplicitValues verifies that pre-set uid/gid are passed
+// through unchanged, regardless of platform.
+func TestResolveOwnership_ExplicitValues(t *testing.T) {
+	uid, gid, err := resolveOwnership("", "", 42, 43)
+	if err != nil {
+		t.Fatalf("resolveOwnership() unexpected error: %v", err)
+	}
+	if uid != 42 {
+		t.Errorf("resolveOwnership() uid = %d, want 42", uid)
+	}
+	if gid != 43 {
+		t.Errorf("resolveOwnership() gid = %d, want 43", gid)
+	}
+}
