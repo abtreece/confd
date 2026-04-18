@@ -172,14 +172,34 @@ func TestProcess_NilTemplateResources(t *testing.T) {
 	}
 }
 
-func TestGetTemplateResources_NonExistentConfDir(t *testing.T) {
+func TestGetTemplateResources_NonExistentConfigDir(t *testing.T) {
 	config := Config{
 		ConfDir:   "/nonexistent/path",
 		ConfigDir: "/nonexistent/path/conf.d",
 	}
 
 	templates, err := getTemplateResources(config)
-	// Should return nil, nil when confdir doesn't exist (logs warning)
+	// Should return nil, nil when config dir doesn't exist (logs warning)
+	if err != nil {
+		t.Errorf("getTemplateResources() unexpected error: %v", err)
+	}
+	if templates != nil {
+		t.Errorf("getTemplateResources() = %v, want nil", templates)
+	}
+}
+
+func TestGetTemplateResources_ConfDirExistsConfigDirMissing(t *testing.T) {
+	// Regression test for: ConfDir existence check passing when ConfigDir is absent.
+	// Previously, getTemplateResources statted ConfDir but scanned ConfigDir.
+	// If ConfDir existed but ConfigDir did not, the check passed silently and
+	// RecursiveFilesLookup returned a confusing EvalSymlinks error.
+	confDir := t.TempDir() // ConfDir exists
+	config := Config{
+		ConfDir:   confDir,
+		ConfigDir: confDir + "/conf.d", // ConfigDir does not exist
+	}
+
+	templates, err := getTemplateResources(config)
 	if err != nil {
 		t.Errorf("getTemplateResources() unexpected error: %v", err)
 	}
