@@ -1,5 +1,7 @@
 ### Unreleased
 
+### v0.41.0 (2026-04-18)
+
 * fix: Windows support — skip chown and owner/group lookup on Windows (#574)
   - `os.Chown` is unsupported on Windows; `chownFile` is now a no-op on Windows
   - `user.Lookup`/`user.LookupGroup` return SID strings on Windows that cannot be
