@@ -12,6 +12,12 @@
   - Eliminates temp file create/write/rename/delete on the common steady-state no-change path
   - Closes #548
 
+* refactor: Extract shared AWS SDK init helper into awsutil package (2026-04-19) (#587)
+  - Add `pkg/backends/awsutil.LoadAWSConfig` centralizing region detection (env → IMDS → SDK defaults), config loading, and credential validation
+  - Migrate acm, ssm, secretsmanager, and dynamodb backends to use the shared helper, removing ~120 lines of duplicated boilerplate
+  - Add `dialTimeout` parameter to `dynamodb.NewDynamoDBClient` for consistency with other AWS backends
+  - Closes #549
+
 * chore: Ignore root-level confd binary in .gitignore (2026-04-18) (#580)
 
 * fix: Handle os.Remove errors when cleaning stage files (2026-04-18) (#579)

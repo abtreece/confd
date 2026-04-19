@@ -101,7 +101,7 @@ func New(config Config) (StoreClient, error) {
 	case "dynamodb":
 		table := config.Table
 		log.Info("DynamoDB table set to %s", table)
-		return dynamodb.NewDynamoDBClient(table)
+		return dynamodb.NewDynamoDBClient(table, config.DialTimeout)
 	case "ssm":
 		return ssm.New(config.DialTimeout)
 	case "imds":
