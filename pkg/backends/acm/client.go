@@ -7,11 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/awsutil"
 	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/acm"
 )
 
@@ -32,48 +31,11 @@ type Client struct {
 func New(exportPrivateKey bool, dialTimeout time.Duration) (*Client, error) {
 	ctx := context.Background()
 
-	// Defaults already applied via ApplyTimeoutDefaults in the factory
-	// Attempt to get AWS Region from environment first, then EC2 metadata
-	var region string
-	if os.Getenv("AWS_REGION") != "" {
-		region = os.Getenv("AWS_REGION")
-	} else {
-		// Try to get region from EC2 metadata with a timeout
-		imdsCtx, cancel := context.WithTimeout(ctx, dialTimeout)
-		defer cancel()
-
-		imdsClient := imds.New(imds.Options{})
-		regionOutput, err := imdsClient.GetRegion(imdsCtx, &imds.GetRegionInput{})
-		if err == nil {
-			region = regionOutput.Region
-		} else {
-			return nil, fmt.Errorf("failed to get region from EC2 metadata: %w", err)
-		}
-	}
-
-	// Build config options
-	var optFns []func(*config.LoadOptions) error
-	if region != "" {
-		optFns = append(optFns, config.WithRegion(region))
-	}
-
-	cfg, err := config.LoadDefaultConfig(ctx, optFns...)
+	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		return nil, err
 	}
 
-	log.Debug("Region: %s", cfg.Region)
-
-	// Fail early if no credentials can be found
-	creds, err := cfg.Credentials.Retrieve(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve AWS credentials: %w", err)
-	}
-	if !creds.HasKeys() {
-		return nil, fmt.Errorf("no AWS credentials found")
-	}
-
-	// Create ACM client with optional local endpoint
 	var acmOpts []func(*acm.Options)
 	if os.Getenv("ACM_LOCAL") != "" {
 		log.Debug("ACM_LOCAL is set")
@@ -83,7 +45,6 @@ func New(exportPrivateKey bool, dialTimeout time.Duration) (*Client, error) {
 		})
 	}
 
-	// If export private key is enabled, require passphrase
 	var passphrase []byte
 	if exportPrivateKey {
 		passphraseStr := os.Getenv("ACM_PASSPHRASE")
