@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/awsutil"
 	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
@@ -29,30 +29,16 @@ type Client struct {
 	table  string
 }
 
-// NewDynamoDBClient returns an *dynamodb.Client with a connection to the region
-// configured via the AWS_REGION environment variable.
-// It returns an error if the connection cannot be made or the table does not exist.
-func NewDynamoDBClient(table string) (*Client, error) {
+// NewDynamoDBClient returns a *Client connected to DynamoDB.
+// It validates that the specified table exists before returning.
+func NewDynamoDBClient(table string, dialTimeout time.Duration) (*Client, error) {
 	ctx := context.Background()
 
-	// Build config options
-	var optFns []func(*config.LoadOptions) error
-
-	cfg, err := config.LoadDefaultConfig(ctx, optFns...)
+	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		return nil, err
 	}
 
-	// Fail early if no credentials can be found
-	creds, err := cfg.Credentials.Retrieve(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve AWS credentials: %w", err)
-	}
-	if !creds.HasKeys() {
-		return nil, fmt.Errorf("no AWS credentials found")
-	}
-
-	// Create DynamoDB client with optional local endpoint
 	var ddbOpts []func(*dynamodb.Options)
 	if os.Getenv("DYNAMODB_LOCAL") != "" {
 		log.Debug("DYNAMODB_LOCAL is set")
@@ -64,7 +50,6 @@ func NewDynamoDBClient(table string) (*Client, error) {
 
 	d := dynamodb.NewFromConfig(cfg, ddbOpts...)
 
-	// Check if the table exists
 	_, err = d.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: &table})
 	if err != nil {
 		return nil, fmt.Errorf("failed to describe table %s: %w", table, err)
