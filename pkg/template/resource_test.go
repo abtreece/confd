@@ -2,6 +2,7 @@ package template
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -1302,5 +1303,87 @@ func TestResolveOwnership_ExplicitValues(t *testing.T) {
 	}
 	if gid != 43 {
 		t.Errorf("resolveOwnership() gid = %d, want 43", gid)
+	}
+}
+
+func TestProcess_SkipsStageFileWhenUnchanged(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows — file mode bits not enforced")
+	}
+
+	tempConfDir, err := createTempDirs()
+	if err != nil {
+		t.Fatalf("Failed to create temp dirs: %s", err)
+	}
+	defer os.RemoveAll(tempConfDir)
+
+	// Write a template that produces static content.
+	srcTemplate := filepath.Join(tempConfDir, "templates", "static.tmpl")
+	if err := os.WriteFile(srcTemplate, []byte("static content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write dest file with the same content process() will produce.
+	destFile, err := os.CreateTemp("", "confd-process-test-*.conf")
+	if err != nil {
+		t.Fatalf("Failed to create dest file: %v", err)
+	}
+	destFile.WriteString("static content")
+	destFile.Close()
+	defer os.Remove(destFile.Name())
+	os.Chmod(destFile.Name(), 0644)
+
+	// Record mtime before process() runs.
+	infoBefore, err := os.Stat(destFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to stat dest file before: %v", err)
+	}
+	mtimeBefore := infoBefore.ModTime()
+
+	resourceContent := fmt.Sprintf(`[template]
+src = "static.tmpl"
+dest = "%s"
+keys = []
+`, filepath.ToSlash(destFile.Name()))
+
+	resourcePath := filepath.Join(tempConfDir, "conf.d", "static.toml")
+	if err := os.WriteFile(resourcePath, []byte(resourceContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	storeClient, err := env.NewEnvClient()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tr, err := NewTemplateResource(resourcePath, Config{
+		ConfDir:     tempConfDir,
+		ConfigDir:   filepath.Join(tempConfDir, "conf.d"),
+		StoreClient: storeClient,
+		TemplateDir: filepath.Join(tempConfDir, "templates"),
+	})
+	if err != nil {
+		t.Fatalf("NewTemplateResource failed: %s", err)
+	}
+
+	if err := tr.process(); err != nil {
+		t.Fatalf("process() unexpected error: %v", err)
+	}
+
+	// Primary assertion: StageFile must not have been created.
+	// This is more reliable than mtime comparison (mtime resolution varies by filesystem).
+	if tr.StageFile != nil {
+		t.Errorf("process() should not set StageFile when content is unchanged, got %s", tr.StageFile.Name())
+		os.Remove(tr.StageFile.Name())
+	}
+
+	// Secondary assertion: dest file must not have been touched (mtime unchanged).
+	// Note: mtime resolution is filesystem-dependent; the StageFile check above is authoritative.
+	infoAfter, err := os.Stat(destFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to stat dest file after: %v", err)
+	}
+	if !infoAfter.ModTime().Equal(mtimeBefore) {
+		t.Logf("process() mtime changed after no-op run (filesystem resolution may vary; StageFile check above is authoritative)")
 	}
 }

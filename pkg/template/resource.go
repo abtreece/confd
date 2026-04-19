@@ -314,37 +314,17 @@ func (t *TemplateResource) setVars() error {
 	return t.bkndFetcher.fetchValues()
 }
 
-// createStageFile stages the src configuration file by processing the src
-// template and setting the desired owner, group, and mode. It also sets the
-// StageFile for the template resource.
-// It returns an error if any.
-func (t *TemplateResource) createStageFile() error {
-	// Ensure FileMode is set and fileStager is updated.
-	// This defensive check is needed for backward compatibility with tests that:
-	// 1. Call createStageFile() directly without going through process()
-	// 2. Set FileMode directly on TemplateResource after construction
-	// TODO: Refactor tests to use process() or a test helper to avoid this check
-	if t.FileMode == 0 || (t.fileStgr != nil && t.fileStgr.fileMode != t.FileMode) {
-		if err := t.setFileMode(); err != nil {
-			return err
-		}
-	}
-
-	// Render the template to bytes
-	rendered, err := t.tmplRenderer.render(t.Src)
-	if err != nil {
-		return err
-	}
-
-	// Create stage file with rendered content
+// createStageFile stages the src configuration file using pre-rendered content.
+// It writes the rendered bytes to a temp file in the destination directory,
+// applies configured permissions, and validates the output format if set.
+// It sets StageFile on success.
+func (t *TemplateResource) createStageFile(rendered []byte) error {
 	temp, err := t.fileStgr.createStageFile(t.Dest, rendered)
 	if err != nil {
 		return err
 	}
 
-	// Validate output format if specified
 	if err := t.fmtValidator.validate(temp.Name()); err != nil {
-		// temp is already closed by fileStager.createStageFile()
 		removeStageFile(temp.Name())
 		return err
 	}
@@ -491,11 +471,8 @@ func (t *TemplateResource) reload() error {
 }
 
 
-// process is a convenience function that wraps calls to the three main tasks
-// required to keep local configuration files in sync. First we gather vars
-// from the store, then we stage a candidate configuration file, and finally sync
-// things up.
-// It returns an error if any.
+// process gathers vars from the backend, renders the template to bytes, and
+// syncs the destination file only when content or metadata has changed.
 func (t *TemplateResource) process() error {
 	start := time.Now()
 	var err error
@@ -517,7 +494,26 @@ func (t *TemplateResource) process() error {
 	if err = t.setVars(); err != nil {
 		return err
 	}
-	if err = t.createStageFile(); err != nil {
+
+	// Render template to bytes before touching disk.
+	var rendered []byte
+	rendered, err = t.tmplRenderer.render(t.Src)
+	if err != nil {
+		return err
+	}
+
+	// Fast path: skip stage file entirely when content and metadata are unchanged.
+	var unchanged bool
+	unchanged, err = t.fileStgr.contentUnchanged(rendered, t.Dest)
+	if err != nil {
+		return err
+	}
+	if unchanged {
+		log.Debug("Target config %s in sync", t.Dest)
+		return nil
+	}
+
+	if err = t.createStageFile(rendered); err != nil {
 		return err
 	}
 	if err = t.sync(); err != nil {
