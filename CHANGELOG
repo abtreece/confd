@@ -1,5 +1,11 @@
 ### Unreleased
 
+* chore(deps): bump github.com/aws/aws-sdk-go-v2/config from 1.32.13 to 1.32.16 (#585)
+* chore(deps): bump github.com/aws/aws-sdk-go-v2/service/ssm from 1.68.4 to 1.68.5 (#584)
+* chore(deps): bump go.etcd.io/etcd/client/v3 from 3.6.8 to 3.6.10 (#583)
+* chore(deps): bump github.com/aws/aws-sdk-go-v2/service/secretsmanager from 1.41.1 to 1.41.6 (#582)
+* chore(deps): bump github.com/aws/aws-sdk-go-v2 from 1.41.5 to 1.41.6 (#581)
+
 * perf: Skip stage file write when rendered content is unchanged (2026-04-19) (#586)
   - Add `contentUnchanged()` to `fileStager`: compares rendered bytes against dest file (mode + ownership + size + MD5) before staging
   - Refactor `process()` to render first, check `contentUnchanged()`, and early-return without staging on the no-change path
