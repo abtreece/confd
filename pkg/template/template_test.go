@@ -567,7 +567,15 @@ func ExecuteTestTemplate(tt templateTest, t *testing.T) {
 
 	tt.updateStore(tr)
 
-	if err := tr.createStageFile(); err != nil {
+	// Sync the fileStager's mode with the FileMode set directly on the resource.
+	tr.fileStgr.updateFileMode(tr.FileMode)
+
+	rendered, err := tr.tmplRenderer.render(tr.Src)
+	if err != nil {
+		t.Fatalf("%s: failed to render template: %s", tt.desc, err.Error())
+	}
+
+	if err := tr.createStageFile(rendered); err != nil {
 		t.Errorf("%s: failed createStageFile: %s", tt.desc, err.Error())
 	}
 
@@ -632,6 +640,8 @@ func templateResource() (*TemplateResource, error) {
 		return nil, err
 	}
 	tr.Dest = "./test/tmp/test.conf"
+	// Direct FileMode assignment bypasses setFileMode(), so callers must invoke
+	// tr.fileStgr.updateFileMode(tr.FileMode) to keep the stager synchronized.
 	tr.FileMode = 0666
 	return tr, nil
 }

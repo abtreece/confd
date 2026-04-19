@@ -2,8 +2,10 @@ package template
 
 import (
 	"context"
+	"crypto/md5" // #nosec G501 -- MD5 used for change detection, not security
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,6 +60,63 @@ func newFileStager(config fileStagingConfig) *fileStager {
 // This is called after setFileMode() determines the final mode.
 func (s *fileStager) updateFileMode(mode os.FileMode) {
 	s.fileMode = mode
+}
+
+// md5Bytes returns the MD5 hex digest of b.
+// MD5 is used for fast change detection, not cryptographic security.
+func md5Bytes(b []byte) string { // #nosec G401 -- MD5 used for change detection, not security
+	h := md5.New()
+	h.Write(b)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// computeDestMD5 computes the MD5 hash of a file and returns it as a hex string.
+func computeDestMD5(path string) (string, error) {
+	f, err := os.Open(path) // #nosec G304 -- path is an operator-configured dest file
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := md5.New() // #nosec G401 -- MD5 used for change detection, not security
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+// contentUnchanged reports whether rendered content is identical to the dest file,
+// including file mode and ownership. Returns false (must write) when dest does not exist.
+func (s *fileStager) contentUnchanged(rendered []byte, destPath string) (bool, error) {
+	destStat, err := os.Stat(destPath)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	// Mode mismatch — permissions or special mode bits need updating.
+	if destStat.Mode() != s.fileMode {
+		return false, nil
+	}
+
+	// Ownership mismatch (platform-specific; always true on Windows).
+	if !destOwnershipMatches(destStat, s.uid, s.gid) {
+		return false, nil
+	}
+
+	// Fast path: size differs means content differs.
+	if destStat.Size() != int64(len(rendered)) {
+		return false, nil
+	}
+
+	// Compare content via MD5.
+	destMD5, err := computeDestMD5(destPath)
+	if err != nil {
+		return false, err
+	}
+
+	return md5Bytes(rendered) == destMD5, nil
 }
 
 // createStageFile creates a temporary stage file in the destination directory

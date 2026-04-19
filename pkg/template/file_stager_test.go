@@ -526,6 +526,115 @@ func TestCreateStageFile_EmptyContent(t *testing.T) {
 	}
 }
 
+func TestContentUnchanged_DestNotExist(t *testing.T) {
+	stager := newFileStager(fileStagingConfig{
+		Uid:      os.Getuid(),
+		Gid:      os.Getegid(),
+		FileMode: 0644,
+	})
+	unchanged, err := stager.contentUnchanged([]byte("content"), "/nonexistent/path/file.conf")
+	if err != nil {
+		t.Errorf("contentUnchanged() unexpected error: %v", err)
+	}
+	if unchanged {
+		t.Error("contentUnchanged() should return false when dest does not exist")
+	}
+}
+
+func TestContentUnchanged_SameContent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows — mode bits not enforced")
+	}
+	tmpDir := t.TempDir()
+	destPath := filepath.Join(tmpDir, "dest.conf")
+	content := []byte("hello world")
+	if err := os.WriteFile(destPath, content, 0644); err != nil {
+		t.Fatalf("Failed to write dest file: %v", err)
+	}
+
+	stager := newFileStager(fileStagingConfig{
+		Uid:      os.Getuid(),
+		Gid:      os.Getegid(),
+		FileMode: 0644,
+	})
+	unchanged, err := stager.contentUnchanged(content, destPath)
+	if err != nil {
+		t.Errorf("contentUnchanged() unexpected error: %v", err)
+	}
+	if !unchanged {
+		t.Error("contentUnchanged() should return true when content and metadata match")
+	}
+}
+
+func TestContentUnchanged_DifferentContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	destPath := filepath.Join(tmpDir, "dest.conf")
+	if err := os.WriteFile(destPath, []byte("old content"), 0644); err != nil {
+		t.Fatalf("Failed to write dest file: %v", err)
+	}
+
+	stager := newFileStager(fileStagingConfig{
+		Uid:      os.Getuid(),
+		Gid:      os.Getegid(),
+		FileMode: 0644,
+	})
+	unchanged, err := stager.contentUnchanged([]byte("new content"), destPath)
+	if err != nil {
+		t.Errorf("contentUnchanged() unexpected error: %v", err)
+	}
+	if unchanged {
+		t.Error("contentUnchanged() should return false when content differs")
+	}
+}
+
+func TestContentUnchanged_DifferentMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows — mode bits not enforced")
+	}
+	tmpDir := t.TempDir()
+	destPath := filepath.Join(tmpDir, "dest.conf")
+	content := []byte("same content")
+	if err := os.WriteFile(destPath, content, 0644); err != nil {
+		t.Fatalf("Failed to write dest file: %v", err)
+	}
+
+	// stager expects 0600 but dest has 0644
+	stager := newFileStager(fileStagingConfig{
+		Uid:      os.Getuid(),
+		Gid:      os.Getegid(),
+		FileMode: 0600,
+	})
+	unchanged, err := stager.contentUnchanged(content, destPath)
+	if err != nil {
+		t.Errorf("contentUnchanged() unexpected error: %v", err)
+	}
+	if unchanged {
+		t.Error("contentUnchanged() should return false when file mode differs")
+	}
+}
+
+func TestContentUnchanged_SameSizeDifferentContent(t *testing.T) {
+	// Verify MD5 check catches same-length content changes
+	tmpDir := t.TempDir()
+	destPath := filepath.Join(tmpDir, "dest.conf")
+	if err := os.WriteFile(destPath, []byte("aaa"), 0644); err != nil {
+		t.Fatalf("Failed to write dest file: %v", err)
+	}
+
+	stager := newFileStager(fileStagingConfig{
+		Uid:      os.Getuid(),
+		Gid:      os.Getegid(),
+		FileMode: 0644,
+	})
+	unchanged, err := stager.contentUnchanged([]byte("bbb"), destPath) // same length, different content
+	if err != nil {
+		t.Errorf("contentUnchanged() unexpected error: %v", err)
+	}
+	if unchanged {
+		t.Error("contentUnchanged() should return false when content differs (same size)")
+	}
+}
+
 func TestSyncFiles_ErrorReading(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "file-stager-test-")
 	if err != nil {
