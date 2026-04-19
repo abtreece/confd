@@ -1328,10 +1328,16 @@ func TestProcess_SkipsStageFileWhenUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create dest file: %v", err)
 	}
-	destFile.WriteString("static content")
-	destFile.Close()
+	if _, err := destFile.WriteString("static content"); err != nil {
+		t.Fatalf("Failed to write dest file: %v", err)
+	}
+	if err := destFile.Close(); err != nil {
+		t.Fatalf("Failed to close dest file: %v", err)
+	}
 	defer os.Remove(destFile.Name())
-	os.Chmod(destFile.Name(), 0644)
+	if err := os.Chmod(destFile.Name(), 0644); err != nil {
+		t.Fatalf("Failed to chmod dest file: %v", err)
+	}
 
 	// Record mtime before process() runs.
 	infoBefore, err := os.Stat(destFile.Name())

@@ -572,7 +572,7 @@ func ExecuteTestTemplate(tt templateTest, t *testing.T) {
 
 	rendered, err := tr.tmplRenderer.render(tr.Src)
 	if err != nil {
-		t.Errorf("%s: failed to render template: %s", tt.desc, err.Error())
+		t.Fatalf("%s: failed to render template: %s", tt.desc, err.Error())
 	}
 
 	if err := tr.createStageFile(rendered); err != nil {

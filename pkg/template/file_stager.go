@@ -95,8 +95,8 @@ func (s *fileStager) contentUnchanged(rendered []byte, destPath string) (bool, e
 		return false, err
 	}
 
-	// Mode mismatch — permissions need updating.
-	if destStat.Mode().Perm() != s.fileMode {
+	// Mode mismatch — permissions or special mode bits need updating.
+	if destStat.Mode() != s.fileMode {
 		return false, nil
 	}
 
