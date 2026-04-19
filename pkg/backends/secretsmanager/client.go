@@ -10,11 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends/awsutil"
 	"github.com/abtreece/confd/pkg/backends/types"
 	"github.com/abtreece/confd/pkg/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 )
@@ -37,53 +36,19 @@ type Client struct {
 func New(versionStage string, noFlatten bool, dialTimeout time.Duration) (*Client, error) {
 	ctx := context.Background()
 
-	// Default version stage to AWSCURRENT
 	if versionStage == "" {
 		versionStage = "AWSCURRENT"
 	}
 
-	// Defaults already applied via ApplyTimeoutDefaults in the factory
-	// Attempt to get AWS Region from environment first, then EC2 metadata
-	var region string
-	if os.Getenv("AWS_REGION") != "" {
-		region = os.Getenv("AWS_REGION")
-	} else {
-		// Try to get region from EC2 metadata with a timeout
-		imdsCtx, cancel := context.WithTimeout(ctx, dialTimeout)
-		defer cancel()
-
-		imdsClient := imds.New(imds.Options{})
-		regionOutput, err := imdsClient.GetRegion(imdsCtx, &imds.GetRegionInput{})
-		if err == nil {
-			region = regionOutput.Region
-		}
+	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
+	if err != nil {
+		return nil, err
 	}
 
-	if region == "" {
+	if cfg.Region == "" {
 		return nil, errors.New("AWS region not found. Set AWS_REGION environment variable or run on EC2")
 	}
 
-	// Build config options
-	var optFns []func(*config.LoadOptions) error
-	optFns = append(optFns, config.WithRegion(region))
-
-	cfg, err := config.LoadDefaultConfig(ctx, optFns...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS config: %w", err)
-	}
-
-	log.Debug("Region: %s", cfg.Region)
-
-	// Fail early if no credentials can be found
-	creds, err := cfg.Credentials.Retrieve(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve AWS credentials: %w", err)
-	}
-	if !creds.HasKeys() {
-		return nil, fmt.Errorf("no AWS credentials found")
-	}
-
-	// Create Secrets Manager client with optional local endpoint
 	var smOpts []func(*secretsmanager.Options)
 	if os.Getenv("SECRETSMANAGER_LOCAL") != "" {
 		log.Debug("SECRETSMANAGER_LOCAL is set")
