@@ -1,5 +1,11 @@
 ### Unreleased
 
+* perf: Skip stage file write when rendered content is unchanged (2026-04-19) (#586)
+  - Add `contentUnchanged()` to `fileStager`: compares rendered bytes against dest file (mode + ownership + size + MD5) before staging
+  - Refactor `process()` to render first, check `contentUnchanged()`, and early-return without staging on the no-change path
+  - Eliminates temp file create/write/rename/delete on the common steady-state no-change path
+  - Closes #548
+
 * chore: Ignore root-level confd binary in .gitignore (2026-04-18) (#580)
 
 * fix: Handle os.Remove errors when cleaning stage files (2026-04-18) (#579)
