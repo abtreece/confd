@@ -46,7 +46,7 @@ func New(versionStage string, noFlatten bool, dialTimeout time.Duration) (*Clien
 	}
 
 	if cfg.Region == "" {
-		return nil, errors.New("AWS region not found. Set AWS_REGION environment variable or run on EC2")
+		return nil, errors.New("AWS region not found. Configure a region via AWS SDK defaults such as AWS_REGION, AWS_DEFAULT_REGION, shared config/profile settings, or an instance/task role environment")
 	}
 
 	var smOpts []func(*secretsmanager.Options)

@@ -9,11 +9,17 @@ import (
 )
 
 // setEnv sets env vars for a test, unsets those mapped to "", and restores all on cleanup.
+// Uses os.LookupEnv so it can distinguish "unset" from "set to empty string".
 func setEnv(t *testing.T, pairs map[string]string) {
 	t.Helper()
-	originals := make(map[string]string, len(pairs))
+	type saved struct {
+		value   string
+		present bool
+	}
+	originals := make(map[string]saved, len(pairs))
 	for k, v := range pairs {
-		originals[k] = os.Getenv(k)
+		val, ok := os.LookupEnv(k)
+		originals[k] = saved{value: val, present: ok}
 		if v == "" {
 			os.Unsetenv(k)
 		} else {
@@ -22,10 +28,10 @@ func setEnv(t *testing.T, pairs map[string]string) {
 	}
 	t.Cleanup(func() {
 		for k, orig := range originals {
-			if orig == "" {
+			if !orig.present {
 				os.Unsetenv(k)
 			} else {
-				os.Setenv(k, orig)
+				os.Setenv(k, orig.value)
 			}
 		}
 	})
@@ -75,8 +81,8 @@ func TestLoadAWSConfig_NoCredentials(t *testing.T) {
 		"AWS_SECRET_ACCESS_KEY":                  "",
 		"AWS_SESSION_TOKEN":                      "",
 		"AWS_PROFILE":                            "nonexistent-profile-xyz",
-		"AWS_CONFIG_FILE":                        "/dev/null",
-		"AWS_SHARED_CREDENTIALS_FILE":            "/dev/null",
+		"AWS_CONFIG_FILE":                        os.DevNull,
+		"AWS_SHARED_CREDENTIALS_FILE":            os.DevNull,
 		"AWS_CONTAINER_CREDENTIALS_FULL_URI":     "",
 		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI": "",
 		"AWS_WEB_IDENTITY_TOKEN_FILE":            "",
