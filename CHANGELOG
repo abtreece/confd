@@ -1,5 +1,11 @@
 ### Unreleased
 
+* refactor: Deduplicate no-op WatchPrefix and Close across polling-only backends (2026-04-19) (#588)
+  - Add `NoopWatcher` and `NoopCloser` embeddable structs to `pkg/backends/types`
+  - Migrate all 7 polling-only backends (acm, dynamodb, env, imds, secretsmanager, ssm, vault) to embed both structs
+  - Remove 14 identical method implementations; polling-only nature of each backend is now explicit via the embedded type names
+  - Closes #550
+
 * chore(deps): bump github.com/aws/aws-sdk-go-v2/config from 1.32.13 to 1.32.16 (#585)
 * chore(deps): bump github.com/aws/aws-sdk-go-v2/service/ssm from 1.68.4 to 1.68.5 (#584)
 * chore(deps): bump go.etcd.io/etcd/client/v3 from 3.6.8 to 3.6.10 (#583)
