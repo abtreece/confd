@@ -14,7 +14,10 @@ import (
 var replacer = strings.NewReplacer("/", "_")
 
 // Client provides a shell for the env client
-type Client struct{}
+type Client struct {
+	types.NoopWatcher
+	types.NoopCloser
+}
 
 // NewEnvClient returns a new client
 func NewEnvClient() (*Client, error) {
@@ -56,14 +59,6 @@ func clean(key string) string {
 	return cleanReplacer.Replace(strings.ToLower(newKey))
 }
 
-func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	select {
-	case <-ctx.Done():
-		return waitIndex, ctx.Err()
-	case <-stopChan:
-		return waitIndex, nil
-	}
-}
 
 // HealthCheck verifies the backend is healthy.
 // Environment variables are always available, so this always returns nil.
@@ -99,7 +94,3 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 	}, nil
 }
 
-// Close is a no-op for this backend.
-func (c *Client) Close() error {
-	return nil
-}
