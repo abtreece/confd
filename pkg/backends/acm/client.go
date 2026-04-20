@@ -184,7 +184,6 @@ func (c *Client) ListCertificates(ctx context.Context) ([]string, error) {
 	return certs, nil
 }
 
-
 // HealthCheck verifies the backend connection is healthy.
 // It attempts to list certificates to verify AWS credentials and connectivity.
 func (c *Client) HealthCheck(ctx context.Context) error {
@@ -244,4 +243,3 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 		},
 	}, nil
 }
-

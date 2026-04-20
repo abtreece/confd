@@ -59,7 +59,6 @@ func clean(key string) string {
 	return cleanReplacer.Replace(strings.ToLower(newKey))
 }
 
-
 // HealthCheck verifies the backend is healthy.
 // Environment variables are always available, so this always returns nil.
 func (c *Client) HealthCheck(ctx context.Context) error {
@@ -93,4 +92,3 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 		},
 	}, nil
 }
-
