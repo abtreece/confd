@@ -28,6 +28,8 @@ type secretsManagerAPI interface {
 
 // Client is a wrapper around the AWS Secrets Manager client.
 type Client struct {
+	types.NoopWatcher
+	types.NoopCloser
 	client       secretsManagerAPI
 	versionStage string
 	noFlatten    bool
@@ -233,17 +235,6 @@ func (c *Client) fetchAndProcessSecret(ctx context.Context, secretName, key stri
 	return "", false, nil
 }
 
-// WatchPrefix is not implemented for Secrets Manager.
-// Secrets Manager does not support streaming/watching for changes.
-func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	select {
-	case <-ctx.Done():
-		return waitIndex, ctx.Err()
-	case <-stopChan:
-		return waitIndex, nil
-	}
-}
-
 // HealthCheck verifies the backend connection is healthy.
 // It lists secrets with a limit of 1 to verify AWS credentials and connectivity.
 // An empty list indicates success (no secrets exist but connectivity works).
@@ -320,9 +311,4 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			"secret_count": fmt.Sprintf("%d", secretCount),
 		},
 	}, nil
-}
-
-// Close is a no-op for this backend.
-func (c *Client) Close() error {
-	return nil
 }
