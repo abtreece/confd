@@ -22,6 +22,8 @@ type acmAPI interface {
 }
 
 type Client struct {
+	types.NoopWatcher
+	types.NoopCloser
 	client           acmAPI
 	exportPrivateKey bool
 	passphrase       []byte
@@ -143,16 +145,6 @@ func (c *Client) ListCertificates(ctx context.Context) ([]string, error) {
 	return certs, nil
 }
 
-// WatchPrefix is not implemented for ACM
-func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	select {
-	case <-ctx.Done():
-		return waitIndex, ctx.Err()
-	case <-stopChan:
-		return waitIndex, nil
-	}
-}
-
 // HealthCheck verifies the backend connection is healthy.
 // It attempts to list certificates to verify AWS credentials and connectivity.
 func (c *Client) HealthCheck(ctx context.Context) error {
@@ -211,9 +203,4 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			"certificate_count": fmt.Sprintf("%d", certCount),
 		},
 	}, nil
-}
-
-// Close is a no-op for this backend.
-func (c *Client) Close() error {
-	return nil
 }

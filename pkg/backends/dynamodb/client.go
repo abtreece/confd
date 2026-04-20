@@ -25,6 +25,8 @@ type dynamoDBAPI interface {
 // Client is a wrapper around the DynamoDB client
 // and also holds the table to lookup key value pairs from
 type Client struct {
+	types.NoopWatcher
+	types.NoopCloser
 	client dynamoDBAPI
 	table  string
 }
@@ -55,7 +57,7 @@ func NewDynamoDBClient(table string, dialTimeout time.Duration) (*Client, error)
 		return nil, fmt.Errorf("failed to describe table %s: %w", table, err)
 	}
 
-	return &Client{d, table}, nil
+	return &Client{client: d, table: table}, nil
 }
 
 // GetValues retrieves the values for the given keys from DynamoDB
@@ -118,16 +120,6 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		}
 	}
 	return vars, nil
-}
-
-// WatchPrefix is not implemented
-func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	select {
-	case <-ctx.Done():
-		return waitIndex, ctx.Err()
-	case <-stopChan:
-		return waitIndex, nil
-	}
 }
 
 // HealthCheck verifies the backend connection is healthy.
@@ -193,9 +185,4 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			"item_count":   fmt.Sprintf("%d", itemCount),
 		},
 	}, nil
-}
-
-// Close is a no-op for this backend.
-func (c *Client) Close() error {
-	return nil
 }

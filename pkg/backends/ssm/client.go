@@ -24,6 +24,8 @@ type ssmAPI interface {
 
 // Client is a wrapper around the AWS SSM client.
 type Client struct {
+	types.NoopWatcher
+	types.NoopCloser
 	client ssmAPI
 }
 
@@ -46,7 +48,7 @@ func New(dialTimeout time.Duration) (*Client, error) {
 	}
 
 	client := ssm.NewFromConfig(cfg, ssmOpts...)
-	return &Client{client}, nil
+	return &Client{client: client}, nil
 }
 
 // GetValues retrieves the values for the given keys from AWS SSM Parameter Store
@@ -108,16 +110,6 @@ func (c *Client) getParameter(ctx context.Context, name string) (map[string]stri
 	}
 	parameters[*resp.Parameter.Name] = *resp.Parameter.Value
 	return parameters, nil
-}
-
-// WatchPrefix is not implemented
-func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	select {
-	case <-ctx.Done():
-		return waitIndex, ctx.Err()
-	case <-stopChan:
-		return waitIndex, nil
-	}
 }
 
 // HealthCheck verifies the backend connection is healthy.
@@ -195,9 +187,4 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			"parameter_count": fmt.Sprintf("%d", paramCount),
 		},
 	}, nil
-}
-
-// Close is a no-op for this backend.
-func (c *Client) Close() error {
-	return nil
 }
