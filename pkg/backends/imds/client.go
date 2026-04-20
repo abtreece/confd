@@ -25,6 +25,8 @@ type imdsAPI interface {
 
 // Client provides access to AWS EC2 Instance Metadata Service
 type Client struct {
+	types.NoopWatcher
+	types.NoopCloser
 	client   imdsAPI
 	cache    *metadataCache
 	cacheTTL time.Duration
@@ -333,16 +335,6 @@ func (c *Client) getUserData(ctx context.Context) (string, error) {
 	return string(content), nil
 }
 
-// WatchPrefix is not supported for IMDS (polling only)
-func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	select {
-	case <-ctx.Done():
-		return waitIndex, ctx.Err()
-	case <-stopChan:
-		return waitIndex, nil
-	}
-}
-
 // HealthCheck performs a basic health check
 func (c *Client) HealthCheck(ctx context.Context) error {
 	output, err := c.client.GetMetadata(ctx, &imds.GetMetadataInput{
@@ -387,9 +379,4 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 	result.Details["cache_ttl"] = c.cacheTTL.String()
 
 	return result, nil
-}
-
-// Close closes the client (no-op for IMDS)
-func (c *Client) Close() error {
-	return nil
 }

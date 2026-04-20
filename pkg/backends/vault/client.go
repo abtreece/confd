@@ -30,6 +30,8 @@ type vaultLogical interface {
 
 // Client is a wrapper around the vault client
 type Client struct {
+	types.NoopWatcher
+	types.NoopCloser
 	client  *vaultapi.Client
 	logical vaultLogical
 }
@@ -443,7 +445,6 @@ func recursiveListSecretWithLogical(ctx context.Context, logical vaultLogical, b
 	return results
 }
 
-
 func getMount(path string) string {
 	// Vault paths always use forward slashes regardless of OS
 	split := strings.Split(path, "/")
@@ -464,16 +465,6 @@ func uniqMounts(strSlice []string) []string {
 		}
 	}
 	return list
-}
-
-// WatchPrefix - not implemented at the moment
-func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	select {
-	case <-ctx.Done():
-		return waitIndex, ctx.Err()
-	case <-stopChan:
-		return waitIndex, nil
-	}
 }
 
 // HealthCheck verifies the backend connection is healthy.
@@ -529,9 +520,4 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			"cluster_name": health.ClusterName,
 		},
 	}, nil
-}
-
-// Close is a no-op for this backend.
-func (c *Client) Close() error {
-	return nil
 }
