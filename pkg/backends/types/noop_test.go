@@ -9,8 +9,8 @@ import (
 
 func TestNoopWatcher_StopChan(t *testing.T) {
 	var w types.NoopWatcher
-	stopChan := make(chan bool, 1)
-	stopChan <- true
+	stopChan := make(chan bool)
+	close(stopChan)
 
 	idx, err := w.WatchPrefix(context.Background(), "/prefix", nil, 42, stopChan)
 	if err != nil {
