@@ -172,7 +172,7 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 		return nil, fmt.Errorf("failed to close stage file: %w", err)
 	}
 
-	logger.InfoContext(context.Background(), "Stage file created successfully",
+	logger.DebugContext(context.Background(), "Stage file created successfully",
 		"stage_path", temp.Name(),
 		"total_duration_ms", time.Since(start).Milliseconds(),
 		"write_duration_ms", writeDuration.Milliseconds(),
