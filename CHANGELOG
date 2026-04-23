@@ -1,4 +1,6 @@
-### Unreleased
+### v0.41.1 (2026-04-22)
+
+* fix: Change stage file created log from Info to Debug (2026-04-22) (#589)
 
 * refactor: Deduplicate no-op WatchPrefix and Close across polling-only backends (2026-04-19) (#588)
   - Add `NoopWatcher` and `NoopCloser` embeddable structs to `pkg/backends/types`
