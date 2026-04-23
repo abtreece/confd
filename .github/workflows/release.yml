@@ -63,11 +63,12 @@ jobs:
           head -20 CHANGELOG
 
           # Extract section for this version from CHANGELOG
-          # Matches from "### vX.Y.Z" (with v prefix) until the next "### v" or end of file
+          # Matches "### vX.Y.Z" with optional date suffix e.g. "### v0.41.1 (2026-04-22)"
           awk -v tag="$TAG" '
             /^### v/ {
               if (found) exit
-              if ($0 == "### " tag) found=1
+              header = "### " tag
+              if ($0 == header || index($0, header " ") == 1) found=1
               next
             }
             found { print }
