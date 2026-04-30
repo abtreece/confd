@@ -1,314 +1,77 @@
-**_Note: This is a divergent fork of [kelseyhightower/confd](https://github.com/kelseyhightower/confd). Backward compatibility is not guaranteed. YMMV_**
+# PostgreSQL Backend Integration
 
-# confd
+This document details the technical modifications and architectural additions implemented to support PostgreSQL as a native backend for `confd`.
 
-[![Integration Tests](https://github.com/abtreece/confd/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/abtreece/confd/actions/workflows/integration-tests.yml)
-[![CodeQL](https://github.com/abtreece/confd/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/abtreece/confd/actions/workflows/codeql-analysis.yml)
-[![Codecov](https://codecov.io/gh/abtreece/confd/branch/main/graph/badge.svg?token=bNZ2ngzQO1)](https://codecov.io/gh/abtreece/confd)
-[![Docker](https://img.shields.io/docker/v/abtreece/confd?label=docker&sort=semver)](https://hub.docker.com/r/abtreece/confd)
+## 1. Architectural Overview
 
-`confd` is a lightweight configuration management tool focused on:
+The integration introduces a new `StoreClient` implementation that communicates with a PostgreSQL database. It utilizes the `pgx/v5` driver for high-performance connections and connection pooling.
 
-* keeping local configuration files up-to-date using data stored in [etcd](https://github.com/etcd-io/etcd),
-  [consul](http://consul.io), [dynamodb](http://aws.amazon.com/dynamodb/), [redis](http://redis.io),
-  [vault](https://vaultproject.io), [zookeeper](https://zookeeper.apache.org), [aws ssm parameter store](https://aws.amazon.com/ec2/systems-manager/), [aws secrets manager](https://aws.amazon.com/secrets-manager/), [aws acm](https://aws.amazon.com/certificate-manager/), [aws ec2 imds](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html), or env vars and processing [template resources](docs/template-resources.md).
-* reloading applications to pick up new config file changes
+```mermaid
+flowchart TD
+    subgraph Confd Core
+    CLI[CLI Parser\ncmd/confd/cli.go] --> CFG[Config Builder\ncmd/confd/config.go]
+    CFG --> Router[Backend Router\npkg/backends/client.go]
+    Router --> BackendInterface(StoreClient Interface)
+    end
 
-## Features
+    subgraph Backends
+    BackendInterface --> Etcd[Etcd]
+    BackendInterface --> Consul[Consul]
+    BackendInterface --> Postgres[PostgreSQL\npkg/backends/postgres/client.go]
+    end
 
-- **Multiple Backends**: etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM/Secrets Manager/ACM/IMDS, environment variables, and files
-- **Template Processing**: Go text/template with custom functions for configuration generation
-- **Watch Mode**: Real-time config updates for supported backends (Consul, etcd, Redis, Zookeeper, file)
-- **Polling Mode**: Configurable interval-based polling for all backends
-- **Validation**: Pre-flight checks, template validation, and configuration validation
-- **Metrics**: Prometheus metrics for observability (backend operations, template processing, commands)
-- **Health Checks**: HTTP endpoints for health and readiness checks
-- **Structured Logging**: JSON and text formats with timing metrics
-- **Resilience**: Configurable timeouts, retries, and failure modes (best-effort/fail-fast)
-- **Performance**: Template caching and backend client pooling
+    Postgres -->|pgx/v5 connection pool| PG_DB[(PostgreSQL Database)]
 
-## Installation
-
-### Docker
-
-```bash
-# Pull from Docker Hub
-docker pull abtreece/confd:latest
-
-# Or from GitHub Container Registry
-docker pull ghcr.io/abtreece/confd:latest
-
-# Run with env backend
-docker run --rm \
-  -e DATABASE_HOST=db.example.com \
-  -v $(pwd)/conf.d:/etc/confd/conf.d:ro \
-  -v $(pwd)/templates:/etc/confd/templates:ro \
-  -v $(pwd)/output:/output \
-  abtreece/confd:latest env --onetime
+    classDef core fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    classDef target fill:#d4e6f1,stroke:#2874a6,stroke-width:2px;
+    class CLI,CFG,Router,BackendInterface core;
+    class Postgres,PG_DB target;
 ```
 
-See [Docker documentation](docs/docker.md) for complete usage including Docker Compose and Kubernetes.
+## 2. Technical Modifications
 
-### Building from Source
+The implementation required updates across three main layers of the application.
 
-Go 1.25+ is required to build confd.
+### A. Core Backend Implementation (`pkg/backends/postgres/client.go`)
+- **Package creation**: A new package `postgres` was created.
+- **Client structure**: Implements `backends.StoreClient` using `*pgxpool.Pool` to manage database connections efficiently.
+- **Data retrieval logic**: Implemented `GetValues(ctx, keys)` to execute SQL queries. It performs both exact matching and prefix-based matching (`LIKE`) to replicate the hierarchical directory structure expected by `confd`.
+- **Polling fallback**: `WatchPrefix` immediately returns to fallback on `confd`'s native polling mechanism, as PostgreSQL does not natively support tree-based prefix watches.
 
-```bash
-git clone https://github.com/abtreece/confd.git
-cd confd
-make build
+### B. Configuration Layer (`pkg/backends/config.go` & `cmd/confd/config.go`)
+- **Config Struct Updates**: Extended the `backends.Config` and `TOMLConfig` structures to include PostgreSQL-specific settings:
+  - `Database`: Name of the target database.
+  - `Table`: Name of the table storing configuration key-value pairs.
+- **Config Loading**: Updated `loadConfigFile()` to parse the new variables from `confd.toml`.
+
+### C. CLI Layer (`cmd/confd/cli.go`)
+- **Command Addition**: Added the `PostgresCmd` structure to parse CLI flags.
+- **Default Values**: Configured defaults to streamline local usage (`127.0.0.1:5432`, `confd_config`).
+
+## 3. Configuration Reference
+
+The PostgreSQL backend can be configured using CLI flags or the `confd.toml` configuration file.
+
+| CLI Flag | TOML Setting | Description | Default Value |
+| :--- | :--- | :--- | :--- |
+| `-n, --node` | `nodes` | Database host and port | `127.0.0.1:5432` |
+| `--username` | `username` | Authentication username | `""` (none) |
+| `--password` | `password` | Authentication password | `""` (none) |
+| `--database` | `database` | Name of the database | `confd` |
+| `--table` | `table` | Name of the table holding config | `confd_config` |
+| `--interval` | `interval` | Polling interval (seconds) | `600` |
+
+## 4. Database Schema Requirements
+
+The backend assumes a specific table structure to retrieve configurations. The table must contain at minimum two string columns: `key` and `value`.
+
+```sql
+CREATE TABLE confd_config (
+    key VARCHAR(255) PRIMARY KEY,
+    value TEXT NOT NULL
+);
 ```
 
-You should now have `confd` in your `bin/` directory:
-
-```bash
-ls bin/
-confd
-```
-
-See [Installation](docs/installation.md) for more options including binary downloads.
-
-## Quick Start
-
-### One-time run with etcd
-
-```bash
-# Start with etcd backend
-confd etcd --node http://127.0.0.1:2379 --onetime
-
-# With environment variables
-confd env --onetime
-
-# With file backend
-confd file --file /path/to/config.yaml --onetime
-```
-
-### Watch mode for real-time updates
-
-```bash
-# Watch etcd for changes
-confd etcd --node http://127.0.0.1:2379 --watch
-
-# Watch with debouncing (wait 2s after changes settle)
-confd etcd --watch --debounce 2s
-
-# Batch processing (collect changes every 5s)
-confd etcd --watch --batch-interval 5s
-```
-
-### Interval polling
-
-```bash
-# Poll Vault every 60 seconds
-confd vault --node http://127.0.0.1:8200 --interval 60 \
-  --auth-type token --auth-token s.XXX
-
-# Poll EC2 IMDS for instance metadata (on EC2 instances)
-confd imds --interval 300
-```
-
-## Metrics and Observability
-
-Enable Prometheus metrics and health checks:
-
-```bash
-confd etcd --metrics-addr :9100
-```
-
-Endpoints:
-- `http://localhost:9100/metrics` - Prometheus metrics
-- `http://localhost:9100/health` - Health check
-- `http://localhost:9100/ready` - Readiness check
-- `http://localhost:9100/ready/detailed` - Detailed readiness
-
-Metrics include:
-- Backend request durations and error rates
-- Template processing performance
-- Command execution times
-- Cache hit/miss rates
-- File sync operations
-
-## Configuration
-
-confd can be configured via:
-1. Configuration file (`/etc/confd/confd.toml`)
-2. Environment variables (prefix: `CONFD_`)
-3. Command-line flags
-
-Example `confd.toml`:
-
-```toml
-backend = "etcd"
-log-level = "info"
-log-format = "json"
-interval = 600
-nodes = ["http://127.0.0.1:2379"]
-prefix = "/production"
-
-# Timeouts
-backend-timeout = "30s"
-check-cmd-timeout = "30s"
-reload-cmd-timeout = "60s"
-
-# Retries
-retry-max-attempts = 3
-retry-base-delay = "100ms"
-retry-max-delay = "5s"
-
-# Metrics
-metrics_addr = ":9100"
-```
-
-## Service Deployment
-
-confd is production-ready with support for systemd, Docker, and Kubernetes deployments.
-
-### Systemd Integration
-
-Run confd as a systemd service with `Type=notify` support:
-
-```bash
-# Install service
-sudo cp examples/systemd/confd.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable confd
-sudo systemctl start confd
-
-# Reload configuration without restarting
-sudo systemctl reload confd
-
-# Check status
-sudo systemctl status confd
-```
-
-Key features:
-- **Graceful shutdown** - Wait for in-flight operations before exit
-- **SIGHUP reload** - Reload templates and configuration without downtime
-- **Watchdog support** - Automatic restart if service becomes unresponsive
-- **Clean exits** - Proper backend connection cleanup
-
-See [Service Deployment Guide](docs/service-deployment.md) for complete documentation including:
-- systemd service configuration
-- Docker deployment with signal forwarding
-- Kubernetes manifests with health probes
-- Monitoring and troubleshooting
-
-### Command-Line Flags
-
-```bash
-# Graceful shutdown timeout (default: 30s)
-confd --shutdown-timeout=30s etcd --watch
-
-# Systemd integration (Linux only)
-confd --systemd-notify --watchdog-interval=30s etcd --watch
-
-# Reload configuration
-kill -HUP $(pidof confd)
-```
-
-## Validation and Testing
-
-### Validate configuration
-
-```bash
-# Check template resource files
-confd --check-config etcd
-
-# Validate specific resource
-confd --check-config --resource nginx.toml etcd
-```
-
-### Preflight checks
-
-```bash
-# Test backend connectivity and authentication
-confd --preflight etcd --node http://127.0.0.1:2379
-```
-
-### Template validation
-
-```bash
-# Syntax check
-confd --validate etcd
-
-# With mock data
-confd --validate --mock-data test-data.json etcd
-```
-
-### Dry run with diff
-
-```bash
-# Show pending changes without applying
-confd --noop --diff --color etcd
-```
-
-## Documentation
-
-See the **[full documentation index](docs/README.md)** for all guides, organized by topic:
-
-- **Getting Started** — [Quick Start](docs/quick-start-guide.md), [Installation](docs/installation.md), [Docker](docs/docker.md)
-- **Configuration** — [Config Guide](docs/configuration-guide.md), [CLI Flags](docs/command-line-flags.md), [Template Resources](docs/template-resources.md), [Template Functions](docs/templates.md)
-- **Backends** — per-backend READMs, [Multi-Backend Architectures](docs/multi-backend.md), [DNS SRV Discovery](docs/dns-srv-records.md)
-- **Operating** — [Service Deployment](docs/service-deployment.md), [Logging](docs/logging.md), [Noop Mode](docs/noop-mode.md)
-- **Development** — [Dev Guide](docs/development.md), [Architecture](docs/architecture.md), [Contributing](CONTRIBUTING.md)
-
-## Supported Backends
-
-| Backend | Watch Mode | Polling | Authentication |
-|---------|------------|---------|----------------|
-| [etcd](pkg/backends/etcd/README.md) | ✅ | ✅ | Basic, TLS, Token |
-| [Consul](pkg/backends/consul/README.md) | ✅ | ✅ | Basic, TLS, Token |
-| [Redis](pkg/backends/redis/README.md) | ✅ | ✅ | Password |
-| [Zookeeper](pkg/backends/zookeeper/README.md) | ✅ | ✅ | None |
-| [Env](pkg/backends/env/README.md) | ❌ | ✅ | None |
-| [File](pkg/backends/file/README.md) | ✅ | ✅ | None |
-| [Vault](pkg/backends/vault/README.md) | ❌ | ✅ | Token, AppRole, App-ID, Kubernetes |
-| [DynamoDB](pkg/backends/dynamodb/README.md) | ❌ | ✅ | AWS SDK |
-| [SSM](pkg/backends/ssm/README.md) | ❌ | ✅ | AWS SDK |
-| [Secrets Manager](pkg/backends/secretsmanager/README.md) | ❌ | ✅ | AWS SDK |
-| [ACM](pkg/backends/acm/README.md) | ❌ | ✅ | AWS SDK |
-| [IMDS](pkg/backends/imds/README.md) | ❌ | ✅ | AWS SDK (IMDSv2) |
-
-## Development
-
-See the [Development Guide](docs/development.md) for detailed instructions on setting up your environment, running tests, and adding new features.
-
-### Quick Start
-
-```bash
-# Build
-make build
-
-# Run tests
-make test
-
-# Run linter
-make lint
-
-# Integration tests (requires backend services)
-make integration
-```
-
-### Building Releases
-
-```bash
-# Snapshot build
-make snapshot
-
-# Release build
-make release
-```
-
-See [Release Checklist](docs/release-checklist.md) for the full release process.
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
-
-- Code style and commit conventions
-- Pull request process
-- Adding new backends or template functions
-
-## License
-
-See [LICENSE](LICENSE) file.
+## 5. Dependency Management
+- Added `github.com/jackc/pgx/v5` to `go.mod`.
+- Executed `go mod vendor` to include the driver in the project's vendor directory, ensuring reproducible builds.
