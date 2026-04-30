@@ -21,6 +21,15 @@ services:
       - DEBUG=${DEBUG:-0}
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
 
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: confd
+    ports:
+      - 5432:5432
+
   redis:
     image: redis
     ports:

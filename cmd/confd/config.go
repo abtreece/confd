@@ -46,6 +46,7 @@ type TOMLConfig struct {
 	UserID         string   `toml:"user_id"`
 	RoleID         string   `toml:"role_id"`
 	SecretID       string   `toml:"secret_id"`
+	Database       string   `toml:"database"`
 	File           []string `toml:"file"`
 	Filter         string   `toml:"filter"`
 	Path           string   `toml:"path"`
@@ -204,6 +205,9 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if backendCfg.SecretID == "" && tomlCfg.SecretID != "" {
 		backendCfg.SecretID = tomlCfg.SecretID
+	}
+	if backendCfg.Database == "" && tomlCfg.Database != "" {
+		backendCfg.Database = tomlCfg.Database
 	}
 	if len(backendCfg.YAMLFile) == 0 && len(tomlCfg.File) > 0 {
 		backendCfg.YAMLFile = tomlCfg.File
