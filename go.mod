@@ -7,7 +7,7 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.0
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/hashicorp/consul/api v1.33.7
 	github.com/hashicorp/vault/api v1.22.0
