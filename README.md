@@ -87,12 +87,12 @@ The core engine uses atomic file operations and a strictly enforced `check_cmd` 
 
 ```mermaid
 flowchart LR
-    DB[(Backend\nPostgres/Plugin)] --> |RPC/TCP| Confd[Confd Engine]
-    Confd -->|1. Generate| TmpFile[/.app.conf.tmp]
-    TmpFile -->|2. check_cmd| Validator{Valid Syntax?}
-    Validator -->|Yes| DestFile[/app.conf]
-    Validator -->|No| Reject[Discard & Error]
-    DestFile -->|3. reload_cmd| Service[Nginx / App]
+    DB[("Backend\nPostgres/Plugin")] --> |"RPC/TCP"| Confd["Confd Engine"]
+    Confd -->|"1. Generate"| TmpFile["/.app.conf.tmp"]
+    TmpFile -->|"2. check_cmd"| Validator{"Valid Syntax?"}
+    Validator -->|"Yes"| DestFile["/app.conf"]
+    Validator -->|"No"| Reject["Discard & Error"]
+    DestFile -->|"3. reload_cmd"| Service["Nginx / App"]
     
     classDef safe fill:#d4edda,stroke:#28a745,stroke-width:2px;
     classDef danger fill:#f8d7da,stroke:#dc3545,stroke-width:2px;
