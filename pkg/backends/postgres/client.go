@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -11,8 +12,9 @@ import (
 
 // Client is a wrapper around the pgxpool
 type Client struct {
-	pool  *pgxpool.Pool
-	table string
+	pool    *pgxpool.Pool
+	table   string
+	connStr string // stored for LISTEN/NOTIFY dedicated connections
 }
 
 // New returns a new PostgreSQL client
@@ -52,8 +54,9 @@ func New(nodes []string, username, password, dbName, table string, dialTimeout t
 	}
 
 	return &Client{
-		pool:  pool,
-		table: table,
+		pool:    pool,
+		table:   table,
+		connStr: connStr,
 	}, nil
 }
 
@@ -92,10 +95,62 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 	return vars, nil
 }
 
-// WatchPrefix is not natively supported without listen/notify logic in PG, returning 0 to fallback to polling
+// WatchPrefix uses PostgreSQL LISTEN/NOTIFY to wait for real-time changes.
+// It opens a dedicated connection, subscribes to the "confd_update" channel,
+// and blocks until a notification arrives or the stopChan is closed.
+// This eliminates the need for polling entirely.
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	<-stopChan
-	return 0, nil
+	// Acquire a dedicated connection from the pool (LISTEN requires a persistent conn)
+	conn, err := c.pool.Acquire(ctx)
+	if err != nil {
+		log.Printf("[postgres] LISTEN/NOTIFY: failed to acquire connection: %v, falling back to 5s sleep", err)
+		select {
+		case <-time.After(5 * time.Second):
+		case <-stopChan:
+		}
+		return waitIndex, nil
+	}
+	defer conn.Release()
+
+	// Subscribe to the notification channel
+	_, err = conn.Exec(ctx, "LISTEN confd_update")
+	if err != nil {
+		log.Printf("[postgres] LISTEN failed: %v, falling back to 5s sleep", err)
+		select {
+		case <-time.After(5 * time.Second):
+		case <-stopChan:
+		}
+		return waitIndex, nil
+	}
+
+	log.Printf("[postgres] LISTEN/NOTIFY: waiting for events on channel 'confd_update'...")
+
+	// Block until we receive a notification OR the stop signal
+	for {
+		select {
+		case <-stopChan:
+			return waitIndex, nil
+		default:
+		}
+
+		// Wait up to 30 seconds for a notification, then loop to check stopChan
+		waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		notification, err := conn.Conn().WaitForNotification(waitCtx)
+		cancel()
+
+		if err != nil {
+			// Timeout — no notification received, loop again to check stopChan
+			if waitCtx.Err() != nil {
+				continue
+			}
+			// Real error
+			log.Printf("[postgres] LISTEN/NOTIFY error: %v", err)
+			return waitIndex, nil
+		}
+
+		log.Printf("[postgres] NOTIFY received: channel=%s payload=%s", notification.Channel, notification.Payload)
+		return waitIndex + 1, nil
+	}
 }
 
 // HealthCheck verifies the connection

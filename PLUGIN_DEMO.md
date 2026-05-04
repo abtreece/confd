@@ -60,6 +60,14 @@ BEGIN
 END; \$\$ LANGUAGE plpgsql;
 CREATE TRIGGER trigger_audit AFTER INSERT OR UPDATE ON confd_config FOR EACH ROW EXECUTE FUNCTION log_audit();
 
+-- Trigger 3: Real-time NOTIFY (pushes events to confd instead of polling!)
+CREATE OR REPLACE FUNCTION notify_confd() RETURNS TRIGGER AS \$\$
+BEGIN
+    PERFORM pg_notify('confd_update', NEW.key || '=' || NEW.value);
+    RETURN NULL;
+END; \$\$ LANGUAGE plpgsql;
+CREATE TRIGGER trigger_notify AFTER INSERT OR UPDATE ON confd_config FOR EACH ROW EXECUTE FUNCTION notify_confd();
+
 -- Insert initial values
 INSERT INTO confd_config (key, value) VALUES ('/app/database/host', 'db-master.internal'), ('/app/database/port', '5432'), ('/app/feature_flags/maintenance', 'false');
 "
