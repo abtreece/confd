@@ -136,11 +136,73 @@ cat /tmp/confd-plugin-demo/output/app.conf
 
 ---
 
-## 5. Test 2: Daemon Mode & Real-time Polling
+## 5. Test 2: Real-Time LISTEN/NOTIFY Mode (Event-Driven)
 
-Let's run `confd` in the background, polling the database every 3 seconds via RPC calls to the plugin:
+This is the **star feature**. Instead of polling the database every N seconds, `confd` now uses PostgreSQL's native `LISTEN/NOTIFY` mechanism. The database **pushes** events to `confd` the instant a change occurs.
+
+### How it works
+
+```
+Traditional Polling:   confd → every 3s → "anything new?" → DB responds
+LISTEN/NOTIFY:         confd → LISTEN → sleeps... → DB: NOTIFY! → confd wakes up INSTANTLY
+```
+
+The `setup.sql` script we ran earlier created a `trigger_notify` function that calls `pg_notify('confd_update', ...)` on every INSERT/UPDATE. Our Go code subscribes to that channel with `LISTEN confd_update` and blocks until a notification arrives.
+
+### Launch confd in watch mode
 
 ```bash
+./bin/confd plugin \
+  --plugin-path "./bin/confd-plugin-postgres" \
+  --confdir /tmp/confd-plugin-demo \
+  --watch &
+
+CONFD_PID=$!
+```
+
+**👀 Expected Visual Output (in your terminal):**
+You will see confd start the plugin and subscribe to the notification channel:
+```text
+INFO  Starting confd
+INFO  Backend set to plugin
+INFO  Backend source(s) set to Plugin ./bin/confd-plugin-postgres
+[postgres] LISTEN/NOTIFY: waiting for events on channel 'confd_update'...
+```
+
+### Trigger a real-time update (in another terminal)
+
+```bash
+docker compose -f test/docker-compose.yml exec -T postgres psql -U admin -d confd -c "
+UPDATE confd_config SET value = '6432' WHERE key = '/app/database/port';
+"
+```
+
+**👀 Expected Visual Output (back in the first terminal):**
+The update is detected **instantly** (no 3-second delay). You will see:
+```text
+[postgres] NOTIFY received: channel=confd_update payload=/app/database/port=6432
+INFO  Target config /tmp/confd-plugin-demo/output/app.conf out of sync
+INFO  Command completed successfully command=grep -q 'Syntax:OK' ...
+INFO  File sync completed (atomic rename)
+INFO  Command completed successfully command=echo '====> [PLUGIN RELOADED] ...'
+INFO  Target config /tmp/confd-plugin-demo/output/app.conf has been updated
+[postgres] LISTEN/NOTIFY: waiting for events on channel 'confd_update'...
+```
+
+> **Note:** The `reload_cmd` output is captured by confd and logged as an INFO line.
+> After the update, confd immediately re-subscribes to wait for the next event.
+
+---
+
+## 6. Test 3: Polling Fallback Mode
+
+If for some reason LISTEN/NOTIFY is not available (e.g., a proxy blocks persistent connections), `confd` falls back gracefully to the classic polling mode using `--interval`:
+
+```bash
+# Kill the previous watch-mode confd
+pkill confd
+
+# Restart in polling mode (checks every 3 seconds)
 ./bin/confd plugin \
   --plugin-path "./bin/confd-plugin-postgres" \
   --confdir /tmp/confd-plugin-demo \
@@ -149,25 +211,22 @@ Let's run `confd` in the background, polling the database every 3 seconds via RP
 CONFD_PID=$!
 ```
 
-### 🎯 Trigger a Dynamic Update
-
-In another terminal (or just copy-paste this), update the database to trigger an event:
-
+Update the database again:
 ```bash
 docker compose -f test/docker-compose.yml exec -T postgres psql -U admin -d confd -c "
-UPDATE confd_config SET value = '6432' WHERE key = '/app/database/port';
+UPDATE confd_config SET value = '5433' WHERE key = '/app/database/port';
 "
 ```
 
 **👀 Expected Visual Output:**
-Within 3 seconds, `confd` will silently query the plugin, see the new data, and execute the `reload_cmd`. You will see this pop up beautifully in your terminal:
+Within 3 seconds (the polling interval), the reload message appears:
 ```text
 ====> [PLUGIN RELOADED] Config updated via RPC! <====
 ```
 
 ---
 
-## 6. Test 3: The "Bouncer" (Security & Validation)
+## 7. Test 4: The "Bouncer" (Security & Validation)
 
 Let's try to inject a completely invalid port number (`99999`) into our database. Normally, a dumb system would crash the app. But thanks to our PostgreSQL Trigger, the database acts as a bouncer!
 
@@ -187,7 +246,7 @@ Because the DB rejected it, the plugin never sends the bad data to `confd`, and 
 
 ---
 
-## 7. Test 4: Graceful Syntax Rejection (Maintenance Mode)
+## 8. Test 5: Graceful Syntax Rejection (Maintenance Mode)
 
 Now, let's trigger the "Maintenance Mode". This time, the DB will accept the change, but our `confd` template will intentionally generate a bad syntax file (`Syntax:INVALID`). 
 `confd`'s `check_cmd` will catch it!
@@ -216,7 +275,7 @@ UPDATE confd_config SET value = 'false' WHERE key = '/app/feature_flags/maintena
 
 ---
 
-## 8. Test 5: Exploring the Audit Trail
+## 9. Test 6: Exploring the Audit Trail
 
 Everything you just did via the plugin was permanently recorded by the `trigger_audit` inside the database. Let's look at the history!
 
@@ -239,7 +298,7 @@ A beautiful table showing every state transition you performed during this demo!
 
 ---
 
-## 9. Stop Everything (Cleanup)
+## 10. Stop Everything (Cleanup)
 
 When you are done marveling at your new plugin architecture, kill the background process and clean the environment:
 
