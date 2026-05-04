@@ -155,46 +155,88 @@ Isolating the data retrieval layer provides incredible security properties for p
 
 Building a plugin requires zero knowledge of the `confd` templating engine. You only need to import the `api` package and serve it.
 
+### Step 1: Implement the `BackendProvider` interface
+
 ```go
 package main
 
 import (
+	"flag"
 	"github.com/abtreece/confd/pkg/backends/plugin/api"
 	"github.com/hashicorp/go-plugin"
 )
 
 // 1. Create your custom struct
-type MyCustomBackend struct {}
+type MyCustomBackend struct {
+	Endpoint string
+}
 
 // 2. Implement the 4 methods
 func (b *MyCustomBackend) GetValues(keys []string) (map[string]string, error) {
     return map[string]string{"/hello": "world"}, nil
 }
-func (b *MyCustomBackend) WatchPrefix(...) (uint64, error) { return 0, nil }
+func (b *MyCustomBackend) WatchPrefix(prefix string, keys []string, waitIndex uint64) (uint64, error) {
+    return 0, nil
+}
 func (b *MyCustomBackend) HealthCheck() error { return nil }
 func (b *MyCustomBackend) Close() error { return nil }
 
-// 3. Serve it!
+// 3. Add CLI flags for configuration
 func main() {
+	endpoint := flag.String("endpoint", "localhost:3000", "Your backend endpoint")
+	flag.Parse()
+
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: api.Handshake,
 		Plugins: map[string]plugin.Plugin{
 			"backend": &api.ConfdBackendPlugin{
-				Impl: &MyCustomBackend{},
+				Impl: &MyCustomBackend{Endpoint: *endpoint},
 			},
 		},
 	})
 }
 ```
 
-You compile it:
+### Step 2: Compile your plugin
 ```bash
 go build -o my-plugin main.go
 ```
 
-And you run `confd`:
+### Step 3: Run it with `confd`
 ```bash
-confd plugin --plugin-path ./my-plugin --interval 10
+./bin/confd plugin --plugin-path ./my-plugin --interval 10
 ```
+
+### Step 4: Check your plugin's own CLI
+```bash
+./my-plugin --help
+```
+```text
+Usage of ./my-plugin:
+  -endpoint string
+        Your backend endpoint (default "localhost:3000")
+```
+
+---
+
+## 7. Testing
+
+The project includes comprehensive unit tests that run **without any external dependencies** (no Docker, no database).
+
+### Run all tests
+```bash
+go test -v ./pkg/backends/postgres/ ./pkg/backends/plugin/api/
+```
+
+### What is tested?
+
+| Package | Tests | What they cover |
+| :--- | :---: | :--- |
+| `pkg/backends/postgres/` | 9 | DSN construction, prefix matching logic, default values |
+| `pkg/backends/plugin/api/` | 13 | RPC Server GetValues/WatchPrefix/HealthCheck/Close, Handshake config, DTO serialization, Plugin boilerplate |
+
+All tests use **in-memory mocks** — no database connection is needed.
+
+---
 
 That's it. Welcome to the future of dynamic configuration management.

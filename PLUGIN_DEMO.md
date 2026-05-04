@@ -106,17 +106,49 @@ EOF
 
 ## 4. Test 1: One-Time Run via Plugin
 
-Now, the moment of truth! We will launch `confd` using `--backend plugin` and provide it the path to our freshly compiled binary. 
+Now, the moment of truth! We will launch `confd` using the `plugin` subcommand and provide it the path to our freshly compiled binary.
 
-*Note: Since the plugin is an external subprocess, it receives its configuration via environment variables.*
+### How does the plugin get configured?
+
+The `confd-plugin-postgres` binary is a **real CLI tool** with its own flags. You can see them with:
+```bash
+./bin/confd-plugin-postgres --help
+```
+```text
+Usage of ./bin/confd-plugin-postgres:
+  -database string
+        Postgres database name (default "confd")
+  -node string
+        Postgres node endpoint (default "127.0.0.1:5432")
+  -password string
+        Postgres password (default "secret")
+  -table string
+        Postgres table name (default "confd_config")
+  -username string
+        Postgres username (default "admin")
+```
+
+When `confd` spawns the plugin as a subprocess, the plugin **inherits the parent's environment variables**. If an environment variable is set, it overrides the default CLI flag value. This means you can configure it either way:
+
+| Plugin CLI Flag | Environment Variable | Default |
+| :--- | :--- | :--- |
+| `--node` | `CONFD_BACKEND_NODE` | `127.0.0.1:5432` |
+| `--username` | `CONFD_USERNAME` | `admin` |
+| `--password` | `CONFD_PASSWORD` | `secret` |
+| `--database` | `CONFD_DATABASE` | `confd` |
+| `--table` | `CONFD_TABLE` | `confd_config` |
+
+### Run it!
 
 ```bash
+# Set the environment variables (inherited by the plugin subprocess)
 export CONFD_BACKEND_NODE="127.0.0.1:5432"
 export CONFD_USERNAME="admin"
 export CONFD_PASSWORD="secret"
 export CONFD_DATABASE="confd"
 export CONFD_TABLE="confd_config"
 
+# Launch confd with the plugin backend
 ./bin/confd plugin \
   --plugin-path "./bin/confd-plugin-postgres" \
   --confdir /tmp/confd-plugin-demo \

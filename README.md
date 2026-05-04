@@ -69,15 +69,37 @@ We have prepared interactive, highly detailed demonstration environments using D
 
 ### Using the Dynamic Plugin Backend
 
+The plugin binary (`confd-plugin-postgres`) is a **standalone CLI tool** that accepts its own flags.
+When launched by `confd`, the plugin inherits the parent process environment, so both CLI flags and environment variables work.
+
 ```bash
-# Configuration for the external plugin is passed via environment variables
+# The plugin reads its config from environment variables (inherited by the subprocess)
 export CONFD_BACKEND_NODE="127.0.0.1:5432"
+export CONFD_USERNAME="admin"
+export CONFD_PASSWORD="secret"
+export CONFD_DATABASE="confd"
+export CONFD_TABLE="confd_config"
 
 # Tell confd to use the "plugin" backend and point it to the binary
 ./bin/confd plugin \
   --plugin-path "./bin/confd-plugin-postgres" \
   --interval 3
 ```
+
+You can also run the plugin binary directly to check its own CLI flags:
+```bash
+./bin/confd-plugin-postgres --help
+```
+
+| Plugin CLI Flag | Environment Variable | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `--node` | `CONFD_BACKEND_NODE` | PostgreSQL host:port | `127.0.0.1:5432` |
+| `--username` | `CONFD_USERNAME` | Database username | `admin` |
+| `--password` | `CONFD_PASSWORD` | Database password | `secret` |
+| `--database` | `CONFD_DATABASE` | Database name | `confd` |
+| `--table` | `CONFD_TABLE` | Config table name | `confd_config` |
+
+> **Priority:** Environment variables override CLI flag defaults when both are set.
 
 ---
 
