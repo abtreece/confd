@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"time"
@@ -12,21 +13,30 @@ import (
 )
 
 func main() {
-	// The plugin doesn't receive CLI flags directly from confd since it's a subprocess.
-	// We read configuration via Environment Variables.
-	node := os.Getenv("CONFD_BACKEND_NODE")
-	if node == "" {
-		node = "127.0.0.1:5432"
+	// Parse CLI arguments to configure the plugin
+	var node, username, password, database, table string
+	flag.StringVar(&node, "node", "127.0.0.1:5432", "Postgres node endpoint")
+	flag.StringVar(&username, "username", "admin", "Postgres username")
+	flag.StringVar(&password, "password", "secret", "Postgres password")
+	flag.StringVar(&database, "database", "confd", "Postgres database name")
+	flag.StringVar(&table, "table", "confd_config", "Postgres table name")
+	flag.Parse()
+
+	// If environment variables are set, they can act as fallbacks (useful when spawned by confd without args)
+	if envNode := os.Getenv("CONFD_BACKEND_NODE"); envNode != "" {
+		node = envNode
 	}
-	username := os.Getenv("CONFD_USERNAME")
-	password := os.Getenv("CONFD_PASSWORD")
-	database := os.Getenv("CONFD_DATABASE")
-	if database == "" {
-		database = "confd"
+	if envUser := os.Getenv("CONFD_USERNAME"); envUser != "" {
+		username = envUser
 	}
-	table := os.Getenv("CONFD_TABLE")
-	if table == "" {
-		table = "confd_config"
+	if envPass := os.Getenv("CONFD_PASSWORD"); envPass != "" {
+		password = envPass
+	}
+	if envDB := os.Getenv("CONFD_DATABASE"); envDB != "" {
+		database = envDB
+	}
+	if envTable := os.Getenv("CONFD_TABLE"); envTable != "" {
+		table = envTable
 	}
 
 	// Initialize the exact same PostgreSQL backend we created earlier!
