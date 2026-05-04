@@ -203,15 +203,15 @@ func TestFlatten(t *testing.T) {
 			expected: map[string]string{},
 		},
 		{
-			name:  "multiple data segments",
-			key:   "/secret/data/data/config",
-			value: "value",
-			mount: "/secret",
+			name:     "multiple data segments",
+			key:      "/secret/data/data/config",
+			value:    "value",
+			mount:    "/secret",
 			expected: map[string]string{"/secret/config": "value"},
 		},
 		{
-			name:  "three level nesting",
-			key:   "/secret/app",
+			name: "three level nesting",
+			key:  "/secret/app",
 			value: map[string]interface{}{
 				"level1": map[string]interface{}{
 					"level2": map[string]interface{}{

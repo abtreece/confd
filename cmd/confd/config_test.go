@@ -11,10 +11,10 @@ import (
 
 func TestLoadConfigFile_InvalidDurations(t *testing.T) {
 	tests := []struct {
-		name        string
-		configTOML  string
-		wantErrMsg  string
-		wantHint    string
+		name       string
+		configTOML string
+		wantErrMsg string
+		wantHint   string
 	}{
 		{
 			name: "invalid stat_cache_ttl",

@@ -540,10 +540,10 @@ prefix = "/tomlprefix"
 
 	// CLI values should take precedence over TOML
 	cli := &CLI{
-		ConfDir:    "/cli/confd",    // Non-default CLI value
+		ConfDir:    "/cli/confd", // Non-default CLI value
 		ConfigFile: configPath,
-		Interval:   120,             // Non-default CLI value
-		Prefix:     "/cliprefix",    // CLI value
+		Interval:   120,          // Non-default CLI value
+		Prefix:     "/cliprefix", // CLI value
 	}
 	backendCfg := &backends.Config{}
 

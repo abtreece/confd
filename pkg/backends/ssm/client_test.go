@@ -13,9 +13,9 @@ import (
 
 // mockSSM implements the ssmAPI interface for testing
 type mockSSM struct {
-	getParameterFunc       func(ctx context.Context, input *ssm.GetParameterInput, opts ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
+	getParameterFunc        func(ctx context.Context, input *ssm.GetParameterInput, opts ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
 	getParametersByPathFunc func(ctx context.Context, input *ssm.GetParametersByPathInput, opts ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
-	nextToken              *string
+	nextToken               *string
 }
 
 func (m *mockSSM) GetParameter(ctx context.Context, input *ssm.GetParameterInput, opts ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {

@@ -75,8 +75,8 @@ func TestPreflight_NoTemplateResources(t *testing.T) {
 
 	config := Config{
 		StoreClient: &mockStoreClient{},
-		ConfDir:     tmpDir,   // Root directory
-		ConfigDir:   confDir,  // conf.d subdirectory
+		ConfDir:     tmpDir,  // Root directory
+		ConfigDir:   confDir, // conf.d subdirectory
 		TemplateDir: templateDir,
 	}
 

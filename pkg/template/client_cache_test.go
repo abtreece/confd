@@ -88,9 +88,9 @@ func TestConfigHash(t *testing.T) {
 			shouldMatch: false,
 		},
 		{
-			name: "empty configs produce same hash",
-			cfg1: backends.Config{},
-			cfg2: backends.Config{},
+			name:        "empty configs produce same hash",
+			cfg1:        backends.Config{},
+			cfg2:        backends.Config{},
 			shouldMatch: true,
 		},
 	}

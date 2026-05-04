@@ -117,6 +117,7 @@ type CLI struct {
 	Env            EnvCmd            `cmd:"" name:"env" help:"Use environment variables backend"`
 	File           FileCmd           `cmd:"" name:"file" help:"Use file backend"`
 	Postgres       PostgresCmd       `cmd:"" name:"postgres" help:"Use PostgreSQL backend"`
+	Plugin         PluginCmd         `cmd:"" name:"plugin" help:"Use external plugin backend"`
 }
 
 // VersionFlag is a custom flag type that prints version and exits
@@ -378,6 +379,18 @@ func (p *PostgresCmd) Run(cli *CLI) error {
 		Password:     p.Password,
 		Database:     p.Database,
 		Table:        p.Table,
+	}
+	return run(cli, cfg)
+}
+
+type PluginCmd struct {
+	PluginPath string `name:"plugin-path" help:"path to the plugin binary" env:"CONFD_PLUGIN_PATH"`
+}
+
+func (p *PluginCmd) Run(cli *CLI) error {
+	cfg := backends.Config{
+		Backend:    "plugin",
+		PluginPath: p.PluginPath,
 	}
 	return run(cli, cfg)
 }

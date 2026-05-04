@@ -310,4 +310,3 @@ func TestBatchProcessingMetrics_CanBeRecorded(t *testing.T) {
 	// Cleanup
 	Registry = nil
 }
-

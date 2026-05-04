@@ -366,8 +366,8 @@ func TestCalculateBackoffWithJitter(t *testing.T) {
 		result := calculateBackoff(attempt, config)
 
 		// With 30% jitter, result should be between 140ms (200 - 60) and 260ms (200 + 60)
-		minExpected := time.Duration(float64(expectedBase) * 0.7)  // 140ms
-		maxExpected := time.Duration(float64(expectedBase) * 1.3)  // 260ms
+		minExpected := time.Duration(float64(expectedBase) * 0.7) // 140ms
+		maxExpected := time.Duration(float64(expectedBase) * 1.3) // 260ms
 
 		if result < minExpected || result > maxExpected {
 			t.Errorf("calculateBackoff(%d) with jitter = %v, want between %v and %v",

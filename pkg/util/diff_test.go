@@ -15,11 +15,11 @@ func TestGenerateDiff(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	tests := []struct {
-		name        string
-		oldContent  string
-		newContent  string
-		expectEmpty bool
-		expectAdded bool
+		name          string
+		oldContent    string
+		newContent    string
+		expectEmpty   bool
+		expectAdded   bool
 		expectRemoved bool
 	}{
 		{
@@ -36,18 +36,18 @@ func TestGenerateDiff(t *testing.T) {
 			expectAdded: true,
 		},
 		{
-			name:        "line removed",
-			oldContent:  "line1\nline2\nline3\n",
-			newContent:  "line1\nline2\n",
-			expectEmpty: false,
+			name:          "line removed",
+			oldContent:    "line1\nline2\nline3\n",
+			newContent:    "line1\nline2\n",
+			expectEmpty:   false,
 			expectRemoved: true,
 		},
 		{
-			name:        "line changed",
-			oldContent:  "line1\nline2\nline3\n",
-			newContent:  "line1\nmodified\nline3\n",
-			expectEmpty: false,
-			expectAdded: true,
+			name:          "line changed",
+			oldContent:    "line1\nline2\nline3\n",
+			newContent:    "line1\nmodified\nline3\n",
+			expectEmpty:   false,
+			expectAdded:   true,
 			expectRemoved: true,
 		},
 		{
@@ -58,10 +58,10 @@ func TestGenerateDiff(t *testing.T) {
 			expectAdded: true,
 		},
 		{
-			name:        "empty new file",
-			oldContent:  "old content\n",
-			newContent:  "",
-			expectEmpty: false,
+			name:          "empty new file",
+			oldContent:    "old content\n",
+			newContent:    "",
+			expectEmpty:   false,
 			expectRemoved: true,
 		},
 	}

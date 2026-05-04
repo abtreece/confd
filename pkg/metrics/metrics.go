@@ -33,8 +33,8 @@ var (
 
 // Batch processing metrics
 var (
-	BatchProcessTotal             prometheus.Counter
-	BatchProcessFailed            prometheus.Counter
+	BatchProcessTotal              prometheus.Counter
+	BatchProcessFailed             prometheus.Counter
 	BatchProcessTemplatesSucceeded prometheus.Counter
 	BatchProcessTemplatesFailed    prometheus.Counter
 )
@@ -48,9 +48,9 @@ var (
 
 // File sync metrics
 var (
-	FileSyncTotal             *prometheus.CounterVec
-	FileChangedTotal          prometheus.Counter
-	StageFileCleanupErrors    prometheus.Counter
+	FileSyncTotal          *prometheus.CounterVec
+	FileChangedTotal       prometheus.Counter
+	StageFileCleanupErrors prometheus.Counter
 )
 
 // Initialize creates and registers all metrics with a new registry.

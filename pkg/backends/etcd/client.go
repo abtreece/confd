@@ -120,9 +120,9 @@ func createWatch(client *clientv3.Client, prefix string) (*Watch, error) {
 
 // Client is a wrapper around the etcd client
 type Client struct {
-	client    *clientv3.Client
-	kvClient  etcdKV
-	watches   map[string]*Watch
+	client   *clientv3.Client
+	kvClient etcdKV
+	watches  map[string]*Watch
 	// Protect watch
 	wm sync.Mutex
 }

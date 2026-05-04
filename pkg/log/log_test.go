@@ -61,11 +61,11 @@ func TestSetFormat(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetFormat(tt.format)
 			handler := logger.Handler()
-			
+
 			// Check the handler type
 			_, isJSON := handler.(*slog.JSONHandler)
 			_, isConfd := handler.(*ConfdHandler)
-			
+
 			if tt.checkJSON {
 				if !isJSON {
 					t.Errorf("SetFormat(%q) expected JSONHandler, got %T", tt.format, handler)
@@ -87,10 +87,10 @@ func TestConfdFormatter(t *testing.T) {
 		hostname: "testhost",
 		w:        &bytes.Buffer{},
 	}
-	
+
 	var buf bytes.Buffer
 	handler.w = &buf
-	
+
 	r := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
 	err := handler.Handle(context.Background(), r)
 	if err != nil {
@@ -111,7 +111,7 @@ func TestConfdFormatter(t *testing.T) {
 
 func TestDebug(t *testing.T) {
 	var buf bytes.Buffer
-	
+
 	hostname, _ := os.Hostname()
 	handler := &ConfdHandler{
 		opts: slog.HandlerOptions{
@@ -132,7 +132,7 @@ func TestDebug(t *testing.T) {
 
 func TestError(t *testing.T) {
 	var buf bytes.Buffer
-	
+
 	hostname, _ := os.Hostname()
 	handler := &ConfdHandler{
 		opts: slog.HandlerOptions{
@@ -153,7 +153,7 @@ func TestError(t *testing.T) {
 
 func TestInfo(t *testing.T) {
 	var buf bytes.Buffer
-	
+
 	hostname, _ := os.Hostname()
 	handler := &ConfdHandler{
 		opts: slog.HandlerOptions{
@@ -174,7 +174,7 @@ func TestInfo(t *testing.T) {
 
 func TestWarning(t *testing.T) {
 	var buf bytes.Buffer
-	
+
 	hostname, _ := os.Hostname()
 	handler := &ConfdHandler{
 		opts: slog.HandlerOptions{
@@ -196,7 +196,7 @@ func TestWarning(t *testing.T) {
 // Test structured logging methods
 func TestStructuredLogging(t *testing.T) {
 	var buf bytes.Buffer
-	
+
 	hostname, _ := os.Hostname()
 	handler := &ConfdHandler{
 		opts: slog.HandlerOptions{
@@ -223,7 +223,7 @@ func TestStructuredLogging(t *testing.T) {
 
 func TestWith(t *testing.T) {
 	var buf bytes.Buffer
-	
+
 	hostname, _ := os.Hostname()
 	handler := &ConfdHandler{
 		opts: slog.HandlerOptions{

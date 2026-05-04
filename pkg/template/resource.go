@@ -108,7 +108,6 @@ type TemplateResource struct {
 
 var ErrEmptySrc = errors.New("empty src template")
 
-
 // normalizePrefix concatenates global config prefix with resource prefix.
 // This allows hierarchical prefixes like /production/myapp where
 // "production" comes from confd.toml and "myapp" from the resource.
@@ -470,7 +469,6 @@ func (t *TemplateResource) reload() error {
 	return t.cmdExecutor.executeReload(t.StageFile.Name(), t.Dest)
 }
 
-
 // process gathers vars from the backend, renders the template to bytes, and
 // syncs the destination file only when content or metadata has changed.
 func (t *TemplateResource) process() error {
@@ -549,4 +547,3 @@ func (t *TemplateResource) setFileMode() error {
 
 	return nil
 }
-

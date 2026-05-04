@@ -1,77 +1,107 @@
-# PostgreSQL Backend Integration
+# 🛠️ Confd (Next-Gen Fork) 
 
-This document details the technical modifications and architectural additions implemented to support PostgreSQL as a native backend for `confd`.
+[![Go Report Card](https://goreportcard.com/badge/github.com/abtreece/confd)](https://goreportcard.com/report/github.com/abtreece/confd)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-## 1. Architectural Overview
+> **Welcome to the next generation of `confd`.**  
+> This fork introduces two massive architectural upgrades to the classic lightweight configuration management tool: **Native PostgreSQL integration** and an entirely decoupled **HashiCorp `go-plugin` architecture**.
 
-The integration introduces a new `StoreClient` implementation that communicates with a PostgreSQL database. It utilizes the `pgx/v5` driver for high-performance connections and connection pooling.
+`confd` is a lightweight configuration management tool focused on keeping local configuration files up-to-date using data stored in a central backend, and invoking reload commands when configuration changes.
+
+---
+
+##  What's New in this Fork?
+
+The classic `confd` is an incredibly reliable tool, but it suffers from a monolithic design: every single backend (Etcd, Redis, Consul, etc.) must be statically compiled into the core binary. This fork breaks that limitation.
+
+### 1.  The Dynamic Plugin Architecture (`go-plugin`)
+We have integrated [HashiCorp's `go-plugin`](https://github.com/hashicorp/go-plugin) framework to allow `confd` to load external backends at runtime via RPC/gRPC. 
+* **Zero Recompilation:** Write your own custom backend (MongoDB, SQLite, HTTP APIs, internal company systems) in Go, compile it as a standalone binary, and `confd` will talk to it!
+* **Decoupled:** The core template rendering engine of `confd` is now completely isolated from the data retrieval logic.
+* **Read the Architecture Deep Dive:** [PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md)
+
+### 2.  Native PostgreSQL Backend
+We added a statically-linked, high-performance PostgreSQL backend powered by `pgx/v5`. 
+* **SQL Views Support:** You don't need a dedicated `confd` table. You can map `confd` keys directly to your existing business tables using SQL Views!
+* **Security & Validation:** Leverage the power of PostgreSQL Triggers to validate configuration changes *before* they reach `confd`.
+* **Full Audit Trail:** Automatically log every configuration mutation directly in your database.
+* **Read the Postgres Guide:** [POSTGRES_DEMO.md](./POSTGRES_DEMO.md)
+
+---
+
+## 📖 Getting Started
+
+### Building from Source
+
+```bash
+# 1. Sync the vendor directory
+go mod vendor
+
+# 2. Build the main confd executable
+make build
+
+# 3. (Optional) Build the standalone Postgres Plugin example
+go build -o bin/confd-plugin-postgres ./cmd/confd-plugin-postgres
+```
+
+### Quick Demos
+
+We have prepared interactive, highly detailed demonstration environments using Docker Compose. They simulate production environments with invalid data injection, maintenance modes, and automatic rollbacks.
+
+* **[The Plugin Demo (Highly Recommended)](./PLUGIN_DEMO.md)**: A complete walkthrough of the dynamic HashiCorp `go-plugin` system.
+* **[The PostgreSQL Native Demo](./POSTGRES_DEMO.md)**: A masterclass in using SQL Views and Triggers to control configuration safely.
+
+---
+
+## 💻 Usage
+
+### Using the Native PostgreSQL Backend
+
+```bash
+./bin/confd postgres \
+  --node "127.0.0.1:5432" \
+  --username "admin" \
+  --password "secret" \
+  --database "confd" \
+  --table "confd_config" \
+  --interval 3
+```
+
+### Using the Dynamic Plugin Backend
+
+```bash
+# Configuration for the external plugin is passed via environment variables
+export CONFD_BACKEND_NODE="127.0.0.1:5432"
+
+# Tell confd to use the "plugin" backend and point it to the binary
+./bin/confd plugin \
+  --plugin-path "./bin/confd-plugin-postgres" \
+  --interval 3
+```
+
+---
+
+##  Architecture Overview
+
+The core engine uses atomic file operations and a strictly enforced `check_cmd` validation step to ensure that a broken template will **never** impact a running production service.
 
 ```mermaid
-flowchart TD
-    subgraph Confd Core
-    CLI[CLI Parser\ncmd/confd/cli.go] --> CFG[Config Builder\ncmd/confd/config.go]
-    CFG --> Router[Backend Router\npkg/backends/client.go]
-    Router --> BackendInterface(StoreClient Interface)
-    end
-
-    subgraph Backends
-    BackendInterface --> Etcd[Etcd]
-    BackendInterface --> Consul[Consul]
-    BackendInterface --> Postgres[PostgreSQL\npkg/backends/postgres/client.go]
-    end
-
-    Postgres -->|pgx/v5 connection pool| PG_DB[(PostgreSQL Database)]
-
-    classDef core fill:#f9f9f9,stroke:#333,stroke-width:2px;
-    classDef target fill:#d4e6f1,stroke:#2874a6,stroke-width:2px;
-    class CLI,CFG,Router,BackendInterface core;
-    class Postgres,PG_DB target;
+flowchart LR
+    DB[(Backend\nPostgres/Plugin)] --> |RPC/TCP| Confd[Confd Engine]
+    Confd -->|1. Generate| TmpFile[/.app.conf.tmp]
+    TmpFile -->|2. check_cmd| Validator{Valid Syntax?}
+    Validator -->|Yes| DestFile[/app.conf]
+    Validator -->|No| Reject[Discard & Error]
+    DestFile -->|3. reload_cmd| Service[Nginx / App]
+    
+    classDef safe fill:#d4edda,stroke:#28a745,stroke-width:2px;
+    classDef danger fill:#f8d7da,stroke:#dc3545,stroke-width:2px;
+    class DestFile,Service safe;
+    class Reject danger;
 ```
 
-## 2. Technical Modifications
+---
 
-The implementation required updates across three main layers of the application.
+##  License
 
-### A. Core Backend Implementation (`pkg/backends/postgres/client.go`)
-- **Package creation**: A new package `postgres` was created.
-- **Client structure**: Implements `backends.StoreClient` using `*pgxpool.Pool` to manage database connections efficiently.
-- **Data retrieval logic**: Implemented `GetValues(ctx, keys)` to execute SQL queries. It performs both exact matching and prefix-based matching (`LIKE`) to replicate the hierarchical directory structure expected by `confd`.
-- **Polling fallback**: `WatchPrefix` immediately returns to fallback on `confd`'s native polling mechanism, as PostgreSQL does not natively support tree-based prefix watches.
-
-### B. Configuration Layer (`pkg/backends/config.go` & `cmd/confd/config.go`)
-- **Config Struct Updates**: Extended the `backends.Config` and `TOMLConfig` structures to include PostgreSQL-specific settings:
-  - `Database`: Name of the target database.
-  - `Table`: Name of the table storing configuration key-value pairs.
-- **Config Loading**: Updated `loadConfigFile()` to parse the new variables from `confd.toml`.
-
-### C. CLI Layer (`cmd/confd/cli.go`)
-- **Command Addition**: Added the `PostgresCmd` structure to parse CLI flags.
-- **Default Values**: Configured defaults to streamline local usage (`127.0.0.1:5432`, `confd_config`).
-
-## 3. Configuration Reference
-
-The PostgreSQL backend can be configured using CLI flags or the `confd.toml` configuration file.
-
-| CLI Flag | TOML Setting | Description | Default Value |
-| :--- | :--- | :--- | :--- |
-| `-n, --node` | `nodes` | Database host and port | `127.0.0.1:5432` |
-| `--username` | `username` | Authentication username | `""` (none) |
-| `--password` | `password` | Authentication password | `""` (none) |
-| `--database` | `database` | Name of the database | `confd` |
-| `--table` | `table` | Name of the table holding config | `confd_config` |
-| `--interval` | `interval` | Polling interval (seconds) | `600` |
-
-## 4. Database Schema Requirements
-
-The backend assumes a specific table structure to retrieve configurations. The table must contain at minimum two string columns: `key` and `value`.
-
-```sql
-CREATE TABLE confd_config (
-    key VARCHAR(255) PRIMARY KEY,
-    value TEXT NOT NULL
-);
-```
-
-## 5. Dependency Management
-- Added `github.com/jackc/pgx/v5` to `go.mod`.
-- Executed `go mod vendor` to include the driver in the project's vendor directory, ensuring reproducible builds.
+`confd` is licensed under the MIT License. See [LICENSE](LICENSE) for the full text.

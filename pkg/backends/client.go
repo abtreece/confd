@@ -12,6 +12,7 @@ import (
 	"github.com/abtreece/confd/pkg/backends/etcd"
 	"github.com/abtreece/confd/pkg/backends/file"
 	"github.com/abtreece/confd/pkg/backends/imds"
+	"github.com/abtreece/confd/pkg/backends/plugin"
 	"github.com/abtreece/confd/pkg/backends/postgres"
 	"github.com/abtreece/confd/pkg/backends/redis"
 	"github.com/abtreece/confd/pkg/backends/secretsmanager"
@@ -114,6 +115,9 @@ func New(config Config) (StoreClient, error) {
 	case "postgres":
 		log.Info("Backend source(s) set to PostgreSQL %s", strings.Join(backendNodes, ", "))
 		return postgres.New(backendNodes, config.Username, config.Password, config.Database, config.Table, config.DialTimeout)
+	case "plugin":
+		log.Info("Backend source(s) set to Plugin %s", config.PluginPath)
+		return plugin.New(config.PluginPath)
 	}
 	return nil, errors.New("invalid backend")
 }

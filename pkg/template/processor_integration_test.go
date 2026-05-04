@@ -153,12 +153,12 @@ func (e *processorTestEnv) createConfig(ctx context.Context) Config {
 	}
 
 	return Config{
-		Ctx:          ctx,
-		ConfDir:      filepath.Dir(e.confDir), // parent of conf.d
-		ConfigDir:    e.confDir,
-		TemplateDir:  e.templDir,
-		StoreClient:  storeClient,
-		Noop:         false,
+		Ctx:         ctx,
+		ConfDir:     filepath.Dir(e.confDir), // parent of conf.d
+		ConfigDir:   e.confDir,
+		TemplateDir: e.templDir,
+		StoreClient: storeClient,
+		Noop:        false,
 	}
 }
 
@@ -1290,4 +1290,3 @@ keys = ["/extra/key"]
 		t.Error("processor did not shut down in time")
 	}
 }
-

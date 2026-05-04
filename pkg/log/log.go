@@ -3,7 +3,7 @@ Package log provides support for logging to stdout and stderr.
 
 Log entries will be logged in the following format:
 
-    timestamp hostname tag[pid]: SEVERITY Message
+	timestamp hostname tag[pid]: SEVERITY Message
 */
 package log
 
@@ -44,31 +44,31 @@ func (h *ConfdHandler) Enabled(_ context.Context, level slog.Level) bool {
 func (h *ConfdHandler) Handle(_ context.Context, r slog.Record) error {
 	timestamp := r.Time.Format(time.RFC3339)
 	level := strings.ToUpper(r.Level.String())
-	
+
 	// Build the base message
 	buf := fmt.Sprintf("%s %s %s[%d]: %s %s",
 		timestamp, h.hostname, tag, os.Getpid(), level, r.Message)
-	
+
 	// Add attributes if present
 	if r.NumAttrs() > 0 || len(h.attrs) > 0 {
 		var attrs []string
-		
+
 		// Add handler-level attributes
 		for _, a := range h.attrs {
 			attrs = append(attrs, fmt.Sprintf("%s=%v", a.Key, a.Value.Any()))
 		}
-		
+
 		// Add record attributes
 		r.Attrs(func(a slog.Attr) bool {
 			attrs = append(attrs, fmt.Sprintf("%s=%v", a.Key, a.Value.Any()))
 			return true
 		})
-		
+
 		if len(attrs) > 0 {
 			buf += " " + strings.Join(attrs, " ")
 		}
 	}
-	
+
 	buf += "\n"
 	_, err := h.w.Write([]byte(buf))
 	return err
@@ -91,7 +91,7 @@ func (h *ConfdHandler) WithGroup(name string) slog.Handler {
 func init() {
 	tag = os.Args[0]
 	hostname, _ := os.Hostname()
-	
+
 	handler := &ConfdHandler{
 		opts: slog.HandlerOptions{
 			Level: slog.LevelInfo,
@@ -99,7 +99,7 @@ func init() {
 		hostname: hostname,
 		w:        os.Stdout,
 	}
-	
+
 	logger = slog.New(handler)
 	slog.SetDefault(logger)
 }
@@ -112,7 +112,7 @@ func SetTag(t string) {
 // SetLevel sets the log level. Valid levels are panic, fatal, error, warn, info and debug.
 func SetLevel(level string) {
 	var slogLevel slog.Level
-	
+
 	switch strings.ToLower(level) {
 	case "debug":
 		slogLevel = slog.LevelDebug
@@ -129,7 +129,7 @@ func SetLevel(level string) {
 		Fatal("not a valid level: %q", level)
 		return
 	}
-	
+
 	hostname, _ := os.Hostname()
 	handler := &ConfdHandler{
 		opts: slog.HandlerOptions{
@@ -138,7 +138,7 @@ func SetLevel(level string) {
 		hostname: hostname,
 		w:        os.Stdout,
 	}
-	
+
 	logger = slog.New(handler)
 	slog.SetDefault(logger)
 }
@@ -147,14 +147,14 @@ func SetLevel(level string) {
 func SetFormat(format string) {
 	var handler slog.Handler
 	var currentLevel slog.Level = slog.LevelInfo
-	
+
 	// Try to get current level from handler
 	if currentHandler, ok := logger.Handler().(*ConfdHandler); ok {
 		if currentHandler.opts.Level != nil {
 			currentLevel = currentHandler.opts.Level.Level()
 		}
 	}
-	
+
 	switch format {
 	case "json":
 		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -173,7 +173,7 @@ func SetFormat(format string) {
 		Fatal("not a valid log format: %q", format)
 		return
 	}
-	
+
 	logger = slog.New(handler)
 	slog.SetDefault(logger)
 }

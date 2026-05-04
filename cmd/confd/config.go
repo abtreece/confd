@@ -47,13 +47,14 @@ type TOMLConfig struct {
 	RoleID         string   `toml:"role_id"`
 	SecretID       string   `toml:"secret_id"`
 	Database       string   `toml:"database"`
+	PluginPath     string   `toml:"plugin_path"`
 	File           []string `toml:"file"`
 	Filter         string   `toml:"filter"`
 	Path           string   `toml:"path"`
 
-	ACMExportPrivateKey          bool   `toml:"acm_export_private_key"`
-	SecretsManagerVersionStage   string `toml:"secretsmanager_version_stage"`
-	SecretsManagerNoFlatten      bool   `toml:"secretsmanager_no_flatten"`
+	ACMExportPrivateKey        bool   `toml:"acm_export_private_key"`
+	SecretsManagerVersionStage string `toml:"secretsmanager_version_stage"`
+	SecretsManagerNoFlatten    bool   `toml:"secretsmanager_no_flatten"`
 
 	// Performance settings
 	TemplateCache *bool  `toml:"template_cache"` // Pointer to distinguish unset from false
@@ -208,6 +209,9 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if backendCfg.Database == "" && tomlCfg.Database != "" {
 		backendCfg.Database = tomlCfg.Database
+	}
+	if backendCfg.PluginPath == "" && tomlCfg.PluginPath != "" {
+		backendCfg.PluginPath = tomlCfg.PluginPath
 	}
 	if len(backendCfg.YAMLFile) == 0 && len(tomlCfg.File) > 0 {
 		backendCfg.YAMLFile = tomlCfg.File

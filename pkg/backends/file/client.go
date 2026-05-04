@@ -106,7 +106,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		}
 	}
 
-for k := range vars {
+	for k := range vars {
 		if !matchesAnyPrefix(k, keys) {
 			delete(vars, k)
 		}
