@@ -5,7 +5,7 @@ GIT_SHA=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 build:
 	@echo "Building confd..."
 	@mkdir -p bin
-	@go build -ldflags "-X main.Version=$(VERSION) -X main.GitSHA=$(GIT_SHA)" -o bin/confd ./cmd/confd
+	@go build -buildvcs=false -ldflags "-X main.Version=$(VERSION) -X main.GitSHA=$(GIT_SHA)" -o bin/confd ./cmd/confd
 
 install:
 	@echo "Installing confd..."
