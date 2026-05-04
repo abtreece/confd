@@ -140,13 +140,10 @@ Let's run `confd` in the background, polling the database every 3 seconds via RP
 ./bin/confd plugin \
   --plugin-path "./bin/confd-plugin-postgres" \
   --confdir /tmp/confd-plugin-demo \
-  --log-level error \
   --interval 3 &
 
 CONFD_PID=$!
 ```
-
-> **Note:** We added `--log-level error` to keep your terminal perfectly clean. It will only shout if something breaks!
 
 ### 🎯 Trigger a Dynamic Update
 
