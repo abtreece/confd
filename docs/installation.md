@@ -147,6 +147,8 @@ RUN CONFD_ARCH=$(arch | sed s/aarch64/arm64/ | sed s/x86_64/amd64/) \
 
 #### Building from Source
 
+Building from source requires the Go 1.26.2 toolchain. The module declares `go 1.26` for language compatibility and `toolchain go1.26.2` for the expected compiler patch version.
+
 ```bash
 make build
 make install
