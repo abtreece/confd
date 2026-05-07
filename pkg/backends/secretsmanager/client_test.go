@@ -457,3 +457,66 @@ func TestHealthCheck_Error(t *testing.T) {
 		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
 	}
 }
+
+func TestHealthCheckDetailed_Success(t *testing.T) {
+	token := "page-2"
+	callCount := 0
+	mock := &mockSecretsManager{
+		listSecretsFunc: func(ctx context.Context, input *secretsmanager.ListSecretsInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error) {
+			callCount++
+			if callCount == 1 {
+				return &secretsmanager.ListSecretsOutput{
+					SecretList: []types.SecretListEntry{
+						{Name: aws.String("a")},
+						{Name: aws.String("b")},
+					},
+					NextToken: &token,
+				}, nil
+			}
+			if input.NextToken == nil || *input.NextToken != token {
+				t.Fatalf("ListSecrets next token = %v, want %q", input.NextToken, token)
+			}
+			return &secretsmanager.ListSecretsOutput{
+				SecretList: []types.SecretListEntry{
+					{Name: aws.String("c")},
+				},
+			}, nil
+		},
+	}
+	client := newTestClient(mock, "", false)
+
+	result, err := client.HealthCheckDetailed(context.Background())
+	if err != nil {
+		t.Fatalf("HealthCheckDetailed() unexpected error: %v", err)
+	}
+	if !result.Healthy {
+		t.Fatalf("HealthCheckDetailed() Healthy = false, want true")
+	}
+	if result.Message != "Secrets Manager backend is healthy" {
+		t.Fatalf("HealthCheckDetailed() Message = %q", result.Message)
+	}
+	if result.Details["secret_count"] != "3" {
+		t.Fatalf("HealthCheckDetailed() secret_count = %q", result.Details["secret_count"])
+	}
+}
+
+func TestHealthCheckDetailed_Error(t *testing.T) {
+	expectedErr := errors.New("secrets unavailable")
+	mock := &mockSecretsManager{
+		listSecretsFunc: func(ctx context.Context, input *secretsmanager.ListSecretsInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error) {
+			return nil, expectedErr
+		},
+	}
+	client := newTestClient(mock, "", false)
+
+	result, err := client.HealthCheckDetailed(context.Background())
+	if err != expectedErr {
+		t.Fatalf("HealthCheckDetailed() error = %v, want %v", err, expectedErr)
+	}
+	if result.Healthy {
+		t.Fatalf("HealthCheckDetailed() Healthy = true, want false")
+	}
+	if result.Details["error"] != expectedErr.Error() {
+		t.Fatalf("HealthCheckDetailed() error detail = %q", result.Details["error"])
+	}
+}

@@ -13,9 +13,9 @@ import (
 
 // mockSSM implements the ssmAPI interface for testing
 type mockSSM struct {
-	getParameterFunc       func(ctx context.Context, input *ssm.GetParameterInput, opts ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
+	getParameterFunc        func(ctx context.Context, input *ssm.GetParameterInput, opts ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
 	getParametersByPathFunc func(ctx context.Context, input *ssm.GetParametersByPathInput, opts ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
-	nextToken              *string
+	nextToken               *string
 }
 
 func (m *mockSSM) GetParameter(ctx context.Context, input *ssm.GetParameterInput, opts ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
@@ -372,5 +372,71 @@ func TestHealthCheck_Error(t *testing.T) {
 	}
 	if err != expectedErr {
 		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
+	}
+}
+
+func TestHealthCheckDetailed_Success(t *testing.T) {
+	token := "page-2"
+	callCount := 0
+	mock := &mockSSM{
+		getParametersByPathFunc: func(ctx context.Context, input *ssm.GetParametersByPathInput, opts ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error) {
+			callCount++
+			if *input.Path != "/" {
+				t.Fatalf("GetParametersByPath path = %q, want /", *input.Path)
+			}
+			if callCount == 1 {
+				return &ssm.GetParametersByPathOutput{
+					Parameters: []types.Parameter{
+						{Name: aws.String("/a"), Value: aws.String("1")},
+						{Name: aws.String("/b"), Value: aws.String("2")},
+					},
+					NextToken: &token,
+				}, nil
+			}
+			if input.NextToken == nil || *input.NextToken != token {
+				t.Fatalf("GetParametersByPath next token = %v, want %q", input.NextToken, token)
+			}
+			return &ssm.GetParametersByPathOutput{
+				Parameters: []types.Parameter{
+					{Name: aws.String("/c"), Value: aws.String("3")},
+				},
+			}, nil
+		},
+	}
+	client := newTestClient(mock)
+
+	result, err := client.HealthCheckDetailed(context.Background())
+	if err != nil {
+		t.Fatalf("HealthCheckDetailed() unexpected error: %v", err)
+	}
+	if !result.Healthy {
+		t.Fatalf("HealthCheckDetailed() Healthy = false, want true")
+	}
+	if result.Message != "SSM backend is healthy" {
+		t.Fatalf("HealthCheckDetailed() Message = %q", result.Message)
+	}
+	if result.Details["parameter_count"] != "3" {
+		t.Fatalf("HealthCheckDetailed() parameter_count = %q", result.Details["parameter_count"])
+	}
+}
+
+func TestHealthCheckDetailed_Error(t *testing.T) {
+	expectedErr := errors.New("ssm unavailable")
+	mock := &mockSSM{
+		getParametersByPathFunc: func(ctx context.Context, input *ssm.GetParametersByPathInput, opts ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error) {
+			return nil, expectedErr
+		},
+	}
+	client := newTestClient(mock)
+
+	result, err := client.HealthCheckDetailed(context.Background())
+	if err != expectedErr {
+		t.Fatalf("HealthCheckDetailed() error = %v, want %v", err, expectedErr)
+	}
+	if result.Healthy {
+		t.Fatalf("HealthCheckDetailed() Healthy = true, want false")
+	}
+	if result.Details["error"] != expectedErr.Error() {
+		t.Fatalf("HealthCheckDetailed() error detail = %q", result.Details["error"])
 	}
 }
