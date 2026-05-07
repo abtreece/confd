@@ -1,7 +1,7 @@
 # Multi-stage build Dockerfile for CI testing
 # Builds confd from source and produces a minimal runtime image
 
-FROM golang:1.26.2-alpine3.21 AS builder
+FROM golang:1.26.2-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make
