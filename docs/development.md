@@ -24,6 +24,8 @@ This guide covers setting up a development environment, building, testing, and d
 | golangci-lint | latest | Linting |
 | make | any | Build automation |
 
+The `go.mod` file keeps the language version at `go 1.26` and pins the expected patch-level compiler with `toolchain go1.26.2`. Keep `.tool-versions`, CI `setup-go` entries, Docker build images, and documentation aligned with that toolchain version.
+
 ### Optional Tools
 
 | Tool | Version | Purpose |
