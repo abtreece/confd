@@ -20,7 +20,7 @@ This guide covers setting up a development environment, building, testing, and d
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Go | 1.25+ | Build and test |
+| Go | 1.26.2 | Build and test |
 | golangci-lint | latest | Linting |
 | make | any | Build automation |
 
@@ -41,9 +41,9 @@ brew install go golangci-lint goreleaser
 
 **Linux:**
 ```bash
-# Go (check https://go.dev/dl/ for latest)
-wget https://go.dev/dl/go1.25.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.25.linux-amd64.tar.gz
+# Go 1.26.2
+wget https://go.dev/dl/go1.26.2.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.26.2.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 # golangci-lint
@@ -69,7 +69,7 @@ This creates `bin/confd` with the Git SHA embedded via ldflags.
 
 ```bash
 ./bin/confd --version
-# Output: confd 0.40.0-rc.1 (Git SHA: abc1234, Go Version: go1.25)
+# Output: confd 0.40.0-rc.1 (Git SHA: abc1234, Go Version: go1.26.2)
 ```
 
 ### Project Structure

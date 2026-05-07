@@ -165,7 +165,7 @@ docker build -t confd:local -f docker/Dockerfile.build .
 Include confd in your own Docker image using a multi-stage build:
 
 ```dockerfile
-FROM golang:1.25-alpine AS confd-builder
+FROM golang:1.26.2-alpine AS confd-builder
 
 RUN apk add --no-cache git
 WORKDIR /src
