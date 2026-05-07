@@ -1,3 +1,8 @@
+### [Unreleased]
+
+* chore(deps): bump github.com/hashicorp/consul/api from 1.33.7 to 1.34.2 (#591)
+* chore: bump Go from 1.25 to 1.26 in build infra (Dockerfile, workflows)
+
 ### v0.41.1 (2026-04-22)
 
 * fix: Change stage file created log from Info to Debug (2026-04-22) (#589)
