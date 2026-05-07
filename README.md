@@ -51,7 +51,7 @@ See [Docker documentation](docs/docker.md) for complete usage including Docker C
 
 ### Building from Source
 
-Go 1.25+ is required to build confd.
+Go 1.26.2 is required to build confd.
 
 ```bash
 git clone https://github.com/abtreece/confd.git
