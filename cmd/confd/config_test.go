@@ -5,16 +5,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
 )
 
 func TestLoadConfigFile_InvalidDurations(t *testing.T) {
 	tests := []struct {
-		name        string
-		configTOML  string
-		wantErrMsg  string
-		wantHint    string
+		name       string
+		configTOML string
+		wantErrMsg string
+		wantHint   string
 	}{
 		{
 			name: "invalid stat_cache_ttl",
@@ -219,4 +220,132 @@ func TestLoadConfigFile_MissingFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error for missing config file: %v", err)
 	}
+}
+
+func TestLoadConfigFile_ExplicitDefaultSourcesOverrideTOML(t *testing.T) {
+	clearCONFDEnvVars(t)
+
+	configFile := writeConfigFile(t, `
+interval = 300
+failure_mode = "fail-fast"
+dial_timeout = "10s"
+`)
+
+	tests := []struct {
+		name  string
+		env   map[string]string
+		args  []string
+		check func(*testing.T, *CLI)
+	}{
+		{
+			name: "env interval default beats toml",
+			env:  map[string]string{"CONFD_INTERVAL": "600"},
+			args: []string{"--config-file", configFile, "env"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.Interval != 600 {
+					t.Fatalf("Interval = %d, want explicit env default 600", cli.Interval)
+				}
+			},
+		},
+		{
+			name: "cli interval default beats toml",
+			args: []string{"--config-file", configFile, "--interval", "600", "env"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.Interval != 600 {
+					t.Fatalf("Interval = %d, want explicit CLI default 600", cli.Interval)
+				}
+			},
+		},
+		{
+			name: "env failure mode default beats toml",
+			env:  map[string]string{"CONFD_FAILURE_MODE": "best-effort"},
+			args: []string{"--config-file", configFile, "env"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.FailureMode != "best-effort" {
+					t.Fatalf("FailureMode = %q, want explicit env default best-effort", cli.FailureMode)
+				}
+			},
+		},
+		{
+			name: "env duration default beats toml",
+			env:  map[string]string{"CONFD_DIAL_TIMEOUT": "5s"},
+			args: []string{"--config-file", configFile, "env"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.DialTimeout != 5*time.Second {
+					t.Fatalf("DialTimeout = %v, want explicit env default 5s", cli.DialTimeout)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearCONFDEnvVars(t)
+			for key, value := range tt.env {
+				t.Setenv(key, value)
+			}
+			cli, _ := parseCLI(t, tt.args)
+			backendCfg := &backends.Config{}
+
+			if err := loadConfigFile(cli, backendCfg); err != nil {
+				t.Fatalf("loadConfigFile failed: %v", err)
+			}
+			tt.check(t, cli)
+		})
+	}
+}
+
+func TestLoadConfigFile_BackendPrecedenceWithCommandDefaults(t *testing.T) {
+	clearCONFDEnvVars(t)
+
+	configFile := writeConfigFile(t, `
+nodes = ["toml:8500"]
+scheme = "https"
+`)
+
+	cli, _ := parseCLI(t, []string{"--config-file", configFile, "consul"})
+	backendCfg := &backends.Config{
+		Backend:      "consul",
+		BackendNodes: cli.Consul.Node,
+		Scheme:       cli.Consul.Scheme,
+	}
+	if err := loadConfigFile(cli, backendCfg); err != nil {
+		t.Fatalf("loadConfigFile failed: %v", err)
+	}
+	if got := []string(backendCfg.BackendNodes); len(got) != 1 || got[0] != "toml:8500" {
+		t.Fatalf("BackendNodes = %v, want TOML nodes", backendCfg.BackendNodes)
+	}
+	if backendCfg.Scheme != "https" {
+		t.Fatalf("Scheme = %q, want TOML scheme", backendCfg.Scheme)
+	}
+
+	cli, _ = parseCLI(t, []string{"--config-file", configFile, "consul", "--node", "cli:8500", "--scheme", "http"})
+	backendCfg = &backends.Config{
+		Backend:      "consul",
+		BackendNodes: cli.Consul.Node,
+		Scheme:       cli.Consul.Scheme,
+	}
+	if err := loadConfigFile(cli, backendCfg); err != nil {
+		t.Fatalf("loadConfigFile failed: %v", err)
+	}
+	if got := []string(backendCfg.BackendNodes); len(got) != 1 || got[0] != "cli:8500" {
+		t.Fatalf("BackendNodes = %v, want CLI nodes", backendCfg.BackendNodes)
+	}
+	if backendCfg.Scheme != "http" {
+		t.Fatalf("Scheme = %q, want CLI scheme", backendCfg.Scheme)
+	}
+}
+
+func writeConfigFile(t *testing.T, content string) string {
+	t.Helper()
+
+	configFile := filepath.Join(t.TempDir(), "confd.toml")
+	if err := os.WriteFile(configFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	return configFile
 }

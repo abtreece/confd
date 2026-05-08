@@ -11,6 +11,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/alecthomas/kong"
 )
 
 // TOMLConfig represents the structure of the confd TOML config file
@@ -50,9 +51,9 @@ type TOMLConfig struct {
 	Filter         string   `toml:"filter"`
 	Path           string   `toml:"path"`
 
-	ACMExportPrivateKey          bool   `toml:"acm_export_private_key"`
-	SecretsManagerVersionStage   string `toml:"secretsmanager_version_stage"`
-	SecretsManagerNoFlatten      bool   `toml:"secretsmanager_no_flatten"`
+	ACMExportPrivateKey        bool   `toml:"acm_export_private_key"`
+	SecretsManagerVersionStage string `toml:"secretsmanager_version_stage"`
+	SecretsManagerNoFlatten    bool   `toml:"secretsmanager_no_flatten"`
 
 	// Performance settings
 	TemplateCache *bool  `toml:"template_cache"` // Pointer to distinguish unset from false
@@ -78,6 +79,69 @@ type TOMLConfig struct {
 	MetricsAddr string `toml:"metrics_addr"`
 }
 
+type configSources struct {
+	cli map[string]bool
+	env map[string]bool
+}
+
+func newConfigSources(ctx *kong.Context) *configSources {
+	sources := &configSources{
+		cli: make(map[string]bool),
+		env: make(map[string]bool),
+	}
+	for _, path := range ctx.Path {
+		if path.Flag == nil {
+			continue
+		}
+		name := normalizeConfigName(path.Flag.Name)
+		if path.Resolved {
+			sources.env[name] = true
+			continue
+		}
+		sources.cli[name] = true
+	}
+	for _, flag := range ctx.Flags() {
+		for _, env := range flag.Envs {
+			if _, ok := os.LookupEnv(env); ok {
+				sources.env[normalizeConfigName(flag.Name)] = true
+				break
+			}
+		}
+	}
+	return sources
+}
+
+func normalizeConfigName(name string) string {
+	return strings.ReplaceAll(strings.ToLower(name), "-", "_")
+}
+
+func (s *configSources) isExplicit(name string) bool {
+	if s == nil {
+		return false
+	}
+	name = normalizeConfigName(name)
+	return s.cli[name] || s.env[name]
+}
+
+func tomlDefined(md toml.MetaData, names ...string) bool {
+	for _, name := range names {
+		if md.IsDefined(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldApplyTOML(s *configSources, md toml.MetaData, name string, aliases ...string) bool {
+	names := append([]string{name}, aliases...)
+	for _, candidate := range names {
+		if s.isExplicit(candidate) {
+			return false
+		}
+	}
+	return tomlDefined(md, names...)
+}
+
 // loadConfigFile loads the TOML config file and applies defaults to CLI and backend config
 func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	_, err := os.Stat(cli.ConfigFile)
@@ -93,209 +157,195 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 
 	var tomlCfg TOMLConfig
-	if _, err = toml.Decode(string(configBytes), &tomlCfg); err != nil {
+	md, err := toml.Decode(string(configBytes), &tomlCfg)
+	if err != nil {
 		return err
 	}
 
+	sources := cli.configSources
+
 	// Apply TOML settings as defaults (CLI flags take precedence)
 	// Global settings
-	if cli.ConfDir == "/etc/confd" && tomlCfg.ConfDir != "" {
+	if shouldApplyTOML(sources, md, "confdir") && tomlCfg.ConfDir != "" {
 		cli.ConfDir = tomlCfg.ConfDir
 	}
-	if cli.Interval == 600 && tomlCfg.Interval != 0 {
+	if shouldApplyTOML(sources, md, "interval") && tomlCfg.Interval != 0 {
 		cli.Interval = tomlCfg.Interval
 	}
-	if !cli.Noop && tomlCfg.Noop {
-		cli.Noop = true
+	if shouldApplyTOML(sources, md, "noop") {
+		cli.Noop = tomlCfg.Noop
 	}
-	if cli.Prefix == "" && tomlCfg.Prefix != "" {
+	if shouldApplyTOML(sources, md, "prefix") && tomlCfg.Prefix != "" {
 		cli.Prefix = tomlCfg.Prefix
 	}
-	if !cli.SyncOnly && tomlCfg.SyncOnly {
-		cli.SyncOnly = true
+	if shouldApplyTOML(sources, md, "sync_only") {
+		cli.SyncOnly = tomlCfg.SyncOnly
 	}
-	if cli.LogLevel == "" && tomlCfg.LogLevel != "" {
+	if shouldApplyTOML(sources, md, "log_level", "log-level") && tomlCfg.LogLevel != "" {
 		cli.LogLevel = tomlCfg.LogLevel
 	}
-	if cli.LogFormat == "" && tomlCfg.LogFormat != "" {
+	if shouldApplyTOML(sources, md, "log_format", "log-format") && tomlCfg.LogFormat != "" {
 		cli.LogFormat = tomlCfg.LogFormat
 	}
-	if !cli.Watch && tomlCfg.Watch {
-		cli.Watch = true
+	if shouldApplyTOML(sources, md, "watch") {
+		cli.Watch = tomlCfg.Watch
 	}
-	if cli.FailureMode == "best-effort" && tomlCfg.FailureMode != "" {
+	if shouldApplyTOML(sources, md, "failure_mode") && tomlCfg.FailureMode != "" {
 		cli.FailureMode = tomlCfg.FailureMode
 	}
-	if !cli.KeepStageFile && tomlCfg.KeepStageFile {
-		cli.KeepStageFile = true
+	if shouldApplyTOML(sources, md, "keep_stage_file") {
+		cli.KeepStageFile = tomlCfg.KeepStageFile
 	}
-	// Template cache: TOML can only disable (CLI default is true)
-	if tomlCfg.TemplateCache != nil && !*tomlCfg.TemplateCache {
-		cli.TemplateCache = false
+	if shouldApplyTOML(sources, md, "template_cache") && tomlCfg.TemplateCache != nil {
+		cli.TemplateCache = *tomlCfg.TemplateCache
 	}
 	// Stat cache TTL
-	if tomlCfg.StatCacheTTL != "" {
+	if shouldApplyTOML(sources, md, "stat_cache_ttl") && tomlCfg.StatCacheTTL != "" {
 		d, err := time.ParseDuration(tomlCfg.StatCacheTTL)
 		if err != nil {
 			return fmt.Errorf("invalid stat_cache_ttl %q: %w (use Go duration format, e.g., \"1m\", \"5m\")", tomlCfg.StatCacheTTL, err)
 		}
-		if cli.StatCacheTTL == DefaultStatCacheTTL {
-			cli.StatCacheTTL = d
-		}
+		cli.StatCacheTTL = d
 	}
-	if cli.SRVDomain == "" && tomlCfg.SRVDomain != "" {
+	if shouldApplyTOML(sources, md, "srv_domain") && tomlCfg.SRVDomain != "" {
 		cli.SRVDomain = tomlCfg.SRVDomain
 	}
-	if cli.SRVRecord == "" && tomlCfg.SRVRecord != "" {
+	if shouldApplyTOML(sources, md, "srv_record") && tomlCfg.SRVRecord != "" {
 		cli.SRVRecord = tomlCfg.SRVRecord
 	}
-	if cli.MetricsAddr == "" && tomlCfg.MetricsAddr != "" {
+	if shouldApplyTOML(sources, md, "metrics_addr") && tomlCfg.MetricsAddr != "" {
 		cli.MetricsAddr = tomlCfg.MetricsAddr
 	}
 
 	// Backend settings (only apply if not already set via CLI)
-	if len(backendCfg.BackendNodes) == 0 && len(tomlCfg.Nodes) > 0 {
+	if shouldApplyTOML(sources, md, "nodes", "node") && len(tomlCfg.Nodes) > 0 {
 		backendCfg.BackendNodes = tomlCfg.Nodes
 	}
-	if backendCfg.AuthToken == "" && tomlCfg.AuthToken != "" {
+	if shouldApplyTOML(sources, md, "auth_token") && tomlCfg.AuthToken != "" {
 		backendCfg.AuthToken = tomlCfg.AuthToken
 	}
-	if backendCfg.AuthType == "" && tomlCfg.AuthType != "" {
+	if shouldApplyTOML(sources, md, "auth_type") && tomlCfg.AuthType != "" {
 		backendCfg.AuthType = tomlCfg.AuthType
 	}
-	if !backendCfg.BasicAuth && tomlCfg.BasicAuth {
-		backendCfg.BasicAuth = true
+	if shouldApplyTOML(sources, md, "basic_auth") {
+		backendCfg.BasicAuth = tomlCfg.BasicAuth
 	}
-	if backendCfg.ClientCaKeys == "" && tomlCfg.ClientCaKeys != "" {
+	if shouldApplyTOML(sources, md, "client_cakeys", "client_ca_keys") && tomlCfg.ClientCaKeys != "" {
 		backendCfg.ClientCaKeys = tomlCfg.ClientCaKeys
 	}
-	if backendCfg.ClientCert == "" && tomlCfg.ClientCert != "" {
+	if shouldApplyTOML(sources, md, "client_cert") && tomlCfg.ClientCert != "" {
 		backendCfg.ClientCert = tomlCfg.ClientCert
 	}
-	if backendCfg.ClientKey == "" && tomlCfg.ClientKey != "" {
+	if shouldApplyTOML(sources, md, "client_key") && tomlCfg.ClientKey != "" {
 		backendCfg.ClientKey = tomlCfg.ClientKey
 	}
-	if !backendCfg.ClientInsecure && tomlCfg.ClientInsecure {
-		backendCfg.ClientInsecure = true
+	if shouldApplyTOML(sources, md, "client_insecure") {
+		backendCfg.ClientInsecure = tomlCfg.ClientInsecure
 	}
-	if backendCfg.Password == "" && tomlCfg.Password != "" {
+	if shouldApplyTOML(sources, md, "password") && tomlCfg.Password != "" {
 		backendCfg.Password = tomlCfg.Password
 	}
-	if backendCfg.Scheme == "" && tomlCfg.Scheme != "" {
+	if shouldApplyTOML(sources, md, "scheme") && tomlCfg.Scheme != "" {
 		backendCfg.Scheme = tomlCfg.Scheme
 	}
-	if backendCfg.Table == "" && tomlCfg.Table != "" {
+	if shouldApplyTOML(sources, md, "table") && tomlCfg.Table != "" {
 		backendCfg.Table = tomlCfg.Table
 	}
-	if backendCfg.Separator == "" && tomlCfg.Separator != "" {
+	if shouldApplyTOML(sources, md, "separator") && tomlCfg.Separator != "" {
 		backendCfg.Separator = tomlCfg.Separator
 	}
-	if backendCfg.Username == "" && tomlCfg.Username != "" {
+	if shouldApplyTOML(sources, md, "username") && tomlCfg.Username != "" {
 		backendCfg.Username = tomlCfg.Username
 	}
-	if backendCfg.AppID == "" && tomlCfg.AppID != "" {
+	if shouldApplyTOML(sources, md, "app_id") && tomlCfg.AppID != "" {
 		backendCfg.AppID = tomlCfg.AppID
 	}
-	if backendCfg.UserID == "" && tomlCfg.UserID != "" {
+	if shouldApplyTOML(sources, md, "user_id") && tomlCfg.UserID != "" {
 		backendCfg.UserID = tomlCfg.UserID
 	}
-	if backendCfg.RoleID == "" && tomlCfg.RoleID != "" {
+	if shouldApplyTOML(sources, md, "role_id") && tomlCfg.RoleID != "" {
 		backendCfg.RoleID = tomlCfg.RoleID
 	}
-	if backendCfg.SecretID == "" && tomlCfg.SecretID != "" {
+	if shouldApplyTOML(sources, md, "secret_id") && tomlCfg.SecretID != "" {
 		backendCfg.SecretID = tomlCfg.SecretID
 	}
-	if len(backendCfg.YAMLFile) == 0 && len(tomlCfg.File) > 0 {
+	if shouldApplyTOML(sources, md, "file") && len(tomlCfg.File) > 0 {
 		backendCfg.YAMLFile = tomlCfg.File
 	}
-	if backendCfg.Filter == "" && tomlCfg.Filter != "" {
+	if shouldApplyTOML(sources, md, "filter") && tomlCfg.Filter != "" {
 		backendCfg.Filter = tomlCfg.Filter
 	}
-	if backendCfg.Path == "" && tomlCfg.Path != "" {
+	if shouldApplyTOML(sources, md, "path") && tomlCfg.Path != "" {
 		backendCfg.Path = tomlCfg.Path
 	}
-	if !backendCfg.ACMExportPrivateKey && tomlCfg.ACMExportPrivateKey {
-		backendCfg.ACMExportPrivateKey = true
+	if shouldApplyTOML(sources, md, "acm_export_private_key") {
+		backendCfg.ACMExportPrivateKey = tomlCfg.ACMExportPrivateKey
 	}
-	if backendCfg.SecretsManagerVersionStage == "" && tomlCfg.SecretsManagerVersionStage != "" {
+	if shouldApplyTOML(sources, md, "secretsmanager_version_stage") && tomlCfg.SecretsManagerVersionStage != "" {
 		backendCfg.SecretsManagerVersionStage = tomlCfg.SecretsManagerVersionStage
 	}
-	if !backendCfg.SecretsManagerNoFlatten && tomlCfg.SecretsManagerNoFlatten {
-		backendCfg.SecretsManagerNoFlatten = true
+	if shouldApplyTOML(sources, md, "secretsmanager_no_flatten") {
+		backendCfg.SecretsManagerNoFlatten = tomlCfg.SecretsManagerNoFlatten
 	}
 
 	// Connection timeout settings (apply to CLI if default, then to backend config)
-	if tomlCfg.DialTimeout != "" {
+	if shouldApplyTOML(sources, md, "dial_timeout") && tomlCfg.DialTimeout != "" {
 		d, err := time.ParseDuration(tomlCfg.DialTimeout)
 		if err != nil {
 			return fmt.Errorf("invalid dial_timeout %q: %w (use Go duration format, e.g., \"5s\", \"30s\")", tomlCfg.DialTimeout, err)
 		}
-		if cli.DialTimeout == DefaultDialTimeout {
-			cli.DialTimeout = d
-		}
+		cli.DialTimeout = d
 	}
-	if tomlCfg.ReadTimeout != "" {
+	if shouldApplyTOML(sources, md, "read_timeout") && tomlCfg.ReadTimeout != "" {
 		d, err := time.ParseDuration(tomlCfg.ReadTimeout)
 		if err != nil {
 			return fmt.Errorf("invalid read_timeout %q: %w (use Go duration format, e.g., \"1s\", \"5s\")", tomlCfg.ReadTimeout, err)
 		}
-		if cli.ReadTimeout == DefaultReadTimeout {
-			cli.ReadTimeout = d
-		}
+		cli.ReadTimeout = d
 	}
-	if tomlCfg.WriteTimeout != "" {
+	if shouldApplyTOML(sources, md, "write_timeout") && tomlCfg.WriteTimeout != "" {
 		d, err := time.ParseDuration(tomlCfg.WriteTimeout)
 		if err != nil {
 			return fmt.Errorf("invalid write_timeout %q: %w (use Go duration format, e.g., \"1s\", \"5s\")", tomlCfg.WriteTimeout, err)
 		}
-		if cli.WriteTimeout == DefaultWriteTimeout {
-			cli.WriteTimeout = d
-		}
+		cli.WriteTimeout = d
 	}
 
 	// Retry configuration (apply to CLI if default, then to backend config)
-	if tomlCfg.RetryMaxAttempts != 0 && cli.RetryMaxAttempts == DefaultRetryMaxAttempts {
+	if shouldApplyTOML(sources, md, "retry_max_attempts") && tomlCfg.RetryMaxAttempts != 0 {
 		cli.RetryMaxAttempts = tomlCfg.RetryMaxAttempts
 	}
-	if tomlCfg.RetryBaseDelay != "" {
+	if shouldApplyTOML(sources, md, "retry_base_delay") && tomlCfg.RetryBaseDelay != "" {
 		d, err := time.ParseDuration(tomlCfg.RetryBaseDelay)
 		if err != nil {
 			return fmt.Errorf("invalid retry_base_delay %q: %w (use Go duration format, e.g., \"100ms\", \"1s\")", tomlCfg.RetryBaseDelay, err)
 		}
-		if cli.RetryBaseDelay == DefaultRetryBaseDelay {
-			cli.RetryBaseDelay = d
-		}
+		cli.RetryBaseDelay = d
 	}
-	if tomlCfg.RetryMaxDelay != "" {
+	if shouldApplyTOML(sources, md, "retry_max_delay") && tomlCfg.RetryMaxDelay != "" {
 		d, err := time.ParseDuration(tomlCfg.RetryMaxDelay)
 		if err != nil {
 			return fmt.Errorf("invalid retry_max_delay %q: %w (use Go duration format, e.g., \"5s\", \"30s\")", tomlCfg.RetryMaxDelay, err)
 		}
-		if cli.RetryMaxDelay == DefaultRetryMaxDelay {
-			cli.RetryMaxDelay = d
-		}
+		cli.RetryMaxDelay = d
 	}
 
 	// Watch mode timeouts
-	if tomlCfg.WatchErrorBackoff != "" {
+	if shouldApplyTOML(sources, md, "watch_error_backoff") && tomlCfg.WatchErrorBackoff != "" {
 		d, err := time.ParseDuration(tomlCfg.WatchErrorBackoff)
 		if err != nil {
 			return fmt.Errorf("invalid watch_error_backoff %q: %w (use Go duration format, e.g., \"2s\", \"5s\")", tomlCfg.WatchErrorBackoff, err)
 		}
-		if cli.WatchErrorBackoff == DefaultWatchErrorBackoff {
-			cli.WatchErrorBackoff = d
-		}
+		cli.WatchErrorBackoff = d
 	}
 
 	// Preflight timeout
-	if tomlCfg.PreflightTimeout != "" {
+	if shouldApplyTOML(sources, md, "preflight_timeout") && tomlCfg.PreflightTimeout != "" {
 		d, err := time.ParseDuration(tomlCfg.PreflightTimeout)
 		if err != nil {
 			return fmt.Errorf("invalid preflight_timeout %q: %w (use Go duration format, e.g., \"10s\", \"30s\")", tomlCfg.PreflightTimeout, err)
 		}
-		if cli.PreflightTimeout == DefaultPreflightTimeout {
-			cli.PreflightTimeout = d
-		}
+		cli.PreflightTimeout = d
 	}
 
 	return nil
