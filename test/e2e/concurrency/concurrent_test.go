@@ -108,11 +108,11 @@ dest = "%s"
 keys = ["/key"]
 `, destPath))
 
-			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			defer cancel()
-
 			confd := operations.NewConfdBinary(t)
 			confd.SetEnv("KEY", fmt.Sprintf("value-from-instance-%d", instanceID))
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
 
 			err := confd.Start(ctx, "env", "--onetime", "--confdir", env.ConfDir, "--log-level", "error")
 			if err != nil {
@@ -255,12 +255,12 @@ dest = "%s"
 keys = ["/database"]
 `, destPath3))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
 	confd := operations.NewConfdBinary(t)
 	confd.SetEnv("DATABASE_HOST", "db.example.com")
 	confd.SetEnv("DATABASE_PORT", "5432")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	err := confd.Start(ctx, "env", "--onetime", "--confdir", env.ConfDir, "--log-level", "error")
 	if err != nil {
@@ -339,10 +339,10 @@ key: {{ getv "/key" }}
 		// Small delay to ensure mtime changes (some filesystems have 1s resolution)
 		time.Sleep(100 * time.Millisecond)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-
 		confd := operations.NewConfdBinary(t)
 		confd.SetEnv("KEY", fmt.Sprintf("value-v%d", version))
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 
 		err := confd.Start(ctx, "env", "--onetime", "--confdir", env.ConfDir, "--log-level", "error")
 		if err != nil {
@@ -395,11 +395,11 @@ dest = "%s"
 keys = ["/prefix"]
 `, destPath))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
 	confd := operations.NewConfdBinary(t)
 	confd.SetEnv("PREFIX", "test")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
 
 	err := confd.Start(ctx, "env", "--onetime", "--confdir", env.ConfDir, "--log-level", "error")
 	if err != nil {
