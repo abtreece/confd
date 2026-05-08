@@ -1,4 +1,4 @@
-.PHONY: build install clean lint test unit coverage race integration dep release
+.PHONY: build install clean lint test unit coverage race integration mod snapshot release
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "dev")
 GIT_SHA=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
