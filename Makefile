@@ -1,4 +1,4 @@
-.PHONY: build install clean lint test integration dep release
+.PHONY: build install clean lint test unit coverage race integration mod snapshot release
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "dev")
 GIT_SHA=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -21,6 +21,18 @@ lint:
 test:
 	@echo "Running tests..."
 	@go test `go list ./... | grep -v vendor/`
+
+unit:
+	@echo "Running unit tests..."
+	@go test ./pkg/... ./cmd/...
+
+coverage:
+	@echo "Running unit tests with coverage..."
+	@go test -coverprofile=coverage.out ./pkg/... ./cmd/...
+
+race:
+	@echo "Running unit tests with race detector..."
+	@go test -race ./pkg/... ./cmd/...
 
 integration:
 	@echo "Running integration tests..."

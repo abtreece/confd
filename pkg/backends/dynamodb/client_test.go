@@ -370,3 +370,65 @@ func TestHealthCheck_Error(t *testing.T) {
 		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
 	}
 }
+
+func TestHealthCheckDetailed_Success(t *testing.T) {
+	itemCount := int64(42)
+	mock := &mockDynamoDB{
+		describeTableFunc: func(ctx context.Context, input *dynamodb.DescribeTableInput, opts ...func(*dynamodb.Options)) (*dynamodb.DescribeTableOutput, error) {
+			if *input.TableName != "test-table" {
+				t.Fatalf("DescribeTable table = %q, want test-table", *input.TableName)
+			}
+			return &dynamodb.DescribeTableOutput{
+				Table: &types.TableDescription{
+					TableStatus: types.TableStatusActive,
+					ItemCount:   &itemCount,
+				},
+			}, nil
+		},
+	}
+	client := newTestClient(mock, "test-table")
+
+	result, err := client.HealthCheckDetailed(context.Background())
+	if err != nil {
+		t.Fatalf("HealthCheckDetailed() unexpected error: %v", err)
+	}
+	if !result.Healthy {
+		t.Fatalf("HealthCheckDetailed() Healthy = false, want true")
+	}
+	if result.Message != "DynamoDB backend is healthy" {
+		t.Fatalf("HealthCheckDetailed() Message = %q", result.Message)
+	}
+	if result.Details["table"] != "test-table" {
+		t.Fatalf("HealthCheckDetailed() table detail = %q", result.Details["table"])
+	}
+	if result.Details["table_status"] != string(types.TableStatusActive) {
+		t.Fatalf("HealthCheckDetailed() table_status = %q", result.Details["table_status"])
+	}
+	if result.Details["item_count"] != "42" {
+		t.Fatalf("HealthCheckDetailed() item_count = %q", result.Details["item_count"])
+	}
+}
+
+func TestHealthCheckDetailed_Error(t *testing.T) {
+	expectedErr := errors.New("describe failed")
+	mock := &mockDynamoDB{
+		describeTableFunc: func(ctx context.Context, input *dynamodb.DescribeTableInput, opts ...func(*dynamodb.Options)) (*dynamodb.DescribeTableOutput, error) {
+			return nil, expectedErr
+		},
+	}
+	client := newTestClient(mock, "test-table")
+
+	result, err := client.HealthCheckDetailed(context.Background())
+	if err != expectedErr {
+		t.Fatalf("HealthCheckDetailed() error = %v, want %v", err, expectedErr)
+	}
+	if result.Healthy {
+		t.Fatalf("HealthCheckDetailed() Healthy = true, want false")
+	}
+	if result.Details["table"] != "test-table" {
+		t.Fatalf("HealthCheckDetailed() table detail = %q", result.Details["table"])
+	}
+	if result.Details["error"] != expectedErr.Error() {
+		t.Fatalf("HealthCheckDetailed() error detail = %q", result.Details["error"])
+	}
+}

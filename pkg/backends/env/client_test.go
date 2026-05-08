@@ -16,6 +16,32 @@ func TestNewEnvClient(t *testing.T) {
 	}
 }
 
+func TestHealthCheckDetailed(t *testing.T) {
+	t.Setenv("CONFD_ENV_HEALTH_TEST", "present")
+
+	client, err := NewEnvClient()
+	if err != nil {
+		t.Fatalf("NewEnvClient() error: %v", err)
+	}
+
+	result, err := client.HealthCheckDetailed(context.Background())
+	if err != nil {
+		t.Fatalf("HealthCheckDetailed() unexpected error: %v", err)
+	}
+	if !result.Healthy {
+		t.Fatalf("HealthCheckDetailed() Healthy = false, want true")
+	}
+	if result.Message != "Environment backend is always healthy (no connectivity required)" {
+		t.Fatalf("HealthCheckDetailed() Message = %q", result.Message)
+	}
+	if result.Details["env_var_count"] == "" {
+		t.Fatalf("HealthCheckDetailed() missing env_var_count detail: %#v", result.Details)
+	}
+	if result.Details["note"] != "No network connectivity required for environment backend" {
+		t.Fatalf("HealthCheckDetailed() note = %q", result.Details["note"])
+	}
+}
+
 func TestGetValues(t *testing.T) {
 	tests := []struct {
 		name     string

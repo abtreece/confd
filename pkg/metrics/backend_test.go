@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
+
+	"github.com/abtreece/confd/pkg/backends/types"
 )
 
 // mockStoreClient is a mock implementation of backends.StoreClient
@@ -13,6 +16,8 @@ type mockStoreClient struct {
 	watchResult     uint64
 	watchError      error
 	healthError     error
+	closeError      error
+	closeCalled     bool
 }
 
 func (m *mockStoreClient) GetValues(ctx context.Context, keys []string) (map[string]string, error) {
@@ -28,7 +33,18 @@ func (m *mockStoreClient) HealthCheck(ctx context.Context) error {
 }
 
 func (m *mockStoreClient) Close() error {
-	return nil
+	m.closeCalled = true
+	return m.closeError
+}
+
+type detailedMockStoreClient struct {
+	mockStoreClient
+	result *types.HealthResult
+	err    error
+}
+
+func (m *detailedMockStoreClient) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, error) {
+	return m.result, m.err
 }
 
 func TestWrapStoreClient_NoOpWhenMetricsDisabled(t *testing.T) {
@@ -180,6 +196,106 @@ func TestInstrumentedClient_HealthCheck_Error(t *testing.T) {
 
 	// Cleanup
 	Registry = nil
+}
+
+func TestInstrumentedClient_HealthCheckDetailed_SupportedSuccess(t *testing.T) {
+	Registry = nil
+	Initialize()
+	defer func() { Registry = nil }()
+
+	expected := &types.HealthResult{
+		Healthy:   true,
+		Message:   "ok",
+		Duration:  types.DurationMillis(10 * time.Millisecond),
+		CheckedAt: time.Now(),
+		Details:   map[string]string{"backend": "mock"},
+	}
+	mock := &detailedMockStoreClient{result: expected}
+	wrapped := WrapStoreClient(mock, "mock").(*InstrumentedClient)
+
+	result, err := wrapped.HealthCheckDetailed(context.Background())
+	if err != nil {
+		t.Fatalf("HealthCheckDetailed returned error: %v", err)
+	}
+	if result != expected {
+		t.Fatalf("HealthCheckDetailed result = %#v, want %#v", result, expected)
+	}
+}
+
+func TestInstrumentedClient_HealthCheckDetailed_SupportedError(t *testing.T) {
+	Registry = nil
+	Initialize()
+	defer func() { Registry = nil }()
+
+	expectedErr := errors.New("detailed health failed")
+	mock := &detailedMockStoreClient{
+		result: &types.HealthResult{Healthy: false, Message: expectedErr.Error()},
+		err:    expectedErr,
+	}
+	wrapped := WrapStoreClient(mock, "mock").(*InstrumentedClient)
+
+	result, err := wrapped.HealthCheckDetailed(context.Background())
+	if err != expectedErr {
+		t.Fatalf("HealthCheckDetailed error = %v, want %v", err, expectedErr)
+	}
+	if result == nil || result.Healthy {
+		t.Fatalf("HealthCheckDetailed result = %#v, want unhealthy result", result)
+	}
+}
+
+func TestInstrumentedClient_HealthCheckDetailed_FallbackSuccess(t *testing.T) {
+	Registry = nil
+	Initialize()
+	defer func() { Registry = nil }()
+
+	mock := &mockStoreClient{}
+	wrapped := WrapStoreClient(mock, "mock").(*InstrumentedClient)
+
+	result, err := wrapped.HealthCheckDetailed(context.Background())
+	if err != nil {
+		t.Fatalf("HealthCheckDetailed returned error: %v", err)
+	}
+	if !result.Healthy {
+		t.Fatalf("HealthCheckDetailed Healthy = false, want true")
+	}
+	if result.Message != "Backend does not support detailed health checks" {
+		t.Fatalf("HealthCheckDetailed Message = %q", result.Message)
+	}
+}
+
+func TestInstrumentedClient_HealthCheckDetailed_FallbackError(t *testing.T) {
+	Registry = nil
+	Initialize()
+	defer func() { Registry = nil }()
+
+	expectedErr := errors.New("backend down")
+	mock := &mockStoreClient{healthError: expectedErr}
+	wrapped := WrapStoreClient(mock, "mock").(*InstrumentedClient)
+
+	result, err := wrapped.HealthCheckDetailed(context.Background())
+	if err != expectedErr {
+		t.Fatalf("HealthCheckDetailed error = %v, want %v", err, expectedErr)
+	}
+	if result.Healthy {
+		t.Fatalf("HealthCheckDetailed Healthy = true, want false")
+	}
+	if result.Details["error"] != expectedErr.Error() {
+		t.Fatalf("HealthCheckDetailed error detail = %q", result.Details["error"])
+	}
+}
+
+func TestInstrumentedClient_Close(t *testing.T) {
+	expectedErr := errors.New("close failed")
+	mock := &mockStoreClient{closeError: expectedErr}
+	client := &InstrumentedClient{client: mock, backend: "mock"}
+
+	err := client.Close()
+	if err != expectedErr {
+		t.Fatalf("Close error = %v, want %v", err, expectedErr)
+	}
+	if !mock.closeCalled {
+		t.Fatal("Close did not call wrapped client")
+	}
 }
 
 func TestInstrumentedClient_RecordsMetrics(t *testing.T) {
