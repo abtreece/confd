@@ -36,6 +36,8 @@ const (
 
 // CLI is the root command structure
 type CLI struct {
+	configSources *configSources
+
 	// Global flags
 	ConfDir       string `name:"confdir" help:"confd conf directory" default:"/etc/confd" env:"CONFD_CONFDIR"`
 	ConfigFile    string `name:"config-file" help:"confd config file" default:"/etc/confd/confd.toml" env:"CONFD_CONFIG_FILE"`
@@ -118,6 +120,13 @@ type CLI struct {
 	File           FileCmd           `cmd:"" name:"file" help:"Use file backend"`
 }
 
+// AfterApply captures which options came from CLI arguments or environment
+// variables before the config file is merged in run().
+func (c *CLI) AfterApply(ctx *kong.Context) error {
+	c.configSources = newConfigSources(ctx)
+	return nil
+}
+
 // VersionFlag is a custom flag type that prints version and exits
 type VersionFlag bool
 
@@ -156,9 +165,6 @@ type ConsulCmd struct {
 }
 
 func (c *ConsulCmd) Run(cli *CLI) error {
-	if len(c.Node) == 0 {
-		c.Node = []string{"127.0.0.1:8500"}
-	}
 	cfg := backends.Config{
 		Backend:      "consul",
 		BackendNodes: c.Node,
@@ -182,9 +188,6 @@ type EtcdCmd struct {
 }
 
 func (e *EtcdCmd) Run(cli *CLI) error {
-	if len(e.Node) == 0 {
-		e.Node = []string{"http://127.0.0.1:2379"}
-	}
 	cfg := backends.Config{
 		Backend:        "etcd",
 		BackendNodes:   e.Node,
@@ -215,9 +218,6 @@ type VaultCmd struct {
 }
 
 func (v *VaultCmd) Run(cli *CLI) error {
-	if len(v.Node) == 0 {
-		v.Node = []string{"http://127.0.0.1:8200"}
-	}
 	cfg := backends.Config{
 		Backend:      "vault",
 		BackendNodes: v.Node,
@@ -245,9 +245,6 @@ type RedisCmd struct {
 }
 
 func (r *RedisCmd) Run(cli *CLI) error {
-	if len(r.Node) == 0 {
-		r.Node = []string{"127.0.0.1:6379"}
-	}
 	cfg := backends.Config{
 		Backend:      "redis",
 		BackendNodes: r.Node,
@@ -266,9 +263,6 @@ type ZookeeperCmd struct {
 }
 
 func (z *ZookeeperCmd) Run(cli *CLI) error {
-	if len(z.Node) == 0 {
-		z.Node = []string{"127.0.0.1:2181"}
-	}
 	cfg := backends.Config{
 		Backend:      "zookeeper",
 		BackendNodes: z.Node,
@@ -386,6 +380,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	if err := loadConfigFile(cli, &backendCfg); err != nil {
 		return err
 	}
+	applyBackendDefaults(&backendCfg)
 
 	// Process environment variables
 	processEnv(&backendCfg)
@@ -611,5 +606,23 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		case <-doneChan:
 			return shutdown()
 		}
+	}
+}
+
+func applyBackendDefaults(cfg *backends.Config) {
+	if len(cfg.BackendNodes) > 0 {
+		return
+	}
+	switch cfg.Backend {
+	case "consul":
+		cfg.BackendNodes = []string{"127.0.0.1:8500"}
+	case "etcd":
+		cfg.BackendNodes = []string{"http://127.0.0.1:2379"}
+	case "vault":
+		cfg.BackendNodes = []string{"http://127.0.0.1:8200"}
+	case "redis":
+		cfg.BackendNodes = []string{"127.0.0.1:6379"}
+	case "zookeeper":
+		cfg.BackendNodes = []string{"127.0.0.1:2181"}
 	}
 }
