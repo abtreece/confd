@@ -81,7 +81,7 @@ feat: add Redis TLS support
 
 fix: resolve template cache invalidation on SIGHUP
 
-docs: update installation guide for v0.40.0
+docs: update installation guide for vX.Y.Z
 
 refactor: extract command execution into separate module
 

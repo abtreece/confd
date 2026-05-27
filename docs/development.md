@@ -71,7 +71,7 @@ This creates `bin/confd` with the Git SHA embedded via ldflags.
 
 ```bash
 ./bin/confd --version
-# Output: confd 0.40.0-rc.1 (Git SHA: abc1234, Go Version: go1.26.3)
+# Output: confd 0.41.2 (Git SHA: abc1234, Go Version: go1.26.3)
 ```
 
 ### Project Structure
@@ -571,17 +571,15 @@ See [Release Checklist](release-checklist.md) for detailed instructions.
 make test
 make build
 
-# 2. Update version in cmd/confd/version.go
-# For RC: "0.40.0-rc.1"
-# For release: "0.40.0"
+# 2. Update CHANGELOG: convert ### [Unreleased] header to ### vX.Y.Z (YYYY-MM-DD)
 
-# 3. Update docs/installation.md with new version
+# 3. Update docs/installation.md and docs/docker.md with the new version
 
-# 4. Commit and tag
-git add cmd/confd/version.go docs/installation.md
-git commit -m "chore: bump version to 0.40.0"
-git tag -a v0.40.0 -m "v0.40.0"
-git push origin main v0.40.0
+# 4. Commit and tag (version is auto-injected from the tag by goreleaser ldflags)
+git add CHANGELOG docs/installation.md docs/docker.md
+git commit -m "docs: update CHANGELOG for vX.Y.Z"
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin main vX.Y.Z
 
 # 5. GitHub Actions runs goreleaser automatically
 ```

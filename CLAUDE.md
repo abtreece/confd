@@ -421,21 +421,21 @@ See [docs/release-checklist.md](docs/release-checklist.md) for the complete rele
 
 The version is automatically injected from the git tag at build time via goreleaser's ldflags. No manual version file updates are required.
 
-- **Release builds**: Version comes from git tag (e.g., tag `v0.40.0` → version `0.40.0`)
-- **Local builds**: Version comes from `git describe` (e.g., `0.40.0-rc.2-5-gabcdef-dirty`)
+- **Release builds**: Version comes from git tag (e.g., tag `vX.Y.Z` → version `X.Y.Z`)
+- **Local builds**: Version comes from `git describe` (e.g., `X.Y.Z-rc.2-5-gabcdef-dirty`)
 - **Development**: Shows `dev` if no tags exist
 
 ### Release Workflow
 
 ```bash
-# 1. Update CHANGELOG with release notes
+# 1. Update CHANGELOG: convert ### [Unreleased] header to ### vX.Y.Z (YYYY-MM-DD)
 # 2. Commit changes
 git add CHANGELOG
-git commit -m "docs: update CHANGELOG for v0.41.0"
+git commit -m "docs: update CHANGELOG for vX.Y.Z"
 
-# 3. Tag and push
-git tag -a v0.41.0 -m "v0.41.0"
-git push origin main v0.41.0
+# 3. Tag and push (version is auto-injected from the tag by goreleaser ldflags)
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin main vX.Y.Z
 ```
 
 ### Release Candidate Workflow
@@ -444,23 +444,23 @@ For significant releases, use release candidates:
 
 ```bash
 # RC1
-git tag -a v0.40.0-rc.1 -m "v0.40.0-rc.1"
-git push origin v0.40.0-rc.1
+git tag -a vX.Y.Z-rc.1 -m "vX.Y.Z-rc.1"
+git push origin vX.Y.Z-rc.1
 
 # If issues are found, fix them and tag RC2
-git tag -a v0.40.0-rc.2 -m "v0.40.0-rc.2"
-git push origin v0.40.0-rc.2
+git tag -a vX.Y.Z-rc.2 -m "vX.Y.Z-rc.2"
+git push origin vX.Y.Z-rc.2
 
 # When stable, tag final release
-git tag -a v0.40.0 -m "v0.40.0"
-git push origin main v0.40.0
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin main vX.Y.Z
 ```
 
 ### Goreleaser
 
 Tags trigger GitHub Actions which run goreleaser:
-- RC tags (e.g., `v0.40.0-rc.1`) create pre-release builds marked as "Pre-release"
-- Final tags (e.g., `v0.40.0`) create production releases
+- RC tags (e.g., `vX.Y.Z-rc.1`) create pre-release builds marked as "Pre-release"
+- Final tags (e.g., `vX.Y.Z`) create production releases
 
 ### Checklist
 
