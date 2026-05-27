@@ -544,6 +544,11 @@ prefix = "/tomlprefix"
 		ConfigFile: configPath,
 		Interval:   120,          // Non-default CLI value
 		Prefix:     "/cliprefix", // CLI value
+		configSources: &configSources{cli: map[string]bool{
+			"confdir":  true,
+			"interval": true,
+			"prefix":   true,
+		}},
 	}
 	backendCfg := &backends.Config{}
 
@@ -903,13 +908,6 @@ func makeValidateCLI(t *testing.T) *CLI {
 }
 
 func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
-	assertDefaultNode := func(t *testing.T, nodes []string, expected string) {
-		t.Helper()
-		if len(nodes) != 1 || nodes[0] != expected {
-			t.Fatalf("unexpected default nodes: %v", nodes)
-		}
-	}
-
 	tests := []struct {
 		name string
 		run  func(*testing.T, *CLI) error
@@ -918,45 +916,35 @@ func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
 			name: "consul",
 			run: func(t *testing.T, cli *CLI) error {
 				cmd := &ConsulCmd{}
-				err := cmd.Run(cli)
-				assertDefaultNode(t, cmd.Node, "127.0.0.1:8500")
-				return err
+				return cmd.Run(cli)
 			},
 		},
 		{
 			name: "etcd",
 			run: func(t *testing.T, cli *CLI) error {
 				cmd := &EtcdCmd{}
-				err := cmd.Run(cli)
-				assertDefaultNode(t, cmd.Node, "http://127.0.0.1:2379")
-				return err
+				return cmd.Run(cli)
 			},
 		},
 		{
 			name: "vault",
 			run: func(t *testing.T, cli *CLI) error {
 				cmd := &VaultCmd{}
-				err := cmd.Run(cli)
-				assertDefaultNode(t, cmd.Node, "http://127.0.0.1:8200")
-				return err
+				return cmd.Run(cli)
 			},
 		},
 		{
 			name: "redis",
 			run: func(t *testing.T, cli *CLI) error {
 				cmd := &RedisCmd{}
-				err := cmd.Run(cli)
-				assertDefaultNode(t, cmd.Node, "127.0.0.1:6379")
-				return err
+				return cmd.Run(cli)
 			},
 		},
 		{
 			name: "zookeeper",
 			run: func(t *testing.T, cli *CLI) error {
 				cmd := &ZookeeperCmd{}
-				err := cmd.Run(cli)
-				assertDefaultNode(t, cmd.Node, "127.0.0.1:2181")
-				return err
+				return cmd.Run(cli)
 			},
 		},
 	}
@@ -966,6 +954,29 @@ func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
 			cli := makeCheckConfigCLI(t)
 			if err := tt.run(t, cli); err != nil {
 				t.Fatalf("Run() returned error: %v", err)
+			}
+		})
+	}
+}
+
+func TestApplyBackendDefaults(t *testing.T) {
+	tests := []struct {
+		backend string
+		want    string
+	}{
+		{backend: "consul", want: "127.0.0.1:8500"},
+		{backend: "etcd", want: "http://127.0.0.1:2379"},
+		{backend: "vault", want: "http://127.0.0.1:8200"},
+		{backend: "redis", want: "127.0.0.1:6379"},
+		{backend: "zookeeper", want: "127.0.0.1:2181"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.backend, func(t *testing.T) {
+			cfg := &backends.Config{Backend: tt.backend}
+			applyBackendDefaults(cfg)
+			if len(cfg.BackendNodes) != 1 || cfg.BackendNodes[0] != tt.want {
+				t.Fatalf("BackendNodes = %v, want [%s]", cfg.BackendNodes, tt.want)
 			}
 		})
 	}
