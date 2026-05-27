@@ -1,4 +1,4 @@
-### [Unreleased]
+### v0.41.2 (2026-05-26)
 
 * fix: match CHANGELOG headers with date suffix in release workflow (#590)
 * chore(deps): bump github.com/hashicorp/consul/api from 1.33.7 to 1.34.2 (#591)
