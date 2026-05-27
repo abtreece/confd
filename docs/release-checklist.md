@@ -79,21 +79,21 @@ For significant releases, use release candidates to allow testing before the fin
 ### RC Process
 
 ```bash
-# 1. Update docs/installation.md with RC version
+# 1. Update docs/installation.md and docs/docker.md with the RC version
 
 # 2. Commit and tag
 git add docs/
-git commit -m "docs: update for 0.40.0-rc.1"
-git tag -a v0.40.0-rc.1 -m "v0.40.0-rc.1"
-git push origin main v0.40.0-rc.1
+git commit -m "docs: update for vX.Y.Z-rc.1"
+git tag -a vX.Y.Z-rc.1 -m "vX.Y.Z-rc.1"
+git push origin main vX.Y.Z-rc.1
 
 # 3. If issues are found, fix them, then release rc.2
-git tag -a v0.40.0-rc.2 -m "v0.40.0-rc.2"
-git push origin main v0.40.0-rc.2
+git tag -a vX.Y.Z-rc.2 -m "vX.Y.Z-rc.2"
+git push origin main vX.Y.Z-rc.2
 
 # 4. When stable, release final version
-git tag -a v0.40.0 -m "v0.40.0"
-git push origin main v0.40.0
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin main vX.Y.Z
 ```
 
 ### When to Use RCs
@@ -105,8 +105,8 @@ git push origin main v0.40.0
 
 ### RC vs Standard Release
 
-- **RC tags** (e.g., `v0.40.0-rc.1`) create pre-release builds marked as "Pre-release" on GitHub
-- **Final tags** (e.g., `v0.40.0`) create production releases
+- **RC tags** (e.g., `vX.Y.Z-rc.1`) create pre-release builds marked as "Pre-release" on GitHub
+- **Final tags** (e.g., `vX.Y.Z`) create production releases
 
 ## Manual Release (If Needed)
 
