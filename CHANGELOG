@@ -6,7 +6,9 @@
 * chore(deps): bump github.com/aws/aws-sdk-go-v2/service/dynamodb from 1.55.0 to 1.57.3 (#596)
 * chore(deps): bump github.com/aws/aws-sdk-go-v2/service/acm from 1.38.1 to 1.38.3 (#597)
 * chore: bump Go from 1.25 to 1.26 in build infra (Dockerfile, workflows)
-* chore: bump Go toolchain to 1.26.3 to patch stdlib CVEs (CVE-2026-33811, CVE-2026-33814, CVE-2026-39820, CVE-2026-39836, CVE-2026-42499)
+* chore: bump Go toolchain to 1.26.3 to patch stdlib CVEs (CVE-2026-33811, CVE-2026-33814, CVE-2026-39820, CVE-2026-39836, CVE-2026-42499) (#617)
+* chore(deps): bump go.etcd.io/etcd/client/v3 from 3.6.10 to 3.6.11 (#614)
+* chore(deps): bump github.com/redis/go-redis/v9 from 9.18.0 to 9.19.0 (#613)
 
 ### v0.41.1 (2026-04-22)
 
