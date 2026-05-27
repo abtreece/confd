@@ -147,7 +147,7 @@ RUN CONFD_ARCH=$(arch | sed s/aarch64/arm64/ | sed s/x86_64/amd64/) \
 
 #### Building from Source
 
-Building from source requires the Go 1.26.2 toolchain. The module declares `go 1.26` for language compatibility and `toolchain go1.26.2` for the expected compiler patch version.
+Building from source requires the Go 1.26.3 toolchain. The module declares `go 1.26` for language compatibility and `toolchain go1.26.3` for the expected compiler patch version.
 
 ```bash
 make build
@@ -167,7 +167,7 @@ docker build -t confd:local -f docker/Dockerfile.build .
 Include confd in your own Docker image using a multi-stage build:
 
 ```dockerfile
-FROM golang:1.26.2-alpine AS confd-builder
+FROM golang:1.26.3-alpine AS confd-builder
 
 RUN apk add --no-cache git
 WORKDIR /src
