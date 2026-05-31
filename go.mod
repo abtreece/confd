@@ -29,7 +29,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
-	github.com/redis/go-redis/v9 v9.19.0
+	github.com/redis/go-redis/v9 v9.20.0
 	github.com/testcontainers/testcontainers-go v0.42.0
 	go.etcd.io/etcd/api/v3 v3.6.11
 	go.yaml.in/yaml/v3 v3.0.4
