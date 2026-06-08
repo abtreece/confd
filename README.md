@@ -16,9 +16,9 @@
 
 ## Features
 
-- **Multiple Backends**: etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM/Secrets Manager/ACM/IMDS, environment variables, and files
+- **Multiple Backends**: etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM/Secrets Manager/ACM/IMDS, environment variables, files, and **PostgreSQL**
 - **Template Processing**: Go text/template with custom functions for configuration generation
-- **Watch Mode**: Real-time config updates for supported backends (Consul, etcd, Redis, Zookeeper, file)
+- **Watch Mode**: Real-time config updates for supported backends (Consul, etcd, Redis, Zookeeper, file, PostgreSQL via LISTEN/NOTIFY)
 - **Polling Mode**: Configurable interval-based polling for all backends
 - **Validation**: Pre-flight checks, template validation, and configuration validation
 - **Metrics**: Prometheus metrics for observability (backend operations, template processing, commands)
@@ -26,6 +26,26 @@
 - **Structured Logging**: JSON and text formats with timing metrics
 - **Resilience**: Configurable timeouts, retries, and failure modes (best-effort/fail-fast)
 - **Performance**: Template caching and backend client pooling
+
+### Native PostgreSQL Backend
+
+A high-performance PostgreSQL backend powered by `pgx/v5` with real-time change notification:
+
+- **LISTEN/NOTIFY**: Event-driven watch mode eliminates polling — changes propagate instantly
+- **SQL Views**: Map confd keys to existing business tables without a dedicated config table
+- **Full Audit Trail**: Use PostgreSQL triggers to log every configuration mutation
+
+```bash
+confd postgres \
+  --node "127.0.0.1:5432" \
+  --username "admin" \
+  --password "secret" \
+  --database "confd" \
+  --table "confd_config" \
+  --watch
+```
+
+See [POSTGRES_DEMO.md](POSTGRES_DEMO.md) for a complete walkthrough.
 
 ## Installation
 
@@ -268,6 +288,7 @@ See the **[full documentation index](docs/README.md)** for all guides, organized
 | [Secrets Manager](pkg/backends/secretsmanager/README.md) | ❌ | ✅ | AWS SDK |
 | [ACM](pkg/backends/acm/README.md) | ❌ | ✅ | AWS SDK |
 | [IMDS](pkg/backends/imds/README.md) | ❌ | ✅ | AWS SDK (IMDSv2) |
+| PostgreSQL | ✅ (LISTEN/NOTIFY) | ✅ | Username/Password |
 
 ## Development
 

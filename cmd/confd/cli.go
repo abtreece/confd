@@ -118,6 +118,7 @@ type CLI struct {
 	IMDS           IMDSCmd           `cmd:"" name:"imds" help:"Use AWS EC2 IMDS backend"`
 	Env            EnvCmd            `cmd:"" name:"env" help:"Use environment variables backend"`
 	File           FileCmd           `cmd:"" name:"file" help:"Use file backend"`
+	Postgres       PostgresCmd       `cmd:"" name:"postgres" help:"Use PostgreSQL backend"`
 }
 
 // AfterApply captures which options came from CLI arguments or environment
@@ -350,6 +351,25 @@ func (f *FileCmd) Run(cli *CLI) error {
 	}
 	// YAMLFile is a util.Nodes type ([]string)
 	cfg.YAMLFile = f.File
+	return run(cli, cfg)
+}
+
+type PostgresCmd struct {
+	NodeFlags
+	AuthFlags
+	Database string `help:"PostgreSQL database name" default:"confd"`
+	Table    string `help:"PostgreSQL table name" default:"confd_config"`
+}
+
+func (p *PostgresCmd) Run(cli *CLI) error {
+	cfg := backends.Config{
+		Backend:      "postgres",
+		BackendNodes: p.Node,
+		Username:     p.Username,
+		Password:     p.Password,
+		Database:     p.Database,
+		Table:        p.Table,
+	}
 	return run(cli, cfg)
 }
 
@@ -624,5 +644,7 @@ func applyBackendDefaults(cfg *backends.Config) {
 		cfg.BackendNodes = []string{"127.0.0.1:6379"}
 	case "zookeeper":
 		cfg.BackendNodes = []string{"127.0.0.1:2181"}
+	case "postgres":
+		cfg.BackendNodes = []string{"127.0.0.1:5432"}
 	}
 }

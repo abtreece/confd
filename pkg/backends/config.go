@@ -27,6 +27,7 @@ type Config struct {
 	UserID         string     `toml:"user_id"`
 	RoleID         string     `toml:"role_id"`
 	SecretID       string     `toml:"secret_id"`
+	Database       string     `toml:"database"`
 	YAMLFile       util.Nodes `toml:"file"`
 	Filter         string     `toml:"filter"`
 	Path           string     `toml:"path"`
