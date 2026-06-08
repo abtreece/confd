@@ -12,6 +12,7 @@ import (
 	"github.com/abtreece/confd/pkg/backends/etcd"
 	"github.com/abtreece/confd/pkg/backends/file"
 	"github.com/abtreece/confd/pkg/backends/imds"
+	"github.com/abtreece/confd/pkg/backends/plugin"
 	"github.com/abtreece/confd/pkg/backends/redis"
 	"github.com/abtreece/confd/pkg/backends/secretsmanager"
 	"github.com/abtreece/confd/pkg/backends/ssm"
@@ -110,6 +111,9 @@ func New(config Config) (StoreClient, error) {
 	case "secretsmanager":
 		log.Info("Backend source(s) set to AWS Secrets Manager")
 		return secretsmanager.New(config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten, config.DialTimeout)
+	case "plugin":
+		log.Info("Backend source(s) set to Plugin %s", config.PluginPath)
+		return plugin.New(config.PluginPath)
 	}
 	return nil, errors.New("invalid backend")
 }

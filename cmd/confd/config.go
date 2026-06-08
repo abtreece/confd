@@ -47,6 +47,7 @@ type TOMLConfig struct {
 	UserID         string   `toml:"user_id"`
 	RoleID         string   `toml:"role_id"`
 	SecretID       string   `toml:"secret_id"`
+	PluginPath     string   `toml:"plugin_path"`
 	File           []string `toml:"file"`
 	Filter         string   `toml:"filter"`
 	Path           string   `toml:"path"`
@@ -268,6 +269,9 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 	if shouldApplyTOML(sources, md, "secret_id") && tomlCfg.SecretID != "" {
 		backendCfg.SecretID = tomlCfg.SecretID
+	}
+	if shouldApplyTOML(sources, md, "plugin_path") && tomlCfg.PluginPath != "" {
+		backendCfg.PluginPath = tomlCfg.PluginPath
 	}
 	if shouldApplyTOML(sources, md, "file") && len(tomlCfg.File) > 0 {
 		backendCfg.YAMLFile = tomlCfg.File

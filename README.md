@@ -16,7 +16,7 @@
 
 ## Features
 
-- **Multiple Backends**: etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM/Secrets Manager/ACM/IMDS, environment variables, and files
+- **Multiple Backends**: etcd, Consul, Vault, DynamoDB, Redis, Zookeeper, AWS SSM/Secrets Manager/ACM/IMDS, environment variables, files, and **external plugins**
 - **Template Processing**: Go text/template with custom functions for configuration generation
 - **Watch Mode**: Real-time config updates for supported backends (Consul, etcd, Redis, Zookeeper, file)
 - **Polling Mode**: Configurable interval-based polling for all backends
@@ -26,6 +26,26 @@
 - **Structured Logging**: JSON and text formats with timing metrics
 - **Resilience**: Configurable timeouts, retries, and failure modes (best-effort/fail-fast)
 - **Performance**: Template caching and backend client pooling
+- **Plugin Architecture**: Load external backends at runtime via [HashiCorp go-plugin](https://github.com/hashicorp/go-plugin) RPC
+
+### External Plugin Backend
+
+Load any custom backend at runtime without recompiling confd, using [HashiCorp go-plugin](https://github.com/hashicorp/go-plugin):
+
+```bash
+# Build your plugin binary, then:
+confd plugin --plugin-path ./bin/my-backend --watch
+```
+
+Plugins implement a simple RPC interface (`GetValues`, `WatchPrefix`, `HealthCheck`, `Close`) — see [PLUGIN_ARCHITECTURE.md](PLUGIN_ARCHITECTURE.md) for the full specification and a reference implementation.
+
+A PostgreSQL plugin example ships as `cmd/confd-plugin-postgres`:
+
+```bash
+go build -o bin/confd-plugin-postgres ./cmd/confd-plugin-postgres
+export CONFD_BACKEND_NODE="127.0.0.1:5432"
+confd plugin --plugin-path ./bin/confd-plugin-postgres --watch
+```
 
 ## Installation
 
@@ -268,6 +288,7 @@ See the **[full documentation index](docs/README.md)** for all guides, organized
 | [Secrets Manager](pkg/backends/secretsmanager/README.md) | ❌ | ✅ | AWS SDK |
 | [ACM](pkg/backends/acm/README.md) | ❌ | ✅ | AWS SDK |
 | [IMDS](pkg/backends/imds/README.md) | ❌ | ✅ | AWS SDK (IMDSv2) |
+| Plugin | depends on plugin | ✅ | depends on plugin |
 
 ## Development
 
