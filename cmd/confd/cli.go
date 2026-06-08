@@ -118,6 +118,7 @@ type CLI struct {
 	IMDS           IMDSCmd           `cmd:"" name:"imds" help:"Use AWS EC2 IMDS backend"`
 	Env            EnvCmd            `cmd:"" name:"env" help:"Use environment variables backend"`
 	File           FileCmd           `cmd:"" name:"file" help:"Use file backend"`
+	Plugin         PluginCmd         `cmd:"" name:"plugin" help:"Use external plugin backend"`
 }
 
 // AfterApply captures which options came from CLI arguments or environment
@@ -350,6 +351,18 @@ func (f *FileCmd) Run(cli *CLI) error {
 	}
 	// YAMLFile is a util.Nodes type ([]string)
 	cfg.YAMLFile = f.File
+	return run(cli, cfg)
+}
+
+type PluginCmd struct {
+	PluginPath string `name:"plugin-path" help:"path to the plugin binary" env:"CONFD_PLUGIN_PATH"`
+}
+
+func (p *PluginCmd) Run(cli *CLI) error {
+	cfg := backends.Config{
+		Backend:    "plugin",
+		PluginPath: p.PluginPath,
+	}
 	return run(cli, cfg)
 }
 
