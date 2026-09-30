@@ -1,3 +1,7 @@
+### [Unreleased]
+
+* chore: bump Go toolchain to 1.26.8 and golang.org/x/net, golang.org/x/text, golang.org/x/crypto, google.golang.org/grpc to patch HIGH CVEs flagged by Trivy (stdlib CVE-2026-27145, CVE-2026-33818, CVE-2026-39821, CVE-2026-39822, CVE-2026-42504, CVE-2026-46600, CVE-2026-56853, CVE-2026-56858, CVE-2026-56859, CVE-2026-56860, CVE-2026-56862; x/net CVE-2026-25681, CVE-2026-27136, CVE-2026-33814; x/text CVE-2026-56852; grpc GHSA-hrxh-6v49-42gf, CVE-2026-84304, CVE-2026-84445)
+
 ### v0.41.2 (2026-05-26)
 
 * fix: match CHANGELOG headers with date suffix in release workflow (#590)

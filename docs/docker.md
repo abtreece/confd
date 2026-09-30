@@ -321,7 +321,7 @@ CMD ["consul", "--node", "http://consul:8500", "--watch"]
 ### Multi-stage Build from Source
 
 ```dockerfile
-FROM golang:1.26.3-alpine AS builder
+FROM golang:1.26.8-alpine AS builder
 
 RUN apk add --no-cache git make
 WORKDIR /src
