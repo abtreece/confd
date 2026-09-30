@@ -1,6 +1,15 @@
 ### [Unreleased]
 
 * chore: bump Go toolchain to 1.26.8 and golang.org/x/net, golang.org/x/text, golang.org/x/crypto, google.golang.org/grpc to patch HIGH CVEs flagged by Trivy (stdlib CVE-2026-27145, CVE-2026-33818, CVE-2026-39821, CVE-2026-39822, CVE-2026-42504, CVE-2026-46600, CVE-2026-56853, CVE-2026-56858, CVE-2026-56859, CVE-2026-56860, CVE-2026-56862; x/net CVE-2026-25681, CVE-2026-27136, CVE-2026-33814; x/text CVE-2026-56852; grpc GHSA-hrxh-6v49-42gf, CVE-2026-84304, CVE-2026-84445) (#636)
+* chore(deps): bump codecov/codecov-action from 6 to 7 (#629)
+* chore(deps): bump actions/setup-go from 6 to 7 (#633)
+* chore(deps): bump actions/checkout from 6 to 7 (#630)
+* chore(deps): bump github.com/redis/go-redis/v9 from 9.19.0 to 9.22.0 (#622)
+* chore(deps): bump github.com/aws/aws-sdk-go-v2/config from 1.32.17 to 1.33.6 (#623)
+* chore(deps): bump github.com/aws/aws-sdk-go-v2/service/dynamodb from 1.57.3 to 1.69.1 (#624)
+* chore(deps): bump github.com/aws/aws-sdk-go-v2/service/secretsmanager from 1.41.6 to 1.50.1 (#625)
+* chore(deps): bump github.com/moby/go-archive from 0.2.0 to 0.3.0 to fix tar extraction path traversal (CVE-2026-17106) (#635)
+* chore(deps): bump github.com/alicebob/miniredis/v2 from 2.37.0 to 2.39.0 (#626)
 
 ### v0.41.2 (2026-05-26)
 
