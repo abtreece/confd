@@ -5,10 +5,10 @@ package ssm
 import (
 	"context"
 	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Provides information about one or more of your managed nodes, including the
@@ -67,6 +67,23 @@ type DescribeInstanceInformationInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *DescribeInstanceInformationInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DescribeInstanceInformationRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DescribeInstanceInformationInput) SerializeMembers(s smithy.ShapeSerializer) {
+	serializeInstanceInformationStringFilterList(s, schemas.DescribeInstanceInformationRequest_Filters, v.Filters)
+	serializeInstanceInformationFilterList(s, schemas.DescribeInstanceInformationRequest_InstanceInformationFilterList, v.InstanceInformationFilterList)
+	if v.MaxResults != nil {
+		s.WriteInt32(schemas.DescribeInstanceInformationRequest_MaxResults, *v.MaxResults)
+	}
+	if v.NextToken != nil {
+		s.WriteString(schemas.DescribeInstanceInformationRequest_NextToken, *v.NextToken)
+	}
+}
+
 type DescribeInstanceInformationOutput struct {
 
 	// The managed node information list.
@@ -82,77 +99,51 @@ type DescribeInstanceInformationOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *DescribeInstanceInformationOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DescribeInstanceInformationResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DescribeInstanceInformationOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	serializeInstanceInformationList(s, schemas.DescribeInstanceInformationResult_InstanceInformationList, v.InstanceInformationList)
+	if v.NextToken != nil {
+		s.WriteString(schemas.DescribeInstanceInformationResult_NextToken, *v.NextToken)
+	}
+}
+func (v *DescribeInstanceInformationOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.DescribeInstanceInformationResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.DescribeInstanceInformationResult_InstanceInformationList:
+			return deserializeInstanceInformationList(d, schemas.DescribeInstanceInformationResult_InstanceInformationList, &v.InstanceInformationList)
+		case schemas.DescribeInstanceInformationResult_NextToken:
+			v.NextToken = new(string)
+			return d.ReadString(schemas.DescribeInstanceInformationResult_NextToken, v.NextToken)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationDescribeInstanceInformationMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DescribeInstanceInformation, schemas.DescribeInstanceInformationRequest, schemas.DescribeInstanceInformationResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpDescribeInstanceInformation{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DescribeInstanceInformation, schemas.DescribeInstanceInformationRequest, schemas.DescribeInstanceInformationResult), output: &DescribeInstanceInformationOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpDescribeInstanceInformation{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "DescribeInstanceInformation"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpDescribeInstanceInformationValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opDescribeInstanceInformation(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -165,12 +156,6 @@ func (c *Client) addOperationDescribeInstanceInformationMiddlewares(stack *middl
 		return err
 	}
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
 	if err = addInterceptors(stack, options); err != nil {
@@ -276,11 +261,3 @@ type DescribeInstanceInformationAPIClient interface {
 }
 
 var _ DescribeInstanceInformationAPIClient = (*Client)(nil)
-
-func newServiceMetadataMiddleware_opDescribeInstanceInformation(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "DescribeInstanceInformation",
-	}
-}
