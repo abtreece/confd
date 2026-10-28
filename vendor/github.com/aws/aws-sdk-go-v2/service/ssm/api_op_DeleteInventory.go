@@ -5,10 +5,10 @@ package ssm
 import (
 	"context"
 	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Delete a custom inventory type or the data associated with a custom Inventory
@@ -63,6 +63,27 @@ type DeleteInventoryInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *DeleteInventoryInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DeleteInventoryRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DeleteInventoryInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.ClientToken != nil {
+		s.WriteString(schemas.DeleteInventoryRequest_ClientToken, *v.ClientToken)
+	}
+	if v.DryRun != false {
+		s.WriteBool(schemas.DeleteInventoryRequest_DryRun, v.DryRun)
+	}
+	if v.SchemaDeleteOption != "" {
+		s.WriteString(schemas.DeleteInventoryRequest_SchemaDeleteOption, string(v.SchemaDeleteOption))
+	}
+	if v.TypeName != nil {
+		s.WriteString(schemas.DeleteInventoryRequest_TypeName, *v.TypeName)
+	}
+}
+
 type DeleteInventoryOutput struct {
 
 	// Every DeleteInventory operation is assigned a unique ID. This option returns a
@@ -86,65 +107,56 @@ type DeleteInventoryOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *DeleteInventoryOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DeleteInventoryResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DeleteInventoryOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.DeletionId != nil {
+		s.WriteString(schemas.DeleteInventoryResult_DeletionId, *v.DeletionId)
+	}
+	if v.DeletionSummary != nil {
+		s.WriteStruct(schemas.DeleteInventoryResult_DeletionSummary)
+		v.DeletionSummary.SerializeMembers(s)
+		s.CloseStruct()
+	}
+	if v.TypeName != nil {
+		s.WriteString(schemas.DeleteInventoryResult_TypeName, *v.TypeName)
+	}
+}
+func (v *DeleteInventoryOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.DeleteInventoryResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.DeleteInventoryResult_DeletionId:
+			v.DeletionId = new(string)
+			return d.ReadString(schemas.DeleteInventoryResult_DeletionId, v.DeletionId)
+		case schemas.DeleteInventoryResult_DeletionSummary:
+			v.DeletionSummary = &types.InventoryDeletionSummary{}
+			return v.DeletionSummary.Deserialize(d)
+		case schemas.DeleteInventoryResult_TypeName:
+			v.TypeName = new(string)
+			return d.ReadString(schemas.DeleteInventoryResult_TypeName, v.TypeName)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationDeleteInventoryMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DeleteInventory, schemas.DeleteInventoryRequest, schemas.DeleteInventoryResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpDeleteInventory{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DeleteInventory, schemas.DeleteInventoryRequest, schemas.DeleteInventoryResult), output: &DeleteInventoryOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpDeleteInventory{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "DeleteInventory"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
@@ -154,12 +166,6 @@ func (c *Client) addOperationDeleteInventoryMiddlewares(stack *middleware.Stack,
 		return err
 	}
 	if err = addOpDeleteInventoryValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opDeleteInventory(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -172,12 +178,6 @@ func (c *Client) addOperationDeleteInventoryMiddlewares(stack *middleware.Stack,
 		return err
 	}
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
 	if err = addInterceptors(stack, options); err != nil {
@@ -217,12 +217,4 @@ func (m *idempotencyToken_initializeOpDeleteInventory) HandleInitialize(ctx cont
 }
 func addIdempotencyToken_opDeleteInventoryMiddleware(stack *middleware.Stack, cfg Options) error {
 	return stack.Initialize.Add(&idempotencyToken_initializeOpDeleteInventory{tokenProvider: cfg.IdempotencyTokenProvider}, middleware.Before)
-}
-
-func newServiceMetadataMiddleware_opDeleteInventory(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "DeleteInventory",
-	}
 }

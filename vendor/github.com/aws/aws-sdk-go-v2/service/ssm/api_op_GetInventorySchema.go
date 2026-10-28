@@ -5,10 +5,10 @@ package ssm
 import (
 	"context"
 	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Return a list of inventory type names for the account, or return a list of
@@ -52,6 +52,30 @@ type GetInventorySchemaInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *GetInventorySchemaInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetInventorySchemaRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetInventorySchemaInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.Aggregator != false {
+		s.WriteBool(schemas.GetInventorySchemaRequest_Aggregator, v.Aggregator)
+	}
+	if v.MaxResults != nil {
+		s.WriteInt32(schemas.GetInventorySchemaRequest_MaxResults, *v.MaxResults)
+	}
+	if v.NextToken != nil {
+		s.WriteString(schemas.GetInventorySchemaRequest_NextToken, *v.NextToken)
+	}
+	if v.SubType != nil {
+		s.WriteBool(schemas.GetInventorySchemaRequest_SubType, *v.SubType)
+	}
+	if v.TypeName != nil {
+		s.WriteString(schemas.GetInventorySchemaRequest_TypeName, *v.TypeName)
+	}
+}
+
 type GetInventorySchemaOutput struct {
 
 	// The token to use when requesting the next set of items. If there are no
@@ -67,74 +91,48 @@ type GetInventorySchemaOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *GetInventorySchemaOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetInventorySchemaResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetInventorySchemaOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.NextToken != nil {
+		s.WriteString(schemas.GetInventorySchemaResult_NextToken, *v.NextToken)
+	}
+	serializeInventoryItemSchemaResultList(s, schemas.GetInventorySchemaResult_Schemas, v.Schemas)
+}
+func (v *GetInventorySchemaOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.GetInventorySchemaResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.GetInventorySchemaResult_NextToken:
+			v.NextToken = new(string)
+			return d.ReadString(schemas.GetInventorySchemaResult_NextToken, v.NextToken)
+		case schemas.GetInventorySchemaResult_Schemas:
+			return deserializeInventoryItemSchemaResultList(d, schemas.GetInventorySchemaResult_Schemas, &v.Schemas)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationGetInventorySchemaMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetInventorySchema, schemas.GetInventorySchemaRequest, schemas.GetInventorySchemaResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpGetInventorySchema{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetInventorySchema, schemas.GetInventorySchemaRequest, schemas.GetInventorySchemaResult), output: &GetInventorySchemaOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpGetInventorySchema{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "GetInventorySchema"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opGetInventorySchema(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -147,12 +145,6 @@ func (c *Client) addOperationGetInventorySchemaMiddlewares(stack *middleware.Sta
 		return err
 	}
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
 	if err = addInterceptors(stack, options); err != nil {
@@ -255,11 +247,3 @@ type GetInventorySchemaAPIClient interface {
 }
 
 var _ GetInventorySchemaAPIClient = (*Client)(nil)
-
-func newServiceMetadataMiddleware_opGetInventorySchema(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "GetInventorySchema",
-	}
-}

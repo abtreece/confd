@@ -4,11 +4,10 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // A State Manager association defines the state that you want to maintain on your
@@ -230,7 +229,8 @@ type CreateAssociationInput struct {
 	// Services accounts where you want to run the association. Use this action to
 	// create an association in multiple Regions and multiple accounts.
 	//
-	// The IncludeChildOrganizationUnits parameter is not supported by State Manager.
+	// The TargetLocationAlarmConfiguration parameter is not supported by State
+	// Manager.
 	TargetLocations []types.TargetLocation
 
 	// A key-value mapping of document parameters to target resources. Both Targets
@@ -250,6 +250,73 @@ type CreateAssociationInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *CreateAssociationInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.CreateAssociationRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *CreateAssociationInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AlarmConfiguration != nil {
+		s.WriteStruct(schemas.CreateAssociationRequest_AlarmConfiguration)
+		v.AlarmConfiguration.SerializeMembers(s)
+		s.CloseStruct()
+	}
+	if v.ApplyOnlyAtCronInterval != false {
+		s.WriteBool(schemas.CreateAssociationRequest_ApplyOnlyAtCronInterval, v.ApplyOnlyAtCronInterval)
+	}
+	if v.AssociationDispatchAssumeRole != nil {
+		s.WriteString(schemas.CreateAssociationRequest_AssociationDispatchAssumeRole, *v.AssociationDispatchAssumeRole)
+	}
+	if v.AssociationName != nil {
+		s.WriteString(schemas.CreateAssociationRequest_AssociationName, *v.AssociationName)
+	}
+	if v.AutomationTargetParameterName != nil {
+		s.WriteString(schemas.CreateAssociationRequest_AutomationTargetParameterName, *v.AutomationTargetParameterName)
+	}
+	serializeCalendarNameOrARNList(s, schemas.CreateAssociationRequest_CalendarNames, v.CalendarNames)
+	if v.ComplianceSeverity != "" {
+		s.WriteString(schemas.CreateAssociationRequest_ComplianceSeverity, string(v.ComplianceSeverity))
+	}
+	if v.DocumentVersion != nil {
+		s.WriteString(schemas.CreateAssociationRequest_DocumentVersion, *v.DocumentVersion)
+	}
+	if v.Duration != nil {
+		s.WriteInt32(schemas.CreateAssociationRequest_Duration, *v.Duration)
+	}
+	if v.InstanceId != nil {
+		s.WriteString(schemas.CreateAssociationRequest_InstanceId, *v.InstanceId)
+	}
+	if v.MaxConcurrency != nil {
+		s.WriteString(schemas.CreateAssociationRequest_MaxConcurrency, *v.MaxConcurrency)
+	}
+	if v.MaxErrors != nil {
+		s.WriteString(schemas.CreateAssociationRequest_MaxErrors, *v.MaxErrors)
+	}
+	if v.Name != nil {
+		s.WriteString(schemas.CreateAssociationRequest_Name, *v.Name)
+	}
+	if v.OutputLocation != nil {
+		s.WriteStruct(schemas.CreateAssociationRequest_OutputLocation)
+		v.OutputLocation.SerializeMembers(s)
+		s.CloseStruct()
+	}
+	serializeParameters(s, schemas.CreateAssociationRequest_Parameters, v.Parameters)
+	if v.ScheduleExpression != nil {
+		s.WriteString(schemas.CreateAssociationRequest_ScheduleExpression, *v.ScheduleExpression)
+	}
+	if v.ScheduleOffset != nil {
+		s.WriteInt32(schemas.CreateAssociationRequest_ScheduleOffset, *v.ScheduleOffset)
+	}
+	if v.SyncCompliance != "" {
+		s.WriteString(schemas.CreateAssociationRequest_SyncCompliance, string(v.SyncCompliance))
+	}
+	serializeTagList(s, schemas.CreateAssociationRequest_Tags, v.Tags)
+	serializeTargetLocations(s, schemas.CreateAssociationRequest_TargetLocations, v.TargetLocations)
+	serializeTargetMaps(s, schemas.CreateAssociationRequest_TargetMaps, v.TargetMaps)
+	serializeTargets(s, schemas.CreateAssociationRequest_Targets, v.Targets)
+}
+
 type CreateAssociationOutput struct {
 
 	// Information about the association.
@@ -261,77 +328,50 @@ type CreateAssociationOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *CreateAssociationOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.CreateAssociationResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *CreateAssociationOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AssociationDescription != nil {
+		s.WriteStruct(schemas.CreateAssociationResult_AssociationDescription)
+		v.AssociationDescription.SerializeMembers(s)
+		s.CloseStruct()
+	}
+}
+func (v *CreateAssociationOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.CreateAssociationResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.CreateAssociationResult_AssociationDescription:
+			v.AssociationDescription = &types.AssociationDescription{}
+			return v.AssociationDescription.Deserialize(d)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationCreateAssociationMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.CreateAssociation, schemas.CreateAssociationRequest, schemas.CreateAssociationResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpCreateAssociation{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.CreateAssociation, schemas.CreateAssociationRequest, schemas.CreateAssociationResult), output: &CreateAssociationOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpCreateAssociation{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "CreateAssociation"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpCreateAssociationValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opCreateAssociation(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -346,22 +386,8 @@ func (c *Client) addOperationCreateAssociationMiddlewares(stack *middleware.Stac
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opCreateAssociation(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "CreateAssociation",
-	}
 }

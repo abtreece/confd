@@ -4,11 +4,10 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Creates a Amazon Web Services Systems Manager (SSM document). An SSM document
@@ -135,6 +134,39 @@ type CreateDocumentInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *CreateDocumentInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.CreateDocumentRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *CreateDocumentInput) SerializeMembers(s smithy.ShapeSerializer) {
+	serializeAttachmentsSourceList(s, schemas.CreateDocumentRequest_Attachments, v.Attachments)
+	if v.Content != nil {
+		s.WriteString(schemas.CreateDocumentRequest_Content, *v.Content)
+	}
+	if v.DisplayName != nil {
+		s.WriteString(schemas.CreateDocumentRequest_DisplayName, *v.DisplayName)
+	}
+	if v.DocumentFormat != "" {
+		s.WriteString(schemas.CreateDocumentRequest_DocumentFormat, string(v.DocumentFormat))
+	}
+	if v.DocumentType != "" {
+		s.WriteString(schemas.CreateDocumentRequest_DocumentType, string(v.DocumentType))
+	}
+	if v.Name != nil {
+		s.WriteString(schemas.CreateDocumentRequest_Name, *v.Name)
+	}
+	serializeDocumentRequiresList(s, schemas.CreateDocumentRequest_Requires, v.Requires)
+	serializeTagList(s, schemas.CreateDocumentRequest_Tags, v.Tags)
+	if v.TargetType != nil {
+		s.WriteString(schemas.CreateDocumentRequest_TargetType, *v.TargetType)
+	}
+	if v.VersionName != nil {
+		s.WriteString(schemas.CreateDocumentRequest_VersionName, *v.VersionName)
+	}
+}
+
 type CreateDocumentOutput struct {
 
 	// Information about the SSM document.
@@ -146,77 +178,50 @@ type CreateDocumentOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *CreateDocumentOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.CreateDocumentResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *CreateDocumentOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.DocumentDescription != nil {
+		s.WriteStruct(schemas.CreateDocumentResult_DocumentDescription)
+		v.DocumentDescription.SerializeMembers(s)
+		s.CloseStruct()
+	}
+}
+func (v *CreateDocumentOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.CreateDocumentResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.CreateDocumentResult_DocumentDescription:
+			v.DocumentDescription = &types.DocumentDescription{}
+			return v.DocumentDescription.Deserialize(d)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationCreateDocumentMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.CreateDocument, schemas.CreateDocumentRequest, schemas.CreateDocumentResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpCreateDocument{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.CreateDocument, schemas.CreateDocumentRequest, schemas.CreateDocumentResult), output: &CreateDocumentOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpCreateDocument{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "CreateDocument"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpCreateDocumentValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opCreateDocument(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -231,22 +236,8 @@ func (c *Client) addOperationCreateDocumentMiddlewares(stack *middleware.Stack, 
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opCreateDocument(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "CreateDocument",
-	}
 }

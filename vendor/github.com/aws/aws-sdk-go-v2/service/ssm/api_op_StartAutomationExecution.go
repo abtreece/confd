@@ -4,11 +4,10 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Initiates execution of an Automation runbook.
@@ -132,6 +131,49 @@ type StartAutomationExecutionInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *StartAutomationExecutionInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.StartAutomationExecutionRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *StartAutomationExecutionInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AlarmConfiguration != nil {
+		s.WriteStruct(schemas.StartAutomationExecutionRequest_AlarmConfiguration)
+		v.AlarmConfiguration.SerializeMembers(s)
+		s.CloseStruct()
+	}
+	if v.ClientToken != nil {
+		s.WriteString(schemas.StartAutomationExecutionRequest_ClientToken, *v.ClientToken)
+	}
+	if v.DocumentName != nil {
+		s.WriteString(schemas.StartAutomationExecutionRequest_DocumentName, *v.DocumentName)
+	}
+	if v.DocumentVersion != nil {
+		s.WriteString(schemas.StartAutomationExecutionRequest_DocumentVersion, *v.DocumentVersion)
+	}
+	if v.MaxConcurrency != nil {
+		s.WriteString(schemas.StartAutomationExecutionRequest_MaxConcurrency, *v.MaxConcurrency)
+	}
+	if v.MaxErrors != nil {
+		s.WriteString(schemas.StartAutomationExecutionRequest_MaxErrors, *v.MaxErrors)
+	}
+	if v.Mode != "" {
+		s.WriteString(schemas.StartAutomationExecutionRequest_Mode, string(v.Mode))
+	}
+	serializeAutomationParameterMap(s, schemas.StartAutomationExecutionRequest_Parameters, v.Parameters)
+	serializeTagList(s, schemas.StartAutomationExecutionRequest_Tags, v.Tags)
+	serializeTargetLocations(s, schemas.StartAutomationExecutionRequest_TargetLocations, v.TargetLocations)
+	if v.TargetLocationsURL != nil {
+		s.WriteString(schemas.StartAutomationExecutionRequest_TargetLocationsURL, *v.TargetLocationsURL)
+	}
+	serializeTargetMaps(s, schemas.StartAutomationExecutionRequest_TargetMaps, v.TargetMaps)
+	if v.TargetParameterName != nil {
+		s.WriteString(schemas.StartAutomationExecutionRequest_TargetParameterName, *v.TargetParameterName)
+	}
+	serializeAutomationTargets(s, schemas.StartAutomationExecutionRequest_Targets, v.Targets)
+}
+
 type StartAutomationExecutionOutput struct {
 
 	// The unique ID of a newly scheduled automation execution.
@@ -143,77 +185,48 @@ type StartAutomationExecutionOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *StartAutomationExecutionOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.StartAutomationExecutionResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *StartAutomationExecutionOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AutomationExecutionId != nil {
+		s.WriteString(schemas.StartAutomationExecutionResult_AutomationExecutionId, *v.AutomationExecutionId)
+	}
+}
+func (v *StartAutomationExecutionOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.StartAutomationExecutionResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.StartAutomationExecutionResult_AutomationExecutionId:
+			v.AutomationExecutionId = new(string)
+			return d.ReadString(schemas.StartAutomationExecutionResult_AutomationExecutionId, v.AutomationExecutionId)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationStartAutomationExecutionMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.StartAutomationExecution, schemas.StartAutomationExecutionRequest, schemas.StartAutomationExecutionResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpStartAutomationExecution{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.StartAutomationExecution, schemas.StartAutomationExecutionRequest, schemas.StartAutomationExecutionResult), output: &StartAutomationExecutionOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpStartAutomationExecution{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "StartAutomationExecution"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpStartAutomationExecutionValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opStartAutomationExecution(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -228,22 +241,8 @@ func (c *Client) addOperationStartAutomationExecutionMiddlewares(stack *middlewa
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opStartAutomationExecution(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "StartAutomationExecution",
-	}
 }

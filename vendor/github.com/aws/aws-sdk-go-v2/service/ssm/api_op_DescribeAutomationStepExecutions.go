@@ -5,10 +5,10 @@ package ssm
 import (
 	"context"
 	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Information about all active and terminated step executions in an Automation
@@ -54,6 +54,28 @@ type DescribeAutomationStepExecutionsInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *DescribeAutomationStepExecutionsInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DescribeAutomationStepExecutionsRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DescribeAutomationStepExecutionsInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AutomationExecutionId != nil {
+		s.WriteString(schemas.DescribeAutomationStepExecutionsRequest_AutomationExecutionId, *v.AutomationExecutionId)
+	}
+	serializeStepExecutionFilterList(s, schemas.DescribeAutomationStepExecutionsRequest_Filters, v.Filters)
+	if v.MaxResults != nil {
+		s.WriteInt32(schemas.DescribeAutomationStepExecutionsRequest_MaxResults, *v.MaxResults)
+	}
+	if v.NextToken != nil {
+		s.WriteString(schemas.DescribeAutomationStepExecutionsRequest_NextToken, *v.NextToken)
+	}
+	if v.ReverseOrder != nil {
+		s.WriteBool(schemas.DescribeAutomationStepExecutionsRequest_ReverseOrder, *v.ReverseOrder)
+	}
+}
+
 type DescribeAutomationStepExecutionsOutput struct {
 
 	// The token to use when requesting the next set of items. If there are no
@@ -70,77 +92,51 @@ type DescribeAutomationStepExecutionsOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *DescribeAutomationStepExecutionsOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DescribeAutomationStepExecutionsResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DescribeAutomationStepExecutionsOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.NextToken != nil {
+		s.WriteString(schemas.DescribeAutomationStepExecutionsResult_NextToken, *v.NextToken)
+	}
+	serializeStepExecutionList(s, schemas.DescribeAutomationStepExecutionsResult_StepExecutions, v.StepExecutions)
+}
+func (v *DescribeAutomationStepExecutionsOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.DescribeAutomationStepExecutionsResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.DescribeAutomationStepExecutionsResult_NextToken:
+			v.NextToken = new(string)
+			return d.ReadString(schemas.DescribeAutomationStepExecutionsResult_NextToken, v.NextToken)
+		case schemas.DescribeAutomationStepExecutionsResult_StepExecutions:
+			return deserializeStepExecutionList(d, schemas.DescribeAutomationStepExecutionsResult_StepExecutions, &v.StepExecutions)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationDescribeAutomationStepExecutionsMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DescribeAutomationStepExecutions, schemas.DescribeAutomationStepExecutionsRequest, schemas.DescribeAutomationStepExecutionsResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpDescribeAutomationStepExecutions{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DescribeAutomationStepExecutions, schemas.DescribeAutomationStepExecutionsRequest, schemas.DescribeAutomationStepExecutionsResult), output: &DescribeAutomationStepExecutionsOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpDescribeAutomationStepExecutions{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "DescribeAutomationStepExecutions"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpDescribeAutomationStepExecutionsValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opDescribeAutomationStepExecutions(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -153,12 +149,6 @@ func (c *Client) addOperationDescribeAutomationStepExecutionsMiddlewares(stack *
 		return err
 	}
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
 	if err = addInterceptors(stack, options); err != nil {
@@ -263,11 +253,3 @@ type DescribeAutomationStepExecutionsAPIClient interface {
 }
 
 var _ DescribeAutomationStepExecutionsAPIClient = (*Client)(nil)
-
-func newServiceMetadataMiddleware_opDescribeAutomationStepExecutions(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "DescribeAutomationStepExecutions",
-	}
-}

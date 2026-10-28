@@ -4,11 +4,10 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // ServiceSetting is an account-level setting for an Amazon Web Services service.
@@ -74,6 +73,18 @@ type ResetServiceSettingInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *ResetServiceSettingInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.ResetServiceSettingRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *ResetServiceSettingInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.SettingId != nil {
+		s.WriteString(schemas.ResetServiceSettingRequest_SettingId, *v.SettingId)
+	}
+}
+
 // The result body of the ResetServiceSetting API operation.
 type ResetServiceSettingOutput struct {
 
@@ -87,77 +98,50 @@ type ResetServiceSettingOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *ResetServiceSettingOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.ResetServiceSettingResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *ResetServiceSettingOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.ServiceSetting != nil {
+		s.WriteStruct(schemas.ResetServiceSettingResult_ServiceSetting)
+		v.ServiceSetting.SerializeMembers(s)
+		s.CloseStruct()
+	}
+}
+func (v *ResetServiceSettingOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.ResetServiceSettingResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.ResetServiceSettingResult_ServiceSetting:
+			v.ServiceSetting = &types.ServiceSetting{}
+			return v.ServiceSetting.Deserialize(d)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationResetServiceSettingMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.ResetServiceSetting, schemas.ResetServiceSettingRequest, schemas.ResetServiceSettingResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpResetServiceSetting{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.ResetServiceSetting, schemas.ResetServiceSettingRequest, schemas.ResetServiceSettingResult), output: &ResetServiceSettingOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpResetServiceSetting{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "ResetServiceSetting"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpResetServiceSettingValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opResetServiceSetting(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -172,22 +156,8 @@ func (c *Client) addOperationResetServiceSettingMiddlewares(stack *middleware.St
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opResetServiceSetting(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "ResetServiceSetting",
-	}
 }
