@@ -71,7 +71,7 @@ This creates `bin/confd` with the Git SHA embedded via ldflags.
 
 ```bash
 ./bin/confd --version
-# Output: confd 0.41.2 (Git SHA: abc1234, Go Version: go1.26.10)
+# Output: confd 0.41.3 (Git SHA: abc1234, Go Version: go1.26.10)
 ```
 
 ### Project Structure

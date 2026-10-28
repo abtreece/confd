@@ -1,4 +1,4 @@
-### [Unreleased]
+### v0.41.3 (2026-10-28)
 
 * chore: bump Go toolchain to 1.26.10 and github.com/go-jose/go-jose/v4, golang.org/x/net to patch HIGH CVEs flagged by Trivy (stdlib CVE-2026-111943, CVE-2026-78667, CVE-2026-78669, CVE-2026-97031; x/net CVE-2026-78669; go-jose CVE-2026-116587) (#643)
 * chore(deps): bump github.com/aws/aws-sdk-go-v2/service/acm from 1.38.3 to 1.50.6 (#638)
