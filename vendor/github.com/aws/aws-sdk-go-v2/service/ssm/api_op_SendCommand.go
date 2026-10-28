@@ -4,11 +4,10 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Runs commands on one or more managed nodes.
@@ -162,6 +161,69 @@ type SendCommandInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *SendCommandInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.SendCommandRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *SendCommandInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AlarmConfiguration != nil {
+		s.WriteStruct(schemas.SendCommandRequest_AlarmConfiguration)
+		v.AlarmConfiguration.SerializeMembers(s)
+		s.CloseStruct()
+	}
+	if v.CloudWatchOutputConfig != nil {
+		s.WriteStruct(schemas.SendCommandRequest_CloudWatchOutputConfig)
+		v.CloudWatchOutputConfig.SerializeMembers(s)
+		s.CloseStruct()
+	}
+	if v.Comment != nil {
+		s.WriteString(schemas.SendCommandRequest_Comment, *v.Comment)
+	}
+	if v.DocumentHash != nil {
+		s.WriteString(schemas.SendCommandRequest_DocumentHash, *v.DocumentHash)
+	}
+	if v.DocumentHashType != "" {
+		s.WriteString(schemas.SendCommandRequest_DocumentHashType, string(v.DocumentHashType))
+	}
+	if v.DocumentName != nil {
+		s.WriteString(schemas.SendCommandRequest_DocumentName, *v.DocumentName)
+	}
+	if v.DocumentVersion != nil {
+		s.WriteString(schemas.SendCommandRequest_DocumentVersion, *v.DocumentVersion)
+	}
+	serializeInstanceIdList(s, schemas.SendCommandRequest_InstanceIds, v.InstanceIds)
+	if v.MaxConcurrency != nil {
+		s.WriteString(schemas.SendCommandRequest_MaxConcurrency, *v.MaxConcurrency)
+	}
+	if v.MaxErrors != nil {
+		s.WriteString(schemas.SendCommandRequest_MaxErrors, *v.MaxErrors)
+	}
+	if v.NotificationConfig != nil {
+		s.WriteStruct(schemas.SendCommandRequest_NotificationConfig)
+		v.NotificationConfig.SerializeMembers(s)
+		s.CloseStruct()
+	}
+	if v.OutputS3BucketName != nil {
+		s.WriteString(schemas.SendCommandRequest_OutputS3BucketName, *v.OutputS3BucketName)
+	}
+	if v.OutputS3KeyPrefix != nil {
+		s.WriteString(schemas.SendCommandRequest_OutputS3KeyPrefix, *v.OutputS3KeyPrefix)
+	}
+	if v.OutputS3Region != nil {
+		s.WriteString(schemas.SendCommandRequest_OutputS3Region, *v.OutputS3Region)
+	}
+	serializeParameters(s, schemas.SendCommandRequest_Parameters, v.Parameters)
+	if v.ServiceRoleArn != nil {
+		s.WriteString(schemas.SendCommandRequest_ServiceRoleArn, *v.ServiceRoleArn)
+	}
+	serializeTargets(s, schemas.SendCommandRequest_Targets, v.Targets)
+	if v.TimeoutSeconds != nil {
+		s.WriteInt32(schemas.SendCommandRequest_TimeoutSeconds, *v.TimeoutSeconds)
+	}
+}
+
 type SendCommandOutput struct {
 
 	// The request as it was received by Systems Manager. Also provides the command ID
@@ -174,77 +236,50 @@ type SendCommandOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *SendCommandOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.SendCommandResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *SendCommandOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.Command != nil {
+		s.WriteStruct(schemas.SendCommandResult_Command)
+		v.Command.SerializeMembers(s)
+		s.CloseStruct()
+	}
+}
+func (v *SendCommandOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.SendCommandResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.SendCommandResult_Command:
+			v.Command = &types.Command{}
+			return v.Command.Deserialize(d)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationSendCommandMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.SendCommand, schemas.SendCommandRequest, schemas.SendCommandResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpSendCommand{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.SendCommand, schemas.SendCommandRequest, schemas.SendCommandResult), output: &SendCommandOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpSendCommand{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "SendCommand"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpSendCommandValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opSendCommand(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -259,22 +294,8 @@ func (c *Client) addOperationSendCommandMiddlewares(stack *middleware.Stack, opt
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opSendCommand(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "SendCommand",
-	}
 }

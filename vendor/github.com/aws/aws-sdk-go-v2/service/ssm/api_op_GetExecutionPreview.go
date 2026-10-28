@@ -4,11 +4,10 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"time"
 )
 
@@ -40,6 +39,18 @@ type GetExecutionPreviewInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *GetExecutionPreviewInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetExecutionPreviewRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetExecutionPreviewInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.ExecutionPreviewId != nil {
+		s.WriteString(schemas.GetExecutionPreviewRequest_ExecutionPreviewId, *v.ExecutionPreviewId)
+	}
+}
+
 type GetExecutionPreviewOutput struct {
 
 	// A UTC timestamp indicating when the execution preview operation ended.
@@ -63,77 +74,73 @@ type GetExecutionPreviewOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *GetExecutionPreviewOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetExecutionPreviewResponse)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetExecutionPreviewOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.EndedAt != nil {
+		s.WriteTime(schemas.GetExecutionPreviewResponse_EndedAt, *v.EndedAt)
+	}
+	serializeExecutionPreview(s, schemas.GetExecutionPreviewResponse_ExecutionPreview, v.ExecutionPreview)
+	if v.ExecutionPreviewId != nil {
+		s.WriteString(schemas.GetExecutionPreviewResponse_ExecutionPreviewId, *v.ExecutionPreviewId)
+	}
+	if v.Status != "" {
+		s.WriteString(schemas.GetExecutionPreviewResponse_Status, string(v.Status))
+	}
+	if v.StatusMessage != nil {
+		s.WriteString(schemas.GetExecutionPreviewResponse_StatusMessage, *v.StatusMessage)
+	}
+}
+func (v *GetExecutionPreviewOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.GetExecutionPreviewResponse, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.GetExecutionPreviewResponse_EndedAt:
+			v.EndedAt = new(time.Time)
+			return d.ReadTime(schemas.GetExecutionPreviewResponse_EndedAt, v.EndedAt)
+		case schemas.GetExecutionPreviewResponse_ExecutionPreview:
+			return deserializeExecutionPreview(d, schemas.GetExecutionPreviewResponse_ExecutionPreview, &v.ExecutionPreview)
+		case schemas.GetExecutionPreviewResponse_ExecutionPreviewId:
+			v.ExecutionPreviewId = new(string)
+			return d.ReadString(schemas.GetExecutionPreviewResponse_ExecutionPreviewId, v.ExecutionPreviewId)
+		case schemas.GetExecutionPreviewResponse_Status:
+			var ev string
+			if err := d.ReadString(schemas.GetExecutionPreviewResponse_Status, &ev); err != nil {
+				return err
+			}
+			v.Status = types.ExecutionPreviewStatus(ev)
+			return nil
+		case schemas.GetExecutionPreviewResponse_StatusMessage:
+			v.StatusMessage = new(string)
+			return d.ReadString(schemas.GetExecutionPreviewResponse_StatusMessage, v.StatusMessage)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationGetExecutionPreviewMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetExecutionPreview, schemas.GetExecutionPreviewRequest, schemas.GetExecutionPreviewResponse)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpGetExecutionPreview{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetExecutionPreview, schemas.GetExecutionPreviewRequest, schemas.GetExecutionPreviewResponse), output: &GetExecutionPreviewOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpGetExecutionPreview{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "GetExecutionPreview"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpGetExecutionPreviewValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opGetExecutionPreview(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -148,22 +155,8 @@ func (c *Client) addOperationGetExecutionPreviewMiddlewares(stack *middleware.St
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opGetExecutionPreview(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "GetExecutionPreview",
-	}
 }

@@ -25,7 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/acm v1.50.6
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.69.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.1
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.0
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2

@@ -4,10 +4,9 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Associates a related item to a Systems Manager OpsCenter OpsItem. For example,
@@ -61,6 +60,27 @@ type AssociateOpsItemRelatedItemInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *AssociateOpsItemRelatedItemInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.AssociateOpsItemRelatedItemRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *AssociateOpsItemRelatedItemInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AssociationType != nil {
+		s.WriteString(schemas.AssociateOpsItemRelatedItemRequest_AssociationType, *v.AssociationType)
+	}
+	if v.OpsItemId != nil {
+		s.WriteString(schemas.AssociateOpsItemRelatedItemRequest_OpsItemId, *v.OpsItemId)
+	}
+	if v.ResourceType != nil {
+		s.WriteString(schemas.AssociateOpsItemRelatedItemRequest_ResourceType, *v.ResourceType)
+	}
+	if v.ResourceUri != nil {
+		s.WriteString(schemas.AssociateOpsItemRelatedItemRequest_ResourceUri, *v.ResourceUri)
+	}
+}
+
 type AssociateOpsItemRelatedItemOutput struct {
 
 	// The association ID.
@@ -72,77 +92,48 @@ type AssociateOpsItemRelatedItemOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *AssociateOpsItemRelatedItemOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.AssociateOpsItemRelatedItemResponse)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *AssociateOpsItemRelatedItemOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AssociationId != nil {
+		s.WriteString(schemas.AssociateOpsItemRelatedItemResponse_AssociationId, *v.AssociationId)
+	}
+}
+func (v *AssociateOpsItemRelatedItemOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.AssociateOpsItemRelatedItemResponse, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.AssociateOpsItemRelatedItemResponse_AssociationId:
+			v.AssociationId = new(string)
+			return d.ReadString(schemas.AssociateOpsItemRelatedItemResponse_AssociationId, v.AssociationId)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationAssociateOpsItemRelatedItemMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.AssociateOpsItemRelatedItem, schemas.AssociateOpsItemRelatedItemRequest, schemas.AssociateOpsItemRelatedItemResponse)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpAssociateOpsItemRelatedItem{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.AssociateOpsItemRelatedItem, schemas.AssociateOpsItemRelatedItemRequest, schemas.AssociateOpsItemRelatedItemResponse), output: &AssociateOpsItemRelatedItemOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpAssociateOpsItemRelatedItem{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "AssociateOpsItemRelatedItem"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpAssociateOpsItemRelatedItemValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opAssociateOpsItemRelatedItem(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -157,22 +148,8 @@ func (c *Client) addOperationAssociateOpsItemRelatedItemMiddlewares(stack *middl
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opAssociateOpsItemRelatedItem(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "AssociateOpsItemRelatedItem",
-	}
 }

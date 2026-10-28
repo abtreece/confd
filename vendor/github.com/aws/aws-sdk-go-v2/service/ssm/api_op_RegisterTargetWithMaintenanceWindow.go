@@ -5,10 +5,10 @@ package ssm
 import (
 	"context"
 	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Registers a target with a maintenance window.
@@ -99,6 +99,34 @@ type RegisterTargetWithMaintenanceWindowInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *RegisterTargetWithMaintenanceWindowInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.RegisterTargetWithMaintenanceWindowRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *RegisterTargetWithMaintenanceWindowInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.ClientToken != nil {
+		s.WriteString(schemas.RegisterTargetWithMaintenanceWindowRequest_ClientToken, *v.ClientToken)
+	}
+	if v.Description != nil {
+		s.WriteString(schemas.RegisterTargetWithMaintenanceWindowRequest_Description, *v.Description)
+	}
+	if v.Name != nil {
+		s.WriteString(schemas.RegisterTargetWithMaintenanceWindowRequest_Name, *v.Name)
+	}
+	if v.OwnerInformation != nil {
+		s.WriteString(schemas.RegisterTargetWithMaintenanceWindowRequest_OwnerInformation, *v.OwnerInformation)
+	}
+	if v.ResourceType != "" {
+		s.WriteString(schemas.RegisterTargetWithMaintenanceWindowRequest_ResourceType, string(v.ResourceType))
+	}
+	serializeTargets(s, schemas.RegisterTargetWithMaintenanceWindowRequest_Targets, v.Targets)
+	if v.WindowId != nil {
+		s.WriteString(schemas.RegisterTargetWithMaintenanceWindowRequest_WindowId, *v.WindowId)
+	}
+}
+
 type RegisterTargetWithMaintenanceWindowOutput struct {
 
 	// The ID of the target definition in this maintenance window.
@@ -110,65 +138,42 @@ type RegisterTargetWithMaintenanceWindowOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *RegisterTargetWithMaintenanceWindowOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.RegisterTargetWithMaintenanceWindowResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *RegisterTargetWithMaintenanceWindowOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.WindowTargetId != nil {
+		s.WriteString(schemas.RegisterTargetWithMaintenanceWindowResult_WindowTargetId, *v.WindowTargetId)
+	}
+}
+func (v *RegisterTargetWithMaintenanceWindowOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.RegisterTargetWithMaintenanceWindowResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.RegisterTargetWithMaintenanceWindowResult_WindowTargetId:
+			v.WindowTargetId = new(string)
+			return d.ReadString(schemas.RegisterTargetWithMaintenanceWindowResult_WindowTargetId, v.WindowTargetId)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationRegisterTargetWithMaintenanceWindowMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.RegisterTargetWithMaintenanceWindow, schemas.RegisterTargetWithMaintenanceWindowRequest, schemas.RegisterTargetWithMaintenanceWindowResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpRegisterTargetWithMaintenanceWindow{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.RegisterTargetWithMaintenanceWindow, schemas.RegisterTargetWithMaintenanceWindowRequest, schemas.RegisterTargetWithMaintenanceWindowResult), output: &RegisterTargetWithMaintenanceWindowOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpRegisterTargetWithMaintenanceWindow{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "RegisterTargetWithMaintenanceWindow"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
@@ -178,12 +183,6 @@ func (c *Client) addOperationRegisterTargetWithMaintenanceWindowMiddlewares(stac
 		return err
 	}
 	if err = addOpRegisterTargetWithMaintenanceWindowValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opRegisterTargetWithMaintenanceWindow(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -196,12 +195,6 @@ func (c *Client) addOperationRegisterTargetWithMaintenanceWindowMiddlewares(stac
 		return err
 	}
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
 	if err = addInterceptors(stack, options); err != nil {
@@ -241,12 +234,4 @@ func (m *idempotencyToken_initializeOpRegisterTargetWithMaintenanceWindow) Handl
 }
 func addIdempotencyToken_opRegisterTargetWithMaintenanceWindowMiddleware(stack *middleware.Stack, cfg Options) error {
 	return stack.Initialize.Add(&idempotencyToken_initializeOpRegisterTargetWithMaintenanceWindow{tokenProvider: cfg.IdempotencyTokenProvider}, middleware.Before)
-}
-
-func newServiceMetadataMiddleware_opRegisterTargetWithMaintenanceWindow(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "RegisterTargetWithMaintenanceWindow",
-	}
 }

@@ -5,10 +5,10 @@ package ssm
 import (
 	"context"
 	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // View a summary of operations metadata (OpsData) based on specified filters and
@@ -56,6 +56,27 @@ type GetOpsSummaryInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *GetOpsSummaryInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetOpsSummaryRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetOpsSummaryInput) SerializeMembers(s smithy.ShapeSerializer) {
+	serializeOpsAggregatorList(s, schemas.GetOpsSummaryRequest_Aggregators, v.Aggregators)
+	serializeOpsFilterList(s, schemas.GetOpsSummaryRequest_Filters, v.Filters)
+	if v.MaxResults != nil {
+		s.WriteInt32(schemas.GetOpsSummaryRequest_MaxResults, *v.MaxResults)
+	}
+	if v.NextToken != nil {
+		s.WriteString(schemas.GetOpsSummaryRequest_NextToken, *v.NextToken)
+	}
+	serializeOpsResultAttributeList(s, schemas.GetOpsSummaryRequest_ResultAttributes, v.ResultAttributes)
+	if v.SyncName != nil {
+		s.WriteString(schemas.GetOpsSummaryRequest_SyncName, *v.SyncName)
+	}
+}
+
 type GetOpsSummaryOutput struct {
 
 	// The list of aggregated details and filtered OpsData.
@@ -71,77 +92,51 @@ type GetOpsSummaryOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *GetOpsSummaryOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.GetOpsSummaryResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *GetOpsSummaryOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	serializeOpsEntityList(s, schemas.GetOpsSummaryResult_Entities, v.Entities)
+	if v.NextToken != nil {
+		s.WriteString(schemas.GetOpsSummaryResult_NextToken, *v.NextToken)
+	}
+}
+func (v *GetOpsSummaryOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.GetOpsSummaryResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.GetOpsSummaryResult_Entities:
+			return deserializeOpsEntityList(d, schemas.GetOpsSummaryResult_Entities, &v.Entities)
+		case schemas.GetOpsSummaryResult_NextToken:
+			v.NextToken = new(string)
+			return d.ReadString(schemas.GetOpsSummaryResult_NextToken, v.NextToken)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationGetOpsSummaryMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetOpsSummary, schemas.GetOpsSummaryRequest, schemas.GetOpsSummaryResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpGetOpsSummary{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.GetOpsSummary, schemas.GetOpsSummaryRequest, schemas.GetOpsSummaryResult), output: &GetOpsSummaryOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpGetOpsSummary{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "GetOpsSummary"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpGetOpsSummaryValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opGetOpsSummary(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -154,12 +149,6 @@ func (c *Client) addOperationGetOpsSummaryMiddlewares(stack *middleware.Stack, o
 		return err
 	}
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
 	if err = addInterceptors(stack, options); err != nil {
@@ -260,11 +249,3 @@ type GetOpsSummaryAPIClient interface {
 }
 
 var _ GetOpsSummaryAPIClient = (*Client)(nil)
-
-func newServiceMetadataMiddleware_opGetOpsSummary(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "GetOpsSummary",
-	}
-}

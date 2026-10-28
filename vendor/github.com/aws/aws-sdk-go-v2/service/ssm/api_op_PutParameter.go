@@ -4,14 +4,30 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Create or update a parameter in Parameter Store.
+//
+// Parameter Store throughput defines the number of API transactions per second
+// (TPS) that Systems Manager can process. This applies to GetParameter ,
+// GetParameters , and PutParameter API calls for your Amazon Web Services account
+// and Amazon Web Services Region. By default, Parameter Store is configured with a
+// standard throughput quota suitable for low- to moderate-volume workloads.
+// Applications that retrieve configuration data infrequently or operate at smaller
+// scale can use this default setting without additional cost.
+//
+// For higher-volume workloads, you can enable higher throughput. This increases
+// the maximum number of supported transactions per second for your account and
+// Region. Increased throughput supports applications and workloads that need
+// concurrent access to multiple parameters. If you experience
+// ThrottlingException: Rate exceeded errors, enable higher throughput. For more
+// information, see [Changing Parameter Store throughput].
+//
+// [Changing Parameter Store throughput]: https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-throughput.html
 func (c *Client) PutParameter(ctx context.Context, params *PutParameterInput, optFns ...func(*Options)) (*PutParameterOutput, error) {
 	if params == nil {
 		params = &PutParameterInput{}
@@ -270,6 +286,46 @@ type PutParameterInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *PutParameterInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.PutParameterRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *PutParameterInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AllowedPattern != nil {
+		s.WriteString(schemas.PutParameterRequest_AllowedPattern, *v.AllowedPattern)
+	}
+	if v.DataType != nil {
+		s.WriteString(schemas.PutParameterRequest_DataType, *v.DataType)
+	}
+	if v.Description != nil {
+		s.WriteString(schemas.PutParameterRequest_Description, *v.Description)
+	}
+	if v.KeyId != nil {
+		s.WriteString(schemas.PutParameterRequest_KeyId, *v.KeyId)
+	}
+	if v.Name != nil {
+		s.WriteString(schemas.PutParameterRequest_Name, *v.Name)
+	}
+	if v.Overwrite != nil {
+		s.WriteBool(schemas.PutParameterRequest_Overwrite, *v.Overwrite)
+	}
+	if v.Policies != nil {
+		s.WriteString(schemas.PutParameterRequest_Policies, *v.Policies)
+	}
+	serializeTagList(s, schemas.PutParameterRequest_Tags, v.Tags)
+	if v.Tier != "" {
+		s.WriteString(schemas.PutParameterRequest_Tier, string(v.Tier))
+	}
+	if v.Type != "" {
+		s.WriteString(schemas.PutParameterRequest_Type, string(v.Type))
+	}
+	if v.Value != nil {
+		s.WriteString(schemas.PutParameterRequest_Value, *v.Value)
+	}
+}
+
 type PutParameterOutput struct {
 
 	// The tier assigned to the parameter.
@@ -289,77 +345,57 @@ type PutParameterOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *PutParameterOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.PutParameterResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *PutParameterOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.Tier != "" {
+		s.WriteString(schemas.PutParameterResult_Tier, string(v.Tier))
+	}
+	if v.Version != 0 {
+		s.WriteInt64(schemas.PutParameterResult_Version, v.Version)
+	}
+}
+func (v *PutParameterOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.PutParameterResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.PutParameterResult_Tier:
+			var ev string
+			if err := d.ReadString(schemas.PutParameterResult_Tier, &ev); err != nil {
+				return err
+			}
+			v.Tier = types.ParameterTier(ev)
+			return nil
+		case schemas.PutParameterResult_Version:
+			return d.ReadInt64(schemas.PutParameterResult_Version, &v.Version)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationPutParameterMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.PutParameter, schemas.PutParameterRequest, schemas.PutParameterResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpPutParameter{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.PutParameter, schemas.PutParameterRequest, schemas.PutParameterResult), output: &PutParameterOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpPutParameter{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "PutParameter"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpPutParameterValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opPutParameter(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -374,22 +410,8 @@ func (c *Client) addOperationPutParameterMiddlewares(stack *middleware.Stack, op
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opPutParameter(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "PutParameter",
-	}
 }

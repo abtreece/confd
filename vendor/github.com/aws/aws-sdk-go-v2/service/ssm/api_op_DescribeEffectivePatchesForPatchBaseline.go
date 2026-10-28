@@ -5,10 +5,10 @@ package ssm
 import (
 	"context"
 	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Retrieves the current effective patches (the patch and the approval state) for
@@ -45,6 +45,24 @@ type DescribeEffectivePatchesForPatchBaselineInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *DescribeEffectivePatchesForPatchBaselineInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DescribeEffectivePatchesForPatchBaselineRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DescribeEffectivePatchesForPatchBaselineInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.BaselineId != nil {
+		s.WriteString(schemas.DescribeEffectivePatchesForPatchBaselineRequest_BaselineId, *v.BaselineId)
+	}
+	if v.MaxResults != nil {
+		s.WriteInt32(schemas.DescribeEffectivePatchesForPatchBaselineRequest_MaxResults, *v.MaxResults)
+	}
+	if v.NextToken != nil {
+		s.WriteString(schemas.DescribeEffectivePatchesForPatchBaselineRequest_NextToken, *v.NextToken)
+	}
+}
+
 type DescribeEffectivePatchesForPatchBaselineOutput struct {
 
 	// An array of patches and patch status.
@@ -60,77 +78,51 @@ type DescribeEffectivePatchesForPatchBaselineOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *DescribeEffectivePatchesForPatchBaselineOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DescribeEffectivePatchesForPatchBaselineResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DescribeEffectivePatchesForPatchBaselineOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	serializeEffectivePatchList(s, schemas.DescribeEffectivePatchesForPatchBaselineResult_EffectivePatches, v.EffectivePatches)
+	if v.NextToken != nil {
+		s.WriteString(schemas.DescribeEffectivePatchesForPatchBaselineResult_NextToken, *v.NextToken)
+	}
+}
+func (v *DescribeEffectivePatchesForPatchBaselineOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.DescribeEffectivePatchesForPatchBaselineResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.DescribeEffectivePatchesForPatchBaselineResult_EffectivePatches:
+			return deserializeEffectivePatchList(d, schemas.DescribeEffectivePatchesForPatchBaselineResult_EffectivePatches, &v.EffectivePatches)
+		case schemas.DescribeEffectivePatchesForPatchBaselineResult_NextToken:
+			v.NextToken = new(string)
+			return d.ReadString(schemas.DescribeEffectivePatchesForPatchBaselineResult_NextToken, v.NextToken)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationDescribeEffectivePatchesForPatchBaselineMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DescribeEffectivePatchesForPatchBaseline, schemas.DescribeEffectivePatchesForPatchBaselineRequest, schemas.DescribeEffectivePatchesForPatchBaselineResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpDescribeEffectivePatchesForPatchBaseline{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DescribeEffectivePatchesForPatchBaseline, schemas.DescribeEffectivePatchesForPatchBaselineRequest, schemas.DescribeEffectivePatchesForPatchBaselineResult), output: &DescribeEffectivePatchesForPatchBaselineOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpDescribeEffectivePatchesForPatchBaseline{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "DescribeEffectivePatchesForPatchBaseline"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpDescribeEffectivePatchesForPatchBaselineValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opDescribeEffectivePatchesForPatchBaseline(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -143,12 +135,6 @@ func (c *Client) addOperationDescribeEffectivePatchesForPatchBaselineMiddlewares
 		return err
 	}
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
 		return err
 	}
 	if err = addInterceptors(stack, options); err != nil {
@@ -252,11 +238,3 @@ type DescribeEffectivePatchesForPatchBaselineAPIClient interface {
 }
 
 var _ DescribeEffectivePatchesForPatchBaselineAPIClient = (*Client)(nil)
-
-func newServiceMetadataMiddleware_opDescribeEffectivePatchesForPatchBaseline(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "DescribeEffectivePatchesForPatchBaseline",
-	}
-}

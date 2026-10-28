@@ -4,10 +4,9 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Updates an existing maintenance window. Only specified parameters are modified.
@@ -103,6 +102,54 @@ type UpdateMaintenanceWindowInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *UpdateMaintenanceWindowInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.UpdateMaintenanceWindowRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *UpdateMaintenanceWindowInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AllowUnassociatedTargets != nil {
+		s.WriteBool(schemas.UpdateMaintenanceWindowRequest_AllowUnassociatedTargets, *v.AllowUnassociatedTargets)
+	}
+	if v.Cutoff != nil {
+		s.WriteInt32(schemas.UpdateMaintenanceWindowRequest_Cutoff, *v.Cutoff)
+	}
+	if v.Description != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowRequest_Description, *v.Description)
+	}
+	if v.Duration != nil {
+		s.WriteInt32(schemas.UpdateMaintenanceWindowRequest_Duration, *v.Duration)
+	}
+	if v.Enabled != nil {
+		s.WriteBool(schemas.UpdateMaintenanceWindowRequest_Enabled, *v.Enabled)
+	}
+	if v.EndDate != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowRequest_EndDate, *v.EndDate)
+	}
+	if v.Name != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowRequest_Name, *v.Name)
+	}
+	if v.Replace != nil {
+		s.WriteBool(schemas.UpdateMaintenanceWindowRequest_Replace, *v.Replace)
+	}
+	if v.Schedule != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowRequest_Schedule, *v.Schedule)
+	}
+	if v.ScheduleOffset != nil {
+		s.WriteInt32(schemas.UpdateMaintenanceWindowRequest_ScheduleOffset, *v.ScheduleOffset)
+	}
+	if v.ScheduleTimezone != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowRequest_ScheduleTimezone, *v.ScheduleTimezone)
+	}
+	if v.StartDate != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowRequest_StartDate, *v.StartDate)
+	}
+	if v.WindowId != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowRequest_WindowId, *v.WindowId)
+	}
+}
+
 type UpdateMaintenanceWindowOutput struct {
 
 	// Whether targets must be registered with the maintenance window before tasks can
@@ -159,77 +206,111 @@ type UpdateMaintenanceWindowOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *UpdateMaintenanceWindowOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.UpdateMaintenanceWindowResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *UpdateMaintenanceWindowOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.AllowUnassociatedTargets != false {
+		s.WriteBool(schemas.UpdateMaintenanceWindowResult_AllowUnassociatedTargets, v.AllowUnassociatedTargets)
+	}
+	if v.Cutoff != 0 {
+		s.WriteInt32(schemas.UpdateMaintenanceWindowResult_Cutoff, v.Cutoff)
+	}
+	if v.Description != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowResult_Description, *v.Description)
+	}
+	if v.Duration != nil {
+		s.WriteInt32(schemas.UpdateMaintenanceWindowResult_Duration, *v.Duration)
+	}
+	if v.Enabled != false {
+		s.WriteBool(schemas.UpdateMaintenanceWindowResult_Enabled, v.Enabled)
+	}
+	if v.EndDate != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowResult_EndDate, *v.EndDate)
+	}
+	if v.Name != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowResult_Name, *v.Name)
+	}
+	if v.Schedule != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowResult_Schedule, *v.Schedule)
+	}
+	if v.ScheduleOffset != nil {
+		s.WriteInt32(schemas.UpdateMaintenanceWindowResult_ScheduleOffset, *v.ScheduleOffset)
+	}
+	if v.ScheduleTimezone != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowResult_ScheduleTimezone, *v.ScheduleTimezone)
+	}
+	if v.StartDate != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowResult_StartDate, *v.StartDate)
+	}
+	if v.WindowId != nil {
+		s.WriteString(schemas.UpdateMaintenanceWindowResult_WindowId, *v.WindowId)
+	}
+}
+func (v *UpdateMaintenanceWindowOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.UpdateMaintenanceWindowResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.UpdateMaintenanceWindowResult_AllowUnassociatedTargets:
+			return d.ReadBool(schemas.UpdateMaintenanceWindowResult_AllowUnassociatedTargets, &v.AllowUnassociatedTargets)
+		case schemas.UpdateMaintenanceWindowResult_Cutoff:
+			return d.ReadInt32(schemas.UpdateMaintenanceWindowResult_Cutoff, &v.Cutoff)
+		case schemas.UpdateMaintenanceWindowResult_Description:
+			v.Description = new(string)
+			return d.ReadString(schemas.UpdateMaintenanceWindowResult_Description, v.Description)
+		case schemas.UpdateMaintenanceWindowResult_Duration:
+			v.Duration = new(int32)
+			return d.ReadInt32(schemas.UpdateMaintenanceWindowResult_Duration, v.Duration)
+		case schemas.UpdateMaintenanceWindowResult_Enabled:
+			return d.ReadBool(schemas.UpdateMaintenanceWindowResult_Enabled, &v.Enabled)
+		case schemas.UpdateMaintenanceWindowResult_EndDate:
+			v.EndDate = new(string)
+			return d.ReadString(schemas.UpdateMaintenanceWindowResult_EndDate, v.EndDate)
+		case schemas.UpdateMaintenanceWindowResult_Name:
+			v.Name = new(string)
+			return d.ReadString(schemas.UpdateMaintenanceWindowResult_Name, v.Name)
+		case schemas.UpdateMaintenanceWindowResult_Schedule:
+			v.Schedule = new(string)
+			return d.ReadString(schemas.UpdateMaintenanceWindowResult_Schedule, v.Schedule)
+		case schemas.UpdateMaintenanceWindowResult_ScheduleOffset:
+			v.ScheduleOffset = new(int32)
+			return d.ReadInt32(schemas.UpdateMaintenanceWindowResult_ScheduleOffset, v.ScheduleOffset)
+		case schemas.UpdateMaintenanceWindowResult_ScheduleTimezone:
+			v.ScheduleTimezone = new(string)
+			return d.ReadString(schemas.UpdateMaintenanceWindowResult_ScheduleTimezone, v.ScheduleTimezone)
+		case schemas.UpdateMaintenanceWindowResult_StartDate:
+			v.StartDate = new(string)
+			return d.ReadString(schemas.UpdateMaintenanceWindowResult_StartDate, v.StartDate)
+		case schemas.UpdateMaintenanceWindowResult_WindowId:
+			v.WindowId = new(string)
+			return d.ReadString(schemas.UpdateMaintenanceWindowResult_WindowId, v.WindowId)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationUpdateMaintenanceWindowMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.UpdateMaintenanceWindow, schemas.UpdateMaintenanceWindowRequest, schemas.UpdateMaintenanceWindowResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpUpdateMaintenanceWindow{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.UpdateMaintenanceWindow, schemas.UpdateMaintenanceWindowRequest, schemas.UpdateMaintenanceWindowResult), output: &UpdateMaintenanceWindowOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpUpdateMaintenanceWindow{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "UpdateMaintenanceWindow"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpUpdateMaintenanceWindowValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opUpdateMaintenanceWindow(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -244,22 +325,8 @@ func (c *Client) addOperationUpdateMaintenanceWindowMiddlewares(stack *middlewar
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opUpdateMaintenanceWindow(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "UpdateMaintenanceWindow",
-	}
 }

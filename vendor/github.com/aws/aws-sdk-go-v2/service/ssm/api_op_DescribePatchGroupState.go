@@ -4,10 +4,9 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // Returns high-level aggregated patch compliance state information for a patch
@@ -35,6 +34,18 @@ type DescribePatchGroupStateInput struct {
 	PatchGroup *string
 
 	noSmithyDocumentSerde
+}
+
+func (v *DescribePatchGroupStateInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DescribePatchGroupStateRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DescribePatchGroupStateInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.PatchGroup != nil {
+		s.WriteString(schemas.DescribePatchGroupStateRequest_PatchGroup, *v.PatchGroup)
+	}
 }
 
 type DescribePatchGroupStateOutput struct {
@@ -109,77 +120,114 @@ type DescribePatchGroupStateOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *DescribePatchGroupStateOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.DescribePatchGroupStateResult)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *DescribePatchGroupStateOutput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.Instances != 0 {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_Instances, v.Instances)
+	}
+	if v.InstancesWithAvailableSecurityUpdates != nil {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithAvailableSecurityUpdates, *v.InstancesWithAvailableSecurityUpdates)
+	}
+	if v.InstancesWithCriticalNonCompliantPatches != nil {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithCriticalNonCompliantPatches, *v.InstancesWithCriticalNonCompliantPatches)
+	}
+	if v.InstancesWithFailedPatches != 0 {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithFailedPatches, v.InstancesWithFailedPatches)
+	}
+	if v.InstancesWithInstalledOtherPatches != 0 {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithInstalledOtherPatches, v.InstancesWithInstalledOtherPatches)
+	}
+	if v.InstancesWithInstalledPatches != 0 {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithInstalledPatches, v.InstancesWithInstalledPatches)
+	}
+	if v.InstancesWithInstalledPendingRebootPatches != nil {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithInstalledPendingRebootPatches, *v.InstancesWithInstalledPendingRebootPatches)
+	}
+	if v.InstancesWithInstalledRejectedPatches != nil {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithInstalledRejectedPatches, *v.InstancesWithInstalledRejectedPatches)
+	}
+	if v.InstancesWithMissingPatches != 0 {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithMissingPatches, v.InstancesWithMissingPatches)
+	}
+	if v.InstancesWithNotApplicablePatches != 0 {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithNotApplicablePatches, v.InstancesWithNotApplicablePatches)
+	}
+	if v.InstancesWithOtherNonCompliantPatches != nil {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithOtherNonCompliantPatches, *v.InstancesWithOtherNonCompliantPatches)
+	}
+	if v.InstancesWithSecurityNonCompliantPatches != nil {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithSecurityNonCompliantPatches, *v.InstancesWithSecurityNonCompliantPatches)
+	}
+	if v.InstancesWithUnreportedNotApplicablePatches != nil {
+		s.WriteInt32(schemas.DescribePatchGroupStateResult_InstancesWithUnreportedNotApplicablePatches, *v.InstancesWithUnreportedNotApplicablePatches)
+	}
+}
+func (v *DescribePatchGroupStateOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.DescribePatchGroupStateResult, func(s *smithy.Schema) error {
+		switch s {
+		case schemas.DescribePatchGroupStateResult_Instances:
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_Instances, &v.Instances)
+		case schemas.DescribePatchGroupStateResult_InstancesWithAvailableSecurityUpdates:
+			v.InstancesWithAvailableSecurityUpdates = new(int32)
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithAvailableSecurityUpdates, v.InstancesWithAvailableSecurityUpdates)
+		case schemas.DescribePatchGroupStateResult_InstancesWithCriticalNonCompliantPatches:
+			v.InstancesWithCriticalNonCompliantPatches = new(int32)
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithCriticalNonCompliantPatches, v.InstancesWithCriticalNonCompliantPatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithFailedPatches:
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithFailedPatches, &v.InstancesWithFailedPatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithInstalledOtherPatches:
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithInstalledOtherPatches, &v.InstancesWithInstalledOtherPatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithInstalledPatches:
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithInstalledPatches, &v.InstancesWithInstalledPatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithInstalledPendingRebootPatches:
+			v.InstancesWithInstalledPendingRebootPatches = new(int32)
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithInstalledPendingRebootPatches, v.InstancesWithInstalledPendingRebootPatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithInstalledRejectedPatches:
+			v.InstancesWithInstalledRejectedPatches = new(int32)
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithInstalledRejectedPatches, v.InstancesWithInstalledRejectedPatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithMissingPatches:
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithMissingPatches, &v.InstancesWithMissingPatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithNotApplicablePatches:
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithNotApplicablePatches, &v.InstancesWithNotApplicablePatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithOtherNonCompliantPatches:
+			v.InstancesWithOtherNonCompliantPatches = new(int32)
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithOtherNonCompliantPatches, v.InstancesWithOtherNonCompliantPatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithSecurityNonCompliantPatches:
+			v.InstancesWithSecurityNonCompliantPatches = new(int32)
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithSecurityNonCompliantPatches, v.InstancesWithSecurityNonCompliantPatches)
+		case schemas.DescribePatchGroupStateResult_InstancesWithUnreportedNotApplicablePatches:
+			v.InstancesWithUnreportedNotApplicablePatches = new(int32)
+			return d.ReadInt32(schemas.DescribePatchGroupStateResult_InstancesWithUnreportedNotApplicablePatches, v.InstancesWithUnreportedNotApplicablePatches)
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationDescribePatchGroupStateMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DescribePatchGroupState, schemas.DescribePatchGroupStateRequest, schemas.DescribePatchGroupStateResult)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpDescribePatchGroupState{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.DescribePatchGroupState, schemas.DescribePatchGroupStateRequest, schemas.DescribePatchGroupStateResult), output: &DescribePatchGroupStateOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpDescribePatchGroupState{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "DescribePatchGroupState"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpDescribePatchGroupStateValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opDescribePatchGroupState(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -194,22 +242,8 @@ func (c *Client) addOperationDescribePatchGroupStateMiddlewares(stack *middlewar
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opDescribePatchGroupState(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "DescribePatchGroupState",
-	}
 }

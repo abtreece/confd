@@ -4,11 +4,10 @@ package ssm
 
 import (
 	"context"
-	"fmt"
-	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/schemas"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"time"
 )
 
@@ -130,6 +129,55 @@ type UpdateOpsItemInput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *UpdateOpsItemInput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.UpdateOpsItemRequest)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *UpdateOpsItemInput) SerializeMembers(s smithy.ShapeSerializer) {
+	if v.ActualEndTime != nil {
+		s.WriteTime(schemas.UpdateOpsItemRequest_ActualEndTime, *v.ActualEndTime)
+	}
+	if v.ActualStartTime != nil {
+		s.WriteTime(schemas.UpdateOpsItemRequest_ActualStartTime, *v.ActualStartTime)
+	}
+	if v.Category != nil {
+		s.WriteString(schemas.UpdateOpsItemRequest_Category, *v.Category)
+	}
+	if v.Description != nil {
+		s.WriteString(schemas.UpdateOpsItemRequest_Description, *v.Description)
+	}
+	serializeOpsItemNotifications(s, schemas.UpdateOpsItemRequest_Notifications, v.Notifications)
+	serializeOpsItemOperationalData(s, schemas.UpdateOpsItemRequest_OperationalData, v.OperationalData)
+	serializeOpsItemOpsDataKeysList(s, schemas.UpdateOpsItemRequest_OperationalDataToDelete, v.OperationalDataToDelete)
+	if v.OpsItemArn != nil {
+		s.WriteString(schemas.UpdateOpsItemRequest_OpsItemArn, *v.OpsItemArn)
+	}
+	if v.OpsItemId != nil {
+		s.WriteString(schemas.UpdateOpsItemRequest_OpsItemId, *v.OpsItemId)
+	}
+	if v.PlannedEndTime != nil {
+		s.WriteTime(schemas.UpdateOpsItemRequest_PlannedEndTime, *v.PlannedEndTime)
+	}
+	if v.PlannedStartTime != nil {
+		s.WriteTime(schemas.UpdateOpsItemRequest_PlannedStartTime, *v.PlannedStartTime)
+	}
+	if v.Priority != nil {
+		s.WriteInt32(schemas.UpdateOpsItemRequest_Priority, *v.Priority)
+	}
+	serializeRelatedOpsItems(s, schemas.UpdateOpsItemRequest_RelatedOpsItems, v.RelatedOpsItems)
+	if v.Severity != nil {
+		s.WriteString(schemas.UpdateOpsItemRequest_Severity, *v.Severity)
+	}
+	if v.Status != "" {
+		s.WriteString(schemas.UpdateOpsItemRequest_Status, string(v.Status))
+	}
+	if v.Title != nil {
+		s.WriteString(schemas.UpdateOpsItemRequest_Title, *v.Title)
+	}
+}
+
 type UpdateOpsItemOutput struct {
 	// Metadata pertaining to the operation's result.
 	ResultMetadata middleware.Metadata
@@ -137,77 +185,42 @@ type UpdateOpsItemOutput struct {
 	noSmithyDocumentSerde
 }
 
+func (v *UpdateOpsItemOutput) Serialize(s smithy.ShapeSerializer) {
+	s.WriteStruct(schemas.UpdateOpsItemResponse)
+	v.SerializeMembers(s)
+	s.CloseStruct()
+}
+
+func (v *UpdateOpsItemOutput) SerializeMembers(s smithy.ShapeSerializer) {
+}
+func (v *UpdateOpsItemOutput) Deserialize(d smithy.ShapeDeserializer) error {
+	return smithy.ReadStruct(d, schemas.UpdateOpsItemResponse, func(s *smithy.Schema) error {
+		switch s {
+		}
+		return nil
+	})
+}
 func (c *Client) addOperationUpdateOpsItemMiddlewares(stack *middleware.Stack, options Options) (err error) {
-	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+	if err := stack.Serialize.Add(&serializeRequestMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.UpdateOpsItem, schemas.UpdateOpsItemRequest, schemas.UpdateOpsItemResponse)}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsAwsjson11_serializeOpUpdateOpsItem{}, middleware.After)
-	if err != nil {
+	if err := stack.Deserialize.Add(&deserializeResponseMiddleware{options: &options, operationSchema: smithy.NewOperationSchema(schemas.UpdateOpsItem, schemas.UpdateOpsItemRequest, schemas.UpdateOpsItemResponse), output: &UpdateOpsItemOutput{}}, middleware.After); err != nil {
 		return err
-	}
-	err = stack.Deserialize.Add(&awsAwsjson11_deserializeOpUpdateOpsItem{}, middleware.After)
-	if err != nil {
-		return err
-	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "UpdateOpsItem"); err != nil {
-		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
-	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
-		return err
-	}
-	if err = addSetLoggerMiddleware(stack, options); err != nil {
-		return err
-	}
-	if err = addClientRequestID(stack); err != nil {
-		return err
-	}
-	if err = addComputeContentLength(stack); err != nil {
-		return err
-	}
 	if err = addResolveEndpointMiddleware(stack, options); err != nil {
 		return err
 	}
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRetry(stack, options, c); err != nil {
-		return err
-	}
-	if err = addRawResponseToMetadata(stack); err != nil {
-		return err
-	}
-	if err = addRecordResponseTiming(stack); err != nil {
-		return err
-	}
-	if err = addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addClientUserAgent(stack, options); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
-		return err
-	}
-	if err = addUserAgentRetryMode(stack, options); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpUpdateOpsItemValidationMiddleware(stack); err != nil {
-		return err
-	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opUpdateOpsItem(options.Region), middleware.Before); err != nil {
-		return err
-	}
-	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
 	if err = addRequestIDRetrieverMiddleware(stack); err != nil {
@@ -222,22 +235,8 @@ func (c *Client) addOperationUpdateOpsItemMiddlewares(stack *middleware.Stack, o
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
 		return err
 	}
-	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
-		return err
-	}
-	if err = addInterceptAttempt(stack, options); err != nil {
-		return err
-	}
 	if err = addInterceptors(stack, options); err != nil {
 		return err
 	}
 	return nil
-}
-
-func newServiceMetadataMiddleware_opUpdateOpsItem(region string) *awsmiddleware.RegisterServiceMetadata {
-	return &awsmiddleware.RegisterServiceMetadata{
-		Region:        region,
-		ServiceID:     ServiceID,
-		OperationName: "UpdateOpsItem",
-	}
 }
