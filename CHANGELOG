@@ -1,6 +1,6 @@
 ### [Unreleased]
 
-* chore: bump Go toolchain to 1.26.10 and github.com/go-jose/go-jose/v4, golang.org/x/net to patch HIGH CVEs flagged by Trivy (stdlib CVE-2026-111943, CVE-2026-78667, CVE-2026-78669, CVE-2026-97031; x/net CVE-2026-78669; go-jose CVE-2026-116587)
+* chore: bump Go toolchain to 1.26.10 and github.com/go-jose/go-jose/v4, golang.org/x/net to patch HIGH CVEs flagged by Trivy (stdlib CVE-2026-111943, CVE-2026-78667, CVE-2026-78669, CVE-2026-97031; x/net CVE-2026-78669; go-jose CVE-2026-116587) (#643)
 * chore: bump Go toolchain to 1.26.8 and golang.org/x/net, golang.org/x/text, golang.org/x/crypto, google.golang.org/grpc to patch HIGH CVEs flagged by Trivy (stdlib CVE-2026-27145, CVE-2026-33818, CVE-2026-39821, CVE-2026-39822, CVE-2026-42504, CVE-2026-46600, CVE-2026-56853, CVE-2026-56858, CVE-2026-56859, CVE-2026-56860, CVE-2026-56862; x/net CVE-2026-25681, CVE-2026-27136, CVE-2026-33814; x/text CVE-2026-56852; grpc GHSA-hrxh-6v49-42gf, CVE-2026-84304, CVE-2026-84445) (#636)
 * chore(deps): bump codecov/codecov-action from 6 to 7 (#629)
 * chore(deps): bump actions/setup-go from 6 to 7 (#633)
