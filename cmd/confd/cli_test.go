@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +13,8 @@ import (
 
 	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/log"
+	"github.com/abtreece/confd/pkg/metrics"
+	"github.com/abtreece/confd/pkg/service"
 	"github.com/alecthomas/kong"
 )
 
@@ -671,6 +676,200 @@ func TestProcessEnvDoesNotOverride(t *testing.T) {
 
 	if cfg.ClientCert != "/cli/cert" {
 		t.Errorf("Expected ClientCert '/cli/cert' (not overridden), got %q", cfg.ClientCert)
+	}
+}
+
+type cliMockStoreClient struct {
+	closed bool
+}
+
+func (m *cliMockStoreClient) GetValues(_ context.Context, _ []string) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (m *cliMockStoreClient) WatchPrefix(_ context.Context, _ string, _ []string, _ uint64, _ chan bool) (uint64, error) {
+	return 0, nil
+}
+
+func (m *cliMockStoreClient) HealthCheck(_ context.Context) error {
+	return nil
+}
+
+func (m *cliMockStoreClient) Close() error {
+	m.closed = true
+	return nil
+}
+
+func TestBuildBackendConfigAppliesDefaultsAndConnectionSettings(t *testing.T) {
+	cli := &CLI{
+		ConfigFile:       filepath.Join(t.TempDir(), "missing.toml"),
+		DialTimeout:      2 * time.Second,
+		ReadTimeout:      3 * time.Second,
+		WriteTimeout:     4 * time.Second,
+		RetryMaxAttempts: 9,
+		RetryBaseDelay:   250 * time.Millisecond,
+		RetryMaxDelay:    7 * time.Second,
+	}
+
+	cfg, err := buildBackendConfig(cli, backends.Config{Backend: "consul"})
+	if err != nil {
+		t.Fatalf("buildBackendConfig() unexpected error: %v", err)
+	}
+
+	if len(cfg.BackendNodes) != 1 || cfg.BackendNodes[0] != "127.0.0.1:8500" {
+		t.Fatalf("BackendNodes = %v, want default consul node", cfg.BackendNodes)
+	}
+	if cfg.DialTimeout != cli.DialTimeout || cfg.ReadTimeout != cli.ReadTimeout || cfg.WriteTimeout != cli.WriteTimeout {
+		t.Fatalf("timeouts were not copied from CLI: %#v", cfg)
+	}
+	if cfg.RetryMaxAttempts != cli.RetryMaxAttempts || cfg.RetryBaseDelay != cli.RetryBaseDelay || cfg.RetryMaxDelay != cli.RetryMaxDelay {
+		t.Fatalf("retry settings were not copied from CLI: %#v", cfg)
+	}
+}
+
+func TestRunCheckConfigSkipsSRVDiscovery(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(tmpDir, "conf.d"), 0755); err != nil {
+		t.Fatalf("failed to create conf.d: %v", err)
+	}
+
+	cli := &CLI{
+		ConfDir:     tmpDir,
+		ConfigFile:  filepath.Join(tmpDir, "missing.toml"),
+		CheckConfig: true,
+		SRVRecord:   "_invalid._tcp.invalid.",
+	}
+
+	err := run(cli, backends.Config{Backend: "consul"})
+	if err != nil {
+		t.Fatalf("run() with --check-config returned error: %v", err)
+	}
+}
+
+func TestBuildTemplateConfig(t *testing.T) {
+	client := &cliMockStoreClient{}
+	ctx := context.Background()
+	cli := &CLI{
+		ConfDir:           "/tmp/confd",
+		Noop:              true,
+		Prefix:            "/app",
+		SyncOnly:          true,
+		KeepStageFile:     true,
+		Diff:              true,
+		DiffContext:       5,
+		Color:             true,
+		BackendTimeout:    10 * time.Second,
+		CheckCmdTimeout:   11 * time.Second,
+		ReloadCmdTimeout:  12 * time.Second,
+		WatchErrorBackoff: 13 * time.Second,
+		PreflightTimeout:  14 * time.Second,
+		FailureMode:       "fail-fast",
+		DebounceStr:       "150ms",
+		BatchIntervalStr:  "2s",
+	}
+
+	cfg, err := buildTemplateConfig(cli, client, ctx)
+	if err != nil {
+		t.Fatalf("buildTemplateConfig() unexpected error: %v", err)
+	}
+
+	if cfg.ConfigDir != "/tmp/confd/conf.d" || cfg.TemplateDir != "/tmp/confd/templates" {
+		t.Fatalf("unexpected template paths: config=%q template=%q", cfg.ConfigDir, cfg.TemplateDir)
+	}
+	if cfg.StoreClient != client || cfg.Ctx != ctx {
+		t.Fatal("store client or context was not propagated")
+	}
+	if cfg.Debounce != 150*time.Millisecond || cfg.BatchInterval != 2*time.Second {
+		t.Fatalf("watch durations not parsed: debounce=%v batch=%v", cfg.Debounce, cfg.BatchInterval)
+	}
+}
+
+func TestBuildTemplateConfigInvalidDurations(t *testing.T) {
+	tests := []struct {
+		name string
+		cli  CLI
+		want string
+	}{
+		{
+			name: "debounce",
+			cli:  CLI{FailureMode: "best-effort", DebounceStr: "bad"},
+			want: "invalid debounce duration",
+		},
+		{
+			name: "batch interval",
+			cli:  CLI{FailureMode: "best-effort", BatchIntervalStr: "bad"},
+			want: "invalid batch-interval duration",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := buildTemplateConfig(&tc.cli, &cliMockStoreClient{}, context.Background())
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("buildTemplateConfig() error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestStartObservabilityDisabled(t *testing.T) {
+	client := &cliMockStoreClient{}
+	wrapped, server := startObservability("", "env", client)
+	if wrapped != client {
+		t.Fatal("disabled observability should return original client")
+	}
+	if server != nil {
+		t.Fatal("disabled observability should not create a server")
+	}
+}
+
+func TestBuildMetricsServerHandlers(t *testing.T) {
+	metrics.Initialize()
+	client := &cliMockStoreClient{}
+	server := buildMetricsServer(":0", client)
+
+	for _, path := range []string{"/health", "/ready", "/ready/detailed", "/metrics"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		server.Handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s returned status %d, want %d", path, rec.Code, http.StatusOK)
+		}
+	}
+}
+
+func TestSuperviseRuntimeShutdownOnSignal(t *testing.T) {
+	client := &cliMockStoreClient{}
+	channels := processorChannels{
+		stop: make(chan bool),
+		done: make(chan bool),
+		err:  make(chan error, 1),
+	}
+	signalChan := make(chan os.Signal, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		<-channels.stop
+		close(channels.done)
+	}()
+
+	signalChan <- os.Interrupt
+	err := superviseRuntime(
+		cancel,
+		channels,
+		signalChan,
+		service.NewReloadManager(),
+		service.NewShutdownManager(time.Second, nil, client),
+		service.NewSystemdNotifier(false, 0),
+	)
+	if err != nil {
+		t.Fatalf("superviseRuntime() unexpected error: %v", err)
+	}
+	if ctx.Err() == nil {
+		t.Fatal("context was not cancelled")
+	}
+	if !client.closed {
+		t.Fatal("store client was not closed")
 	}
 }
 
