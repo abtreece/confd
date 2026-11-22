@@ -105,7 +105,7 @@ services:
       - ./output:/output
     environment:
       - MY_APP_CONFIG=value
-    command: ["env", "--watch"]
+    command: ["env", "--interval", "60"]
     restart: unless-stopped
 
   # Example with etcd

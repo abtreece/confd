@@ -21,14 +21,18 @@ type TOMLConfig struct {
 	Noop          bool     `toml:"noop"`
 	Prefix        string   `toml:"prefix"`
 	SyncOnly      bool     `toml:"sync_only"`
-	LogLevel      string   `toml:"log-level"`
-	LogFormat     string   `toml:"log-format"`
+	LogLevel      string   `toml:"log_level"`
+	LogFormat     string   `toml:"log_format"`
 	Watch         bool     `toml:"watch"`
 	FailureMode   string   `toml:"failure_mode"`
 	KeepStageFile bool     `toml:"keep_stage_file"`
 	SRVDomain     string   `toml:"srv_domain"`
 	SRVRecord     string   `toml:"srv_record"`
 	Nodes         []string `toml:"nodes"`
+
+	// Hyphenated spellings of log_level and log_format, kept for existing config files
+	LogLevelHyphenated  string `toml:"log-level"`
+	LogFormatHyphenated string `toml:"log-format"`
 
 	// Backend-specific settings
 	AuthToken      string   `toml:"auth_token"`
@@ -59,6 +63,12 @@ type TOMLConfig struct {
 	TemplateCache *bool  `toml:"template_cache"` // Pointer to distinguish unset from false
 	StatCacheTTL  string `toml:"stat_cache_ttl"`
 
+	// Operation timeouts
+	BackendTimeout   string `toml:"backend_timeout"`
+	CheckCmdTimeout  string `toml:"check_cmd_timeout"`
+	ReloadCmdTimeout string `toml:"reload_cmd_timeout"`
+	ShutdownTimeout  string `toml:"shutdown_timeout"`
+
 	// Connection timeouts
 	DialTimeout  string `toml:"dial_timeout"`
 	ReadTimeout  string `toml:"read_timeout"`
@@ -72,8 +82,15 @@ type TOMLConfig struct {
 	// Watch mode timeouts
 	WatchErrorBackoff string `toml:"watch_error_backoff"`
 
+	// Watch mode debounce
+	Debounce string `toml:"debounce"`
+
 	// Preflight timeout
 	PreflightTimeout string `toml:"preflight_timeout"`
+
+	// Systemd integration
+	SystemdNotify    bool   `toml:"systemd_notify"`
+	WatchdogInterval string `toml:"watchdog_interval"`
 
 	// Metrics and observability
 	MetricsAddr string `toml:"metrics_addr"`
@@ -181,11 +198,19 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	if shouldApplyTOML(sources, md, "sync_only") {
 		cli.SyncOnly = tomlCfg.SyncOnly
 	}
-	if shouldApplyTOML(sources, md, "log_level", "log-level") && tomlCfg.LogLevel != "" {
-		cli.LogLevel = tomlCfg.LogLevel
+	if shouldApplyTOML(sources, md, "log_level", "log-level") {
+		if tomlCfg.LogLevel != "" {
+			cli.LogLevel = tomlCfg.LogLevel
+		} else if tomlCfg.LogLevelHyphenated != "" {
+			cli.LogLevel = tomlCfg.LogLevelHyphenated
+		}
 	}
-	if shouldApplyTOML(sources, md, "log_format", "log-format") && tomlCfg.LogFormat != "" {
-		cli.LogFormat = tomlCfg.LogFormat
+	if shouldApplyTOML(sources, md, "log_format", "log-format") {
+		if tomlCfg.LogFormat != "" {
+			cli.LogFormat = tomlCfg.LogFormat
+		} else if tomlCfg.LogFormatHyphenated != "" {
+			cli.LogFormat = tomlCfg.LogFormatHyphenated
+		}
 	}
 	if shouldApplyTOML(sources, md, "watch") {
 		cli.Watch = tomlCfg.Watch
@@ -288,6 +313,36 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 		backendCfg.SecretsManagerNoFlatten = tomlCfg.SecretsManagerNoFlatten
 	}
 
+	// Operation timeout settings
+	if shouldApplyTOML(sources, md, "backend_timeout") && tomlCfg.BackendTimeout != "" {
+		d, err := time.ParseDuration(tomlCfg.BackendTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid backend_timeout %q: %w (use Go duration format, e.g., \"30s\", \"1m\")", tomlCfg.BackendTimeout, err)
+		}
+		cli.BackendTimeout = d
+	}
+	if shouldApplyTOML(sources, md, "check_cmd_timeout") && tomlCfg.CheckCmdTimeout != "" {
+		d, err := time.ParseDuration(tomlCfg.CheckCmdTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid check_cmd_timeout %q: %w (use Go duration format, e.g., \"30s\", \"1m\")", tomlCfg.CheckCmdTimeout, err)
+		}
+		cli.CheckCmdTimeout = d
+	}
+	if shouldApplyTOML(sources, md, "reload_cmd_timeout") && tomlCfg.ReloadCmdTimeout != "" {
+		d, err := time.ParseDuration(tomlCfg.ReloadCmdTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid reload_cmd_timeout %q: %w (use Go duration format, e.g., \"60s\", \"2m\")", tomlCfg.ReloadCmdTimeout, err)
+		}
+		cli.ReloadCmdTimeout = d
+	}
+	if shouldApplyTOML(sources, md, "shutdown_timeout") && tomlCfg.ShutdownTimeout != "" {
+		d, err := time.ParseDuration(tomlCfg.ShutdownTimeout)
+		if err != nil {
+			return fmt.Errorf("invalid shutdown_timeout %q: %w (use Go duration format, e.g., \"30s\", \"1m\")", tomlCfg.ShutdownTimeout, err)
+		}
+		cli.ShutdownTimeout = d
+	}
+
 	// Connection timeout settings (apply to CLI if default, then to backend config)
 	if shouldApplyTOML(sources, md, "dial_timeout") && tomlCfg.DialTimeout != "" {
 		d, err := time.ParseDuration(tomlCfg.DialTimeout)
@@ -337,6 +392,24 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 			return fmt.Errorf("invalid watch_error_backoff %q: %w (use Go duration format, e.g., \"2s\", \"5s\")", tomlCfg.WatchErrorBackoff, err)
 		}
 		cli.WatchErrorBackoff = d
+	}
+	if shouldApplyTOML(sources, md, "debounce") && tomlCfg.Debounce != "" {
+		if _, err := time.ParseDuration(tomlCfg.Debounce); err != nil {
+			return fmt.Errorf("invalid debounce %q: %w (use Go duration format, e.g., \"500ms\", \"2s\")", tomlCfg.Debounce, err)
+		}
+		cli.DebounceStr = tomlCfg.Debounce
+	}
+
+	// Systemd integration
+	if shouldApplyTOML(sources, md, "systemd_notify") {
+		cli.SystemdNotify = tomlCfg.SystemdNotify
+	}
+	if shouldApplyTOML(sources, md, "watchdog_interval") && tomlCfg.WatchdogInterval != "" {
+		d, err := time.ParseDuration(tomlCfg.WatchdogInterval)
+		if err != nil {
+			return fmt.Errorf("invalid watchdog_interval %q: %w (use Go duration format, e.g., \"30s\", \"1m\")", tomlCfg.WatchdogInterval, err)
+		}
+		cli.WatchdogInterval = d
 	}
 
 	// Preflight timeout

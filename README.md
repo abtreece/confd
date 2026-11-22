@@ -135,25 +135,24 @@ confd can be configured via:
 2. Environment variables (prefix: `CONFD_`)
 3. Command-line flags
 
-Example `confd.toml`:
+Example `confd.toml` (the backend is chosen on the command line, e.g. `confd etcd`):
 
 ```toml
-backend = "etcd"
-log-level = "info"
-log-format = "json"
+log_level = "info"
+log_format = "json"
 interval = 600
 nodes = ["http://127.0.0.1:2379"]
 prefix = "/production"
 
 # Timeouts
-backend-timeout = "30s"
-check-cmd-timeout = "30s"
-reload-cmd-timeout = "60s"
+backend_timeout = "30s"
+check_cmd_timeout = "30s"
+reload_cmd_timeout = "60s"
 
 # Retries
-retry-max-attempts = 3
-retry-base-delay = "100ms"
-retry-max-delay = "5s"
+retry_max_attempts = 3
+retry_base_delay = "100ms"
+retry_max_delay = "5s"
 
 # Metrics
 metrics_addr = ":9100"

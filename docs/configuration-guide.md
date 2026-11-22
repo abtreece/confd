@@ -16,7 +16,8 @@ Configuration is loaded from multiple sources in order of precedence (highest to
 
 ## Core Options
 
-* `backend` (string) - The backend to use. Default: `"etcd"`
+> Note: The backend is not a configuration file option. It is chosen on the command line as a subcommand (e.g., `confd etcd`).
+
 * `confdir` (string) - The path to confd configs. Default: `"/etc/confd"`
 * `interval` (int) - The backend polling interval in seconds. Default: `600`
 * `noop` (bool) - Enable noop mode. Process all template resources; skip target update. Default: `false`
@@ -130,10 +131,11 @@ Configuration is loaded from multiple sources in order of precedence (highest to
 
 ## Example Configuration
 
+The backend is chosen on the command line (e.g., `confd etcd`, `confd vault`, `confd consul`), not in the configuration file.
+
 ### Basic etcd Configuration
 
 ```toml
-backend = "etcd"
 confdir = "/etc/confd"
 log_level = "info"
 interval = 600
@@ -146,7 +148,6 @@ prefix = "/production"
 ### Production Configuration with Timeouts and Retries
 
 ```toml
-backend = "etcd"
 confdir = "/etc/confd"
 log_level = "info"
 log_format = "json"
@@ -189,7 +190,6 @@ metrics_addr = ":9100"
 ### Vault Configuration with AppRole Auth
 
 ```toml
-backend = "vault"
 confdir = "/etc/confd"
 log_level = "info"
 interval = 60
@@ -210,7 +210,6 @@ client_cakeys = "/etc/confd/ssl/ca.crt"
 ### Consul Configuration with Watch Mode
 
 ```toml
-backend = "consul"
 confdir = "/etc/confd"
 log_level = "info"
 watch = true
