@@ -40,6 +40,7 @@ Each backend has its own README with authentication, options, and examples:
 - [Service Deployment](service-deployment.md) — systemd, Docker, Kubernetes deployment patterns
 - [Logging](logging.md) — log levels, JSON format, structured logging
 - [Noop Mode](noop-mode.md) — dry runs, diff output, safe testing
+- [Troubleshooting](troubleshooting.md) — symptoms, causes and fixes for common problems
 
 ## Architecture
 
