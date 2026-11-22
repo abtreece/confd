@@ -425,12 +425,22 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	// Initialize template cache
 	template.InitTemplateCache(cli.TemplateCache, cli.StatCacheTTL)
 
-	// Create root context for cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	// Create root context for cancellation. Until endStartup is called, a
+	// shutdown signal cancels it so a hung backend constructor returns.
+	ctx, cancel, endStartup := newRootContext()
 	defer cancel()
 
 	// Create store client
 	storeClient, err := backends.New(ctx, backendCfg)
+	endStartup()
+	if ctx.Err() != nil {
+		if err == nil {
+			if closeErr := storeClient.Close(); closeErr != nil {
+				log.Warning("Error closing store client: %v", closeErr)
+			}
+		}
+		return fmt.Errorf("create store client: %w", context.Cause(ctx))
+	}
 	if err != nil {
 		return fmt.Errorf("create store client: %w", err)
 	}
@@ -611,6 +621,47 @@ func run(cli *CLI, backendCfg backends.Config) error {
 			return shutdown()
 		}
 	}
+}
+
+// newRootContext returns the root context, its cancel function, and
+// endStartup. Until endStartup is called, SIGINT or SIGTERM cancels the
+// context with a cause naming the signal, so startup work that honours the
+// context can be interrupted. endStartup stops that handling and returns only
+// once any signal already delivered has been applied to the context; after it
+// returns, signals are left to whatever handling the caller installs next.
+func newRootContext() (ctx context.Context, cancel context.CancelFunc, endStartup func()) {
+	ctx, cancelCause := context.WithCancelCause(context.Background())
+	interrupt := func(s os.Signal) {
+		cancelCause(fmt.Errorf("startup interrupted by signal %v: %w", s, context.Canceled))
+	}
+
+	startupSignals := make(chan os.Signal, 1)
+	signal.Notify(startupSignals, syscall.SIGINT, syscall.SIGTERM)
+	stopWatching := make(chan struct{})
+	watcherDone := make(chan struct{})
+	go func() {
+		defer close(watcherDone)
+		select {
+		case s := <-startupSignals:
+			interrupt(s)
+		case <-stopWatching:
+		}
+	}()
+
+	var endOnce sync.Once
+	endStartup = func() {
+		endOnce.Do(func() {
+			signal.Stop(startupSignals)
+			close(stopWatching)
+			<-watcherDone
+			select {
+			case s := <-startupSignals:
+				interrupt(s)
+			default:
+			}
+		})
+	}
+	return ctx, func() { cancelCause(nil) }, endStartup
 }
 
 func applyBackendDefaults(cfg *backends.Config) {
