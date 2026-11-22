@@ -69,6 +69,13 @@ When multiple template resources specify identical backend configurations, confd
 When using the `reload_cmd` feature it's important that the command exits on its own. The reload
 command is not managed by confd, and will block the configuration run until it exits.
 
+`check_cmd` and `reload_cmd` run through a shell: `/bin/sh -c` on Unix and `cmd /C` on Windows.
+Shell quoting and expansion (variables, globs, pipes, `&&`) apply to the rendered command string,
+including the substituted `{{.src}}` and `{{.dest}}` paths. The full command line is logged only at
+debug level; info, warning and error records identify a command by its type (`check` or `reload`)
+and the destination path. Command output is still logged (truncated) when a command fails, so avoid
+commands that echo secrets.
+
 ## Example
 
 ```TOML

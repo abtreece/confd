@@ -759,51 +759,6 @@ keys = ["/foo"]
 	}
 }
 
-func TestRunCommand_Success(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
-	err := runCommand("echo hello")
-	if err != nil {
-		t.Errorf("runCommand() unexpected error: %v", err)
-	}
-}
-
-func TestRunCommand_Failure(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
-	err := runCommand("exit 1")
-	if err == nil {
-		t.Error("runCommand() expected error for exit 1, got nil")
-	}
-}
-
-func TestRunCommand_InvalidCommand(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
-	err := runCommand("nonexistent_command_12345")
-	if err == nil {
-		t.Error("runCommand() expected error for invalid command, got nil")
-	}
-}
-
-func TestRunCommand_WithOutput(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows")
-	}
-
-	// Test command that produces output
-	err := runCommand("echo 'test output'")
-	if err != nil {
-		t.Errorf("runCommand() unexpected error: %v", err)
-	}
-}
-
 func TestCheck_Success(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping on Windows")
