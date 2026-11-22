@@ -149,10 +149,11 @@ backend_timeout = "30s"
 check_cmd_timeout = "30s"
 reload_cmd_timeout = "60s"
 
-# Retries
-retry_max_attempts = 3
-retry_base_delay = "100ms"
-retry_max_delay = "5s"
+# Retries: used by the redis backend only. Other backends ignore them and
+# confd logs a warning at startup, so uncomment these only with `confd redis`.
+# retry_max_attempts = 3
+# retry_base_delay = "100ms"
+# retry_max_delay = "5s"
 
 # Metrics
 metrics_addr = ":9100"

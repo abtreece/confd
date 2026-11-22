@@ -54,14 +54,14 @@ Flags:
       --backend-timeout=30s          timeout for backend operations
       --check-cmd-timeout=30s        default timeout for check commands
       --reload-cmd-timeout=60s       default timeout for reload commands
-      --dial-timeout=5s              connection timeout for backends
-      --read-timeout=1s              read timeout for backend operations
-      --write-timeout=1s             write timeout for backend operations
+      --dial-timeout=5s              connection timeout (not used by consul, env, file or vault)
+      --read-timeout=1s              redis only: read timeout
+      --write-timeout=1s             redis only: write timeout
       --preflight-timeout=10s        preflight check timeout
       --watch-error-backoff=2s       backoff after watch errors
-      --retry-max-attempts=3         max retry attempts for connections
-      --retry-base-delay=100ms       initial backoff delay
-      --retry-max-delay=5s           maximum backoff delay
+      --retry-max-attempts=3         redis only: max connection retry attempts
+      --retry-base-delay=100ms       redis only: initial retry backoff delay
+      --retry-max-delay=5s           redis only: maximum retry backoff delay
       --shutdown-timeout=30s         graceful shutdown timeout
       --systemd-notify               enable systemd sd_notify support
       --watchdog-interval=0          systemd watchdog ping interval (0=disabled)
@@ -158,7 +158,7 @@ confd redis --help
 | `-n, --node` | Redis server address | `127.0.0.1:6379` |
 | `--basic-auth` | Use basic authentication | `false` |
 | `--username` | Authentication username | - |
-| `--password` | Redis password | - |
+| `--password` | Redis password. Also read from `REDIS_PASSWORD`; the flag wins when both are set. `--client-key` is the legacy way to pass the password and is used only when no password is set | - |
 | `--separator` | Key separator (replaces `/`) | `/` |
 | `--client-cert` | Client certificate file | - |
 | `--client-key` | Client key file | - |
@@ -439,12 +439,30 @@ Configure timeouts for various operations:
 | `--backend-timeout` | Overall timeout for backend operations | `30s` |
 | `--check-cmd-timeout` | Default timeout for check commands | `30s` |
 | `--reload-cmd-timeout` | Default timeout for reload commands | `60s` |
-| `--dial-timeout` | Connection timeout for backends | `5s` |
-| `--read-timeout` | Read timeout for backend operations | `1s` |
-| `--write-timeout` | Write timeout for backend operations | `1s` |
+| `--dial-timeout` | Connection timeout. Used by etcd, redis and zookeeper (connecting), imds (client setup), and acm, dynamodb, secretsmanager and ssm (only the region lookup against instance metadata, and only when `AWS_REGION` is not set). Not used by consul, vault, env or file | `5s` |
+| `--read-timeout` | Read timeout. Used by redis only | `1s` |
+| `--write-timeout` | Write timeout. Used by redis only | `1s` |
 | `--preflight-timeout` | Timeout for preflight checks | `10s` |
 | `--watch-error-backoff` | Backoff duration after watch errors | `2s` |
 | `--shutdown-timeout` | Graceful shutdown timeout | `30s` |
+
+### Which backends use the connection timeout and retry flags
+
+`--backend-timeout` applies to every backend. The connection timeout and [retry](#retry-flags) flags do not:
+
+| Flag | Used by | Not used by |
+|------|---------|-------------|
+| `--dial-timeout` | etcd, redis and zookeeper (connecting); imds (client setup); acm, dynamodb, secretsmanager and ssm (only the region lookup against instance metadata, and only when `AWS_REGION` is not set) | consul, vault, env, file |
+| `--read-timeout`, `--write-timeout` | redis | every other backend |
+| `--retry-max-attempts`, `--retry-base-delay`, `--retry-max-delay` | redis | every other backend |
+
+Setting one of these for a backend that does not use it changes nothing. confd logs a warning for each such flag at startup and carries on, for example:
+
+```
+--retry-max-attempts has no effect with the env backend
+```
+
+The warning is logged whether the setting came from the command line, its `CONFD_*` environment variable or `confd.toml`, and also when it is set to its default value. It covers the backend chosen on the command line, not per-resource `[backend]` sections.
 
 ### --watch-error-backoff
 
@@ -468,20 +486,20 @@ confd etcd --watch \
 
 ## Retry Flags
 
-Configure retry behavior for backend connections:
+Configure retry behavior for connections to the redis backend. No other backend uses these flags; setting one for another backend logs a warning at startup and has no other effect (see [Which backends use the connection timeout and retry flags](#which-backends-use-the-connection-timeout-and-retry-flags)).
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--retry-max-attempts` | Maximum number of retry attempts | `3` |
-| `--retry-base-delay` | Initial backoff delay | `100ms` |
-| `--retry-max-delay` | Maximum backoff delay | `5s` |
+| `--retry-max-attempts` | Maximum number of retry attempts. Used by redis only | `3` |
+| `--retry-base-delay` | Initial backoff delay. Used by redis only | `100ms` |
+| `--retry-max-delay` | Maximum backoff delay. Used by redis only | `5s` |
 
 Retries use exponential backoff with jitter. The delay doubles after each attempt up to `--retry-max-delay`.
 
 ### Example: Resilient retry configuration
 
 ```bash
-confd etcd --watch \
+confd redis --watch \
   --retry-max-attempts 5 \
   --retry-base-delay 200ms \
   --retry-max-delay 10s
@@ -597,9 +615,9 @@ Global configuration can also be set via environment variables with the `CONFD_`
 | `CONFD_BACKEND_TIMEOUT` | Backend operation timeout | `30s` |
 | `CONFD_CHECK_CMD_TIMEOUT` | Check command timeout | `30s` |
 | `CONFD_RELOAD_CMD_TIMEOUT` | Reload command timeout | `60s` |
-| `CONFD_DIAL_TIMEOUT` | Connection timeout | `5s` |
-| `CONFD_READ_TIMEOUT` | Read timeout | `1s` |
-| `CONFD_WRITE_TIMEOUT` | Write timeout | `1s` |
+| `CONFD_DIAL_TIMEOUT` | Connection timeout (not used by consul, vault, env or file) | `5s` |
+| `CONFD_READ_TIMEOUT` | Read timeout (redis only) | `1s` |
+| `CONFD_WRITE_TIMEOUT` | Write timeout (redis only) | `1s` |
 | `CONFD_PREFLIGHT_TIMEOUT` | Preflight check timeout | `10s` |
 | `CONFD_SHUTDOWN_TIMEOUT` | Graceful shutdown timeout | `30s` |
 
@@ -607,9 +625,9 @@ Global configuration can also be set via environment variables with the `CONFD_`
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CONFD_RETRY_MAX_ATTEMPTS` | Max retry attempts | `3` |
-| `CONFD_RETRY_BASE_DELAY` | Initial backoff delay | `100ms` |
-| `CONFD_RETRY_MAX_DELAY` | Maximum backoff delay | `5s` |
+| `CONFD_RETRY_MAX_ATTEMPTS` | Max retry attempts (redis only) | `3` |
+| `CONFD_RETRY_BASE_DELAY` | Initial backoff delay (redis only) | `100ms` |
+| `CONFD_RETRY_MAX_DELAY` | Maximum backoff delay (redis only) | `5s` |
 
 ### Watch Mode Settings
 
@@ -654,7 +672,8 @@ Global configuration can also be set via environment variables with the `CONFD_`
 | Variable | Backend | Description |
 |----------|---------|-------------|
 | `VAULT_TOKEN` | Vault | Vault authentication token |
-| `ACM_EXPORT_PRIVATE_KEY` | ACM | Enable private key export |
+| `ACM_EXPORT_PRIVATE_KEY` | ACM | Private key export. Takes `true` or `false`; `false` disables export |
+| `REDIS_PASSWORD` | Redis | Redis password |
 | `IMDS_ENDPOINT` | IMDS | Custom IMDS endpoint (testing only) |
 
 Backend-specific environment variables are also documented in each backend's README.
