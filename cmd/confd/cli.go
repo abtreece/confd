@@ -441,8 +441,12 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	// Initialize template cache
 	template.InitTemplateCache(cli.TemplateCache, cli.StatCacheTTL)
 
+	// Create root context for cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Create store client
-	storeClient, err := backends.New(backendCfg)
+	storeClient, err := backends.New(ctx, backendCfg)
 	if err != nil {
 		return fmt.Errorf("create store client: %w", err)
 	}
@@ -469,10 +473,6 @@ func run(cli *CLI, backendCfg backends.Config) error {
 			}
 		}()
 	}
-
-	// Create root context for cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Parse failure mode
 	failureMode, err := template.ParseFailureMode(cli.FailureMode)

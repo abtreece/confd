@@ -212,7 +212,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	// 3. Error if neither is available
 	if tc.BackendConfig != nil && tc.BackendConfig.Backend != "" {
 		log.Debug("Using per-resource backend: %s", tc.BackendConfig.Backend)
-		client, err := getOrCreateClient(*tc.BackendConfig)
+		client, err := getOrCreateClient(config.Ctx, *tc.BackendConfig)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create backend client for %s: %w", path, err)
 		}

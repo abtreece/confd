@@ -29,10 +29,9 @@ type Client struct {
 	passphrase       []byte
 }
 
-// New initializes the AWS ACM backend for confd
-func New(exportPrivateKey bool, dialTimeout time.Duration) (*Client, error) {
-	ctx := context.Background()
-
+// New initializes the AWS ACM backend for confd.
+// AWS config loading is bounded by ctx.
+func New(ctx context.Context, exportPrivateKey bool, dialTimeout time.Duration) (*Client, error) {
 	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("load AWS config: %w", err)

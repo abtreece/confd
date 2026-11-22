@@ -40,7 +40,8 @@ type HealthResult = types.HealthResult
 type DetailedHealthChecker = types.DetailedHealthChecker
 
 // New is used to create a storage client based on our configuration.
-func New(config Config) (StoreClient, error) {
+// Backends that perform I/O during initialization abort when ctx is done.
+func New(ctx context.Context, config Config) (StoreClient, error) {
 
 	if config.Backend == "" {
 		config.Backend = "etcd"
@@ -56,7 +57,7 @@ func New(config Config) (StoreClient, error) {
 	switch config.Backend {
 	case "acm":
 		log.Info("Backend source(s) set to AWS ACM")
-		client, err = acm.New(config.ACMExportPrivateKey, config.DialTimeout)
+		client, err = acm.New(ctx, config.ACMExportPrivateKey, config.DialTimeout)
 	case "consul":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		client, err = consul.New(config.BackendNodes, config.Scheme,
@@ -104,15 +105,15 @@ func New(config Config) (StoreClient, error) {
 	case "dynamodb":
 		table := config.Table
 		log.Info("DynamoDB table set to %s", table)
-		client, err = dynamodb.NewDynamoDBClient(table, config.DialTimeout)
+		client, err = dynamodb.NewDynamoDBClient(ctx, table, config.DialTimeout)
 	case "ssm":
-		client, err = ssm.New(config.DialTimeout)
+		client, err = ssm.New(ctx, config.DialTimeout)
 	case "imds":
 		log.Info("Backend source(s) set to AWS EC2 IMDS")
-		client, err = imds.New(config.IMDSCacheTTL, config.DialTimeout)
+		client, err = imds.New(ctx, config.IMDSCacheTTL, config.DialTimeout)
 	case "secretsmanager":
 		log.Info("Backend source(s) set to AWS Secrets Manager")
-		client, err = secretsmanager.New(config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten, config.DialTimeout)
+		client, err = secretsmanager.New(ctx, config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten, config.DialTimeout)
 	default:
 		return nil, errors.New("invalid backend")
 	}
