@@ -379,7 +379,7 @@ confd supports two error handling modes via `--failure-mode`:
 
 ### Debouncing
 
-Global debounce waits for changes to settle before processing:
+Global debounce waits a fixed delay after a change before processing:
 
 ```bash
 confd --watch --debounce 2s etcd
@@ -394,7 +394,7 @@ confd --watch --batch-interval 5s etcd
 ```
 
 **Difference**:
-- `--debounce`: Per-template, resets timer on each change
+- `--debounce`: Per-template, fixed delay after a change; later changes do not extend it, so a key that keeps changing is processed about once per debounce period
 - `--batch-interval`: Global, fixed interval for all templates
 
 ## Release Process

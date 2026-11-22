@@ -412,7 +412,7 @@ confd --noop --diff --color consul
 
 ### --debounce
 
-Sets a global debounce duration for watch mode. After detecting a change, confd waits this duration before processing. Additional changes reset the timer:
+Sets a global debounce duration for watch mode. After detecting a change, confd waits this duration and then processes the template once. Additional changes during the wait do not extend it, so a key that keeps changing is processed about once per debounce period. A resource's own `debounce` key overrides this flag, and neither is applied when `--batch-interval` is set:
 
 ```bash
 confd --watch --debounce 2s consul
@@ -427,7 +427,7 @@ confd --watch --batch-interval 5s consul
 ```
 
 **Debounce vs Batch Processing:**
-- `--debounce`: Per-template, waits for individual template changes to settle
+- `--debounce`: Per-template, waits a fixed delay after a change and then processes that template
 - `--batch-interval`: Global, collects all changes and processes them together
 
 ## Timeout Flags
