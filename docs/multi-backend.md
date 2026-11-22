@@ -46,7 +46,7 @@ reload_cmd = "/usr/bin/systemctl reload myapp"
 [backend]
 backend = "vault"
 nodes = ["https://vault.example.com:8200"]
-auth_type = "approle"
+auth_type = "app-role"
 role_id = "my-role-id"
 secret_id = "my-secret-id"
 ```
@@ -108,7 +108,7 @@ Common options:
 | `nodes` | Backend node addresses |
 | `scheme` | URI scheme (`http` or `https`) |
 | `auth_token` | Authentication token |
-| `auth_type` | Auth method (Vault: `token`, `approle`, `userpass`, `kubernetes`) |
+| `auth_type` | Auth method (Vault: `token`, `app-role`, `userpass`, `kubernetes`) |
 | `role_id` / `secret_id` | AppRole credentials (Vault) |
 | `username` / `password` | Basic auth or userpass credentials |
 | `client_cert` / `client_key` / `client_cakeys` | TLS client certificates |
@@ -172,7 +172,7 @@ confd:
 case "${APP_ENV}" in
   development) exec confd env --onetime ;;
   staging)     exec confd consul --node consul.staging:8500 --watch ;;
-  production)  exec confd vault --node https://vault.prod:8200 --auth-type approle --watch ;;
+  production)  exec confd vault --node https://vault.prod:8200 --auth-type app-role --watch ;;
 esac
 ```
 

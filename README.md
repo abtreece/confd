@@ -51,7 +51,7 @@ See [Docker documentation](docs/docker.md) for complete usage including Docker C
 
 ### Building from Source
 
-Go 1.26.10 is required to build confd. The module uses `go 1.26.0` for language compatibility and `toolchain go1.26.10` to pin the expected patch-level toolchain.
+Go 1.26.11 is required to build confd. The module uses `go 1.26.9` for language compatibility and `toolchain go1.26.11` to pin the expected patch-level toolchain.
 
 ```bash
 git clone https://github.com/abtreece/confd.git

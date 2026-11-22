@@ -20,11 +20,11 @@ This guide covers setting up a development environment, building, testing, and d
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Go | 1.26.10 | Build and test |
+| Go | 1.26.11 | Build and test |
 | golangci-lint | latest | Linting |
 | make | any | Build automation |
 
-The `go.mod` file keeps the language version at `go 1.26.0` and pins the expected patch-level compiler with `toolchain go1.26.10`. Keep `.tool-versions`, CI `setup-go` entries, Docker build images, and documentation aligned with that toolchain version.
+The `go.mod` file keeps the language version at `go 1.26.9` and pins the expected patch-level compiler with `toolchain go1.26.11`. Keep `.tool-versions`, CI `setup-go` entries, Docker build images, and documentation aligned with that toolchain version.
 
 ### Optional Tools
 
@@ -43,9 +43,9 @@ brew install go golangci-lint goreleaser
 
 **Linux:**
 ```bash
-# Go 1.26.10
-wget https://go.dev/dl/go1.26.10.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.26.10.linux-amd64.tar.gz
+# Go 1.26.11
+wget https://go.dev/dl/go1.26.11.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.26.11.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 # golangci-lint
@@ -71,7 +71,7 @@ This creates `bin/confd` with the Git SHA embedded via ldflags.
 
 ```bash
 ./bin/confd --version
-# Output: confd 0.41.3 (Git SHA: abc1234, Go Version: go1.26.10)
+# Output: confd 0.41.3 (Git SHA: abc1234, Go Version: go1.26.11)
 ```
 
 ### Project Structure
@@ -82,7 +82,7 @@ confd/
 │   ├── main.go          # Main function
 │   ├── cli.go           # CLI definitions (Kong)
 │   ├── config.go        # Config file loading
-│   └── version.go       # Version constant
+│   └── version.go       # Version and Git SHA (set via ldflags)
 ├── pkg/
 │   ├── backends/        # Backend implementations
 │   ├── template/        # Template processing
@@ -91,7 +91,8 @@ confd/
 │   ├── service/         # Service management
 │   ├── log/             # Logging
 │   └── util/            # Utilities
-├── test/integration/    # Integration tests
+├── test/integration/    # Backend integration tests (shell scripts)
+├── test/e2e/            # End-to-end tests (Go, `e2e` build tag)
 ├── docs/                # Documentation
 └── vendor/              # Vendored dependencies
 ```
@@ -106,7 +107,10 @@ make install      # Install to /usr/local/bin
 make clean        # Remove build artifacts
 make mod          # Run go mod tidy
 make lint         # Run golangci-lint
-make test         # Run linter + unit tests
+make test         # Run tests (go test, no linting)
+make unit         # Run unit tests for ./pkg/... and ./cmd/...
+make coverage     # Run unit tests with coverage (coverage.out)
+make race         # Run unit tests with the race detector
 make integration  # Run integration tests
 make snapshot     # Build snapshot release (goreleaser)
 make release      # Build release (goreleaser)
@@ -139,8 +143,7 @@ GOOS=windows GOARCH=amd64 go build -o bin/confd.exe ./cmd/confd
 ### Alpine Linux Build
 
 ```bash
-docker build -t confd_builder -f Dockerfile.build.alpine .
-docker run -ti --rm -v $(pwd):/app confd_builder make build
+docker build -t confd:local -f docker/Dockerfile.build .
 ```
 
 ## Testing
@@ -148,10 +151,10 @@ docker run -ti --rm -v $(pwd):/app confd_builder make build
 ### Unit Tests
 
 ```bash
-# Run all unit tests with linting
+# Run tests (does not lint; run `make lint` separately)
 make test
 
-# Run unit tests only (skip lint)
+# Run tests directly
 go test ./...
 
 # Run tests for specific package
@@ -227,24 +230,13 @@ test/integration/
 │   ├── imds/
 │   ├── env/
 │   └── file/
-├── features/           # Feature tests
-│   ├── commands/       # check_cmd, reload_cmd
-│   ├── failuremode/    # best-effort, fail-fast
-│   ├── functions/      # Template functions
-│   ├── include/        # Template includes
-│   ├── per-resource-backend/
-│   └── permissions/    # File mode handling
-├── operations/         # Operational tests
-│   ├── healthcheck/
-│   ├── metrics/
-│   └── signals/
-├── validation/         # Error handling tests
-│   └── negative/
 └── shared/             # Shared resources
     ├── confdir/
     ├── data/
     └── expect/
 ```
+
+Feature, operations, validation, watch, and resilience tests are Go end-to-end tests under `test/e2e/` (see [End-to-End Tests](#end-to-end-tests)).
 
 ### Running Integration Tests
 
@@ -260,9 +252,7 @@ test/integration/backends/env/test.sh
 
 # File backend
 test/integration/backends/file/test_yaml.sh
-
-# Template functions
-test/integration/features/functions/test.sh
+test/integration/backends/file/test_json.sh
 ```
 
 **Backend tests (require services):**
@@ -298,8 +288,7 @@ test/integration/backends/vault/kv-v2/test.sh
 
 ### Writing Integration Tests
 
-Each test directory contains:
-- `test.sh` - Main test script
+Each backend directory contains a `test.sh` script (the file backend uses `test_yaml.sh` and `test_json.sh`). Most tests render the common template resources in `test/integration/shared/confdir/`; a backend that needs its own resources (for example `acm` and `imds`) keeps them in a local `confdir/`:
 - `confdir/conf.d/*.toml` - Template resource configs
 - `confdir/templates/*.tmpl` - Template files
 
@@ -320,6 +309,26 @@ etcdctl put /myapp/key "value"
 
 # Verify output
 diff /tmp/confd-test-output test/integration/shared/expect/expected.conf
+```
+
+### End-to-End Tests
+
+End-to-end tests are Go tests behind the `e2e` build tag. They start backend containers with testcontainers, so Docker must be running:
+
+```bash
+go test -v -tags=e2e -timeout 15m ./test/e2e/...
+```
+
+```
+test/e2e/
+├── concurrency/
+├── containers/     # Backend container helpers
+├── features/       # commands, failure mode, functions, include, per-resource backend, permissions
+├── operations/     # healthcheck, metrics, reload, signals
+├── resilience/
+├── testenv/
+├── validation/
+└── watch/          # consul, etcd, redis, zookeeper, debounce, batch, reconnect
 ```
 
 ## Adding a New Backend
@@ -358,8 +367,9 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string,
     waitIndex uint64, stopChan chan bool) (uint64, error) {
-    // Watch for changes (return backends.ErrWatchNotSupported if not supported)
-    return 0, backends.ErrWatchNotSupported
+    // Watch for changes. Polling-only backends embed types.NoopWatcher
+    // (pkg/backends/types) instead of implementing this method.
+    return waitIndex, nil
 }
 
 func (c *Client) HealthCheck(ctx context.Context) error {
@@ -556,7 +566,7 @@ dlv debug ./cmd/confd -- etcd --onetime
 - Enable debug logging to see fetched values
 
 **Watch mode not detecting changes:**
-- Confirm backend supports watch (etcd, consul, redis, zookeeper, env, file)
+- Confirm backend supports watch (etcd, consul, redis, zookeeper, file)
 - Check for connection errors in logs
 - Verify key prefix matches watched paths
 
