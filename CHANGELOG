@@ -17,7 +17,7 @@
 * chore(deps): bump github.com/redis/go-redis/v9 from 9.22.0 to 9.23.0
 * chore(deps): bump github.com/testcontainers/testcontainers-go from 0.42.0 to 0.45.0
 * chore(deps): bump go.yaml.in/yaml/v3 from 3.0.4 to 3.0.6
-* docs: correct stale statements in README and docs (config file keys, Makefile targets, Dockerfile path, integration vs e2e test layout, Vault `app-role` auth type)
+* docs: correct stale statements in README and docs (Makefile targets, Dockerfile path, integration vs e2e test layout, Vault `app-role` auth type)
 
 ### v0.41.3 (2026-10-28)
 

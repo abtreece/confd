@@ -16,8 +16,7 @@ Configuration is loaded from multiple sources in order of precedence (highest to
 
 ## Core Options
 
-The backend is selected by the subcommand (for example `confd etcd`), not by the configuration file.
-
+* `backend` (string) - The backend to use. Default: `"etcd"`
 * `confdir` (string) - The path to confd configs. Default: `"/etc/confd"`
 * `interval` (int) - The backend polling interval in seconds. Default: `600`
 * `noop` (bool) - Enable noop mode. Process all template resources; skip target update. Default: `false`
@@ -28,8 +27,8 @@ The backend is selected by the subcommand (for example `confd etcd`), not by the
 
 ## Logging Options
 
-* `log-level` (string) - Log level: `debug`, `info`, `warn`, `error`. Default: `"info"`
-* `log-format` (string) - Log format: `text` or `json`. Default: `"text"`
+* `log_level` (string) - Log level: `debug`, `info`, `warn`, `error`. Default: `"info"`
+* `log_format` (string) - Log format: `text` or `json`. Default: `"text"`
 
 ## Backend Connection Options
 
@@ -51,13 +50,15 @@ The backend is selected by the subcommand (for example `confd etcd`), not by the
 
 ## Timeout Options
 
+* `backend_timeout` (duration) - Overall timeout for backend operations. Default: `"30s"`
+* `check_cmd_timeout` (duration) - Default timeout for check commands. Default: `"30s"`
+* `reload_cmd_timeout` (duration) - Default timeout for reload commands. Default: `"60s"`
 * `dial_timeout` (duration) - Connection timeout for backends. Default: `"5s"`
 * `read_timeout` (duration) - Read timeout for backend operations. Default: `"1s"`
 * `write_timeout` (duration) - Write timeout for backend operations. Default: `"1s"`
 * `preflight_timeout` (duration) - Timeout for preflight checks. Default: `"10s"`
 * `watch_error_backoff` (duration) - Backoff duration after watch errors. Default: `"2s"`
-
-The overall backend timeout, the default check/reload command timeouts, and the graceful shutdown timeout are not read from the configuration file. Set them with `--backend-timeout`, `--check-cmd-timeout`, `--reload-cmd-timeout`, and `--shutdown-timeout` or the matching `CONFD_*` environment variables (see [Command Line Flags](command-line-flags.md)).
+* `shutdown_timeout` (duration) - Graceful shutdown timeout. Default: `"30s"`
 
 ## Retry Options
 
@@ -78,7 +79,8 @@ The overall backend timeout, the default check/reload command timeouts, and the 
 
 ## Watch Mode Options
 
-Global debounce and batch interval are not read from the configuration file. Set them with `--debounce` and `--batch-interval` or `CONFD_DEBOUNCE` and `CONFD_BATCH_INTERVAL`.
+* `debounce` (duration) - Global debounce duration for watch mode. Default: none
+* `batch_interval` (duration) - Batch processing interval for watch mode. Default: none
 
 ## Metrics and Observability
 
@@ -86,7 +88,8 @@ Global debounce and batch interval are not read from the configuration file. Set
 
 ## Systemd Integration
 
-Systemd integration is not read from the configuration file. Set it with `--systemd-notify` and `--watchdog-interval` or `CONFD_SYSTEMD_NOTIFY` and `CONFD_WATCHDOG_INTERVAL`.
+* `systemd_notify` (bool) - Enable systemd sd_notify support. Default: `false`
+* `watchdog_interval` (duration) - Systemd watchdog ping interval (0=disabled). Default: `"0"`
 
 ## Backend-Specific Options
 
@@ -114,7 +117,7 @@ Systemd integration is not read from the configuration file. Set it with `--syst
 
 ### IMDS
 
-The IMDS cache TTL is not read from the configuration file. Set it with the `--imds-cache-ttl` flag of the `imds` subcommand (default: `60s`).
+* `imds_cache_ttl` (duration) - Cache TTL for IMDS metadata. Default: `"60s"`
 
 ### Secrets Manager
 
@@ -129,11 +132,10 @@ The IMDS cache TTL is not read from the configuration file. Set it with the `--i
 
 ### Basic etcd Configuration
 
-Used with `confd etcd`:
-
 ```toml
+backend = "etcd"
 confdir = "/etc/confd"
-log-level = "info"
+log_level = "info"
 interval = 600
 nodes = [
   "http://127.0.0.1:2379",
@@ -143,12 +145,11 @@ prefix = "/production"
 
 ### Production Configuration with Timeouts and Retries
 
-Used with `confd etcd`:
-
 ```toml
+backend = "etcd"
 confdir = "/etc/confd"
-log-level = "info"
-log-format = "json"
+log_level = "info"
+log_format = "json"
 watch = true
 nodes = [
   "https://etcd1.example.com:2379",
@@ -164,9 +165,10 @@ client_key = "/etc/confd/ssl/client.key"
 client_cakeys = "/etc/confd/ssl/ca.crt"
 
 # Timeouts
-dial_timeout = "5s"
-read_timeout = "1s"
-write_timeout = "1s"
+backend_timeout = "30s"
+check_cmd_timeout = "30s"
+reload_cmd_timeout = "60s"
+shutdown_timeout = "30s"
 
 # Retries
 retry_max_attempts = 5
@@ -186,11 +188,10 @@ metrics_addr = ":9100"
 
 ### Vault Configuration with AppRole Auth
 
-Used with `confd vault`:
-
 ```toml
+backend = "vault"
 confdir = "/etc/confd"
-log-level = "info"
+log_level = "info"
 interval = 60
 nodes = [
   "https://vault.example.com:8200",
@@ -209,17 +210,19 @@ client_cakeys = "/etc/confd/ssl/ca.crt"
 ### Consul Configuration with Watch Mode
 
 ```toml
+backend = "consul"
 confdir = "/etc/confd"
-log-level = "info"
+log_level = "info"
 watch = true
 nodes = [
   "127.0.0.1:8500",
 ]
 prefix = "/myapp"
-```
 
-Run it with watch tuning and systemd integration set on the command line:
+# Watch mode tuning
+debounce = "2s"
 
-```bash
-confd --debounce 2s --systemd-notify --watchdog-interval 30s consul
+# Systemd integration
+systemd_notify = true
+watchdog_interval = "30s"
 ```
