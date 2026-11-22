@@ -51,7 +51,7 @@ See [Docker documentation](docs/docker.md) for complete usage including Docker C
 
 ### Building from Source
 
-Go 1.26.10 is required to build confd. The module uses `go 1.26.0` for language compatibility and `toolchain go1.26.10` to pin the expected patch-level toolchain.
+Go 1.26.11 is required to build confd. The module uses `go 1.26.9` for language compatibility and `toolchain go1.26.11` to pin the expected patch-level toolchain.
 
 ```bash
 git clone https://github.com/abtreece/confd.git
@@ -135,10 +135,9 @@ confd can be configured via:
 2. Environment variables (prefix: `CONFD_`)
 3. Command-line flags
 
-Example `confd.toml`:
+Example `confd.toml` (the backend itself is selected by the subcommand, e.g. `confd etcd`):
 
 ```toml
-backend = "etcd"
 log-level = "info"
 log-format = "json"
 interval = 600
@@ -146,14 +145,14 @@ nodes = ["http://127.0.0.1:2379"]
 prefix = "/production"
 
 # Timeouts
-backend-timeout = "30s"
-check-cmd-timeout = "30s"
-reload-cmd-timeout = "60s"
+dial_timeout = "5s"
+read_timeout = "1s"
+write_timeout = "1s"
 
 # Retries
-retry-max-attempts = 3
-retry-base-delay = "100ms"
-retry-max-delay = "5s"
+retry_max_attempts = 3
+retry_base_delay = "100ms"
+retry_max_delay = "5s"
 
 # Metrics
 metrics_addr = ":9100"
