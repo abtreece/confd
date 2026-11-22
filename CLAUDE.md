@@ -76,17 +76,17 @@ See [docs/development.md](docs/development.md) for detailed testing instructions
 
 ## Integration Test Structure
 
-Integration tests are organized into categorical directories for clarity and maintainability:
+Backend integration tests are shell scripts under `test/integration/`. Feature, operations and validation tests are Go e2e tests under `test/e2e/`.
 
 ```
 test/integration/
-├── backends/         # Backend-specific tests (13 backends)
+├── backends/         # Backend-specific tests (12 backends)
 │   ├── acm/
 │   ├── consul/
 │   ├── dynamodb/
 │   ├── env/
 │   ├── etcd/
-│   ├── file/
+│   ├── file/        # test_yaml.sh and test_json.sh
 │   ├── imds/
 │   ├── redis/
 │   ├── secretsmanager/
@@ -96,19 +96,6 @@ test/integration/
 │   │   ├── kv-v1/
 │   │   └── kv-v2/
 │   └── zookeeper/
-├── features/         # Feature/capability tests
-│   ├── commands/     # check_cmd and reload_cmd
-│   ├── failuremode/  # best-effort vs fail-fast
-│   ├── functions/    # Template functions
-│   ├── include/      # Template includes
-│   ├── per-resource-backend/  # Backend override per template
-│   └── permissions/  # File mode handling
-├── operations/       # Operational/runtime tests
-│   ├── healthcheck/  # /health, /ready endpoints
-│   ├── metrics/      # Prometheus metrics
-│   └── signals/      # SIGHUP, SIGTERM handling
-├── validation/       # Error handling tests
-│   └── negative/     # Invalid config rejection
 └── shared/           # Shared test resources
     ├── confdir/      # Common template resources
     ├── data/         # Test data loaders
@@ -117,48 +104,45 @@ test/integration/
 
 ### Test Categories
 
-**Backend Tests** (`backends/`): Each backend has its own directory with a `test.sh` script that:
+**Backend Tests** (`test/integration/backends/`): Each backend has its own directory with a `test.sh` script (the file backend has `test_yaml.sh` and `test_json.sh`; Vault has one `test.sh` per subdirectory) that:
 - Waits for backend service readiness
 - Loads test data using backend-specific CLI tools
 - Runs confd with `--onetime` flag
 - Validates output against expected results
 
-**Feature Tests** (`features/`): Test specific confd capabilities:
-- `commands/` - check_cmd and reload_cmd execution
-- `failuremode/` - Error handling modes (best-effort vs fail-fast)
-- `functions/` - Template function validation
-- `include/` - Template include with cycle detection
-- `per-resource-backend/` - Backend override at template level
-- `permissions/` - File mode (0644, 0600, 0755) application
-
-**Operations Tests** (`operations/`): Test runtime behavior:
-- `healthcheck/` - Health and readiness endpoints
-- `metrics/` - Prometheus metrics endpoint
-- `signals/` - Signal handling (SIGHUP, SIGTERM)
-
-**Validation Tests** (`validation/`): Test error conditions:
-- `negative/` - Invalid backend types, malformed TOML, template syntax errors
-
-**Shared Resources** (`shared/`): Resources used by multiple tests:
+**Shared Resources** (`test/integration/shared/`): Resources used by multiple tests:
 - `confdir/` - Common template configurations
 - `data/` - Centralized test data definitions and loaders
 - `expect/` - Expected output files for validation
 
+**E2E Tests** (`test/e2e/`): Go tests behind the `e2e` build tag, one package per area:
+- `features/` - check_cmd/reload_cmd, failure modes, template functions, includes, per-resource backends, file permissions
+- `operations/` - Health and readiness endpoints, metrics, signals (SIGHUP, SIGTERM), reload
+- `validation/` - Invalid backend types, malformed TOML, template syntax errors
+- `resilience/` - Timeout handling
+- `watch/` - Watch mode against consul, etcd, redis and zookeeper; debounce, batch, reconnect
+- `concurrency/` - Concurrent processing
+- `containers/`, `testenv/` - Test helpers (testcontainers-go backends, environment setup)
+
 ### Running Integration Tests
 
-Integration tests are executed in CI via `.github/workflows/integration-tests.yml`:
+Integration and e2e tests are executed in CI via `.github/workflows/integration-tests.yml` and `.github/workflows/e2e-tests.yml`:
 
 ```bash
 # Standalone tests (no external services required)
 test/integration/backends/env/test.sh
 test/integration/backends/file/test_yaml.sh
-test/integration/features/commands/test.sh
+test/integration/backends/file/test_json.sh
 
 # Backend tests (require backend services)
 test/integration/backends/consul/test.sh
 test/integration/backends/etcd/test.sh
 
-# Run all tests via CI workflow
+# E2E tests (require Docker)
+go test -v -tags=e2e -timeout 15m ./test/e2e/...
+
+# A single e2e package
+go test -v -tags=e2e ./test/e2e/features/...
 ```
 
 ## Architecture
@@ -224,9 +208,9 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 
 acm, consul, dynamodb, env, etcd, file, imds, redis, secretsmanager, ssm, vault, zookeeper
 
-**Watch mode supported**: consul, env, etcd, file, redis, zookeeper
+**Watch mode supported**: consul, etcd, file, redis, zookeeper
 
-**Polling only (no watch)**: acm, dynamodb, imds, secretsmanager, ssm, vault
+**Polling only (no watch)**: acm, dynamodb, env, imds, secretsmanager, ssm, vault
 
 ### IMDS Backend
 
