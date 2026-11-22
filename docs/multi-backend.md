@@ -172,7 +172,7 @@ confd:
 case "${APP_ENV}" in
   development) exec confd env --onetime ;;
   staging)     exec confd consul --node consul.staging:8500 --watch ;;
-  production)  exec confd vault --node https://vault.prod:8200 --auth-type approle --watch ;;
+  production)  exec confd vault --node https://vault.prod:8200 --auth-type app-role --watch ;;
 esac
 ```
 
