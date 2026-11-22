@@ -426,20 +426,21 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	template.InitTemplateCache(cli.TemplateCache, cli.StatCacheTTL)
 
 	// Create root context for cancellation. Until endStartup is called, a
-	// shutdown signal cancels it so a hung backend constructor returns.
+	// shutdown signal cancels it and backend construction is abandoned.
 	ctx, cancel, endStartup := newRootContext()
 	defer cancel()
+	defer endStartup()
 
 	// Create store client
-	storeClient, err := backends.New(ctx, backendCfg)
+	storeClient, err := awaitStoreClient(ctx, func() (backends.StoreClient, error) {
+		return backends.New(ctx, backendCfg)
+	})
 	endStartup()
 	if ctx.Err() != nil {
 		if err == nil {
-			if closeErr := storeClient.Close(); closeErr != nil {
-				log.Warning("Error closing store client: %v", closeErr)
-			}
+			closeAbandonedStoreClient(storeClient)
 		}
-		return fmt.Errorf("create store client: %w", context.Cause(ctx))
+		return context.Cause(ctx)
 	}
 	if err != nil {
 		return fmt.Errorf("create store client: %w", err)
@@ -662,6 +663,46 @@ func newRootContext() (ctx context.Context, cancel context.CancelFunc, endStartu
 		})
 	}
 	return ctx, func() { cancelCause(nil) }, endStartup
+}
+
+// awaitStoreClient runs construct and returns its result, unless ctx is
+// cancelled first, in which case it returns the cancellation cause without
+// waiting. Not every backend constructor honours a context, so the wait is
+// abandoned here rather than relying on construct to return; a client that an
+// abandoned construct produces later is closed.
+func awaitStoreClient(ctx context.Context, construct func() (backends.StoreClient, error)) (backends.StoreClient, error) {
+	type constructResult struct {
+		client backends.StoreClient
+		err    error
+	}
+	resultChan := make(chan constructResult, 1)
+	go func() {
+		client, err := construct()
+		resultChan <- constructResult{client: client, err: err}
+	}()
+
+	select {
+	case result := <-resultChan:
+		return result.client, result.err
+	case <-ctx.Done():
+		go func() {
+			if result := <-resultChan; result.err == nil {
+				closeAbandonedStoreClient(result.client)
+			}
+		}()
+		return nil, context.Cause(ctx)
+	}
+}
+
+// closeAbandonedStoreClient closes a store client that was constructed but
+// will not be used because startup was interrupted.
+func closeAbandonedStoreClient(client backends.StoreClient) {
+	if client == nil {
+		return
+	}
+	if err := client.Close(); err != nil {
+		log.Warning("Error closing store client: %v", err)
+	}
 }
 
 func applyBackendDefaults(cfg *backends.Config) {
