@@ -5,17 +5,3 @@ linters:
   enable:
     - errorlint     # Enforce error wrapping and proper use of errors
     - wrapcheck     # Check that errors are wrapped
-
-linters-settings:
-  errorlint:
-    errorf: true
-    asserts: true
-    comparison: true
-
-  wrapcheck:
-    ignoreSigs:
-      - .Errorf(
-      - errors.New(
-      - errors.Unwrap(
-      - .Wrap(
-      - .Wrapf(
