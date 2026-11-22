@@ -1,5 +1,13 @@
 ### [Unreleased]
 
+* fix: watch mode with a polling-only backend (acm, dynamodb, env, imds, secretsmanager, ssm, vault) now fails at startup with `watch mode not supported for <backend> backend`, for the global backend and for per-resource `[backend]` sections, whether watch is set by `--watch`, `CONFD_WATCH` or `watch = true` in confd.toml, and also with `--onetime` and `--preflight`; previously vault and env blocked silently and `watch = true` in confd.toml bypassed the per-command checks (#604)
+* refactor: watch support is an optional `backends.Watcher` interface; `StoreClient` no longer includes `WatchPrefix` and `types.NoopWatcher` is removed (#604)
+* fix: stop, reload and context cancellation no longer wait out `--watch-error-backoff` while a watch backend is erroring; watch and batch-watch modes share one monitor/reload implementation (#605)
+* fix: `check_cmd` and `reload_cmd` strings are logged only at debug level; info, warn and error records identify the command by type and destination. Remove the legacy `runCommand` helper so there is one command execution path (#607)
+* refactor: `backends.New` takes a `context.Context` and the acm, dynamodb, ssm, secretsmanager and imds constructors use it in place of `context.Background()` (#608)
+* fix: SIGINT or SIGTERM during backend construction cancels startup and exits 1 with `startup interrupted: received signal <signal>` instead of leaving a hung constructor running (#608)
+* test: cover Kong source tracking, config precedence and `applyBackendDefaults()` through production code paths; remove default-node tests that never called production code (#610)
+* docs: add a troubleshooting guide (`docs/troubleshooting.md`); document that `check_cmd`/`reload_cmd` run through a shell (#344, #607)
 * fix: read `backend_timeout`, `check_cmd_timeout`, `reload_cmd_timeout`, `shutdown_timeout`, `debounce`, `systemd_notify` and `watchdog_interval` from confd.toml, and accept `log_level`/`log_format` alongside `log-level`/`log-format`; these keys were documented but ignored
 * fix: wrap returned errors with context and compare errors with `errors.Is`/`errors.As` across `pkg/` and `cmd/confd` (clears all wrapcheck and errorlint findings); error messages gain context prefixes such as `create store client: initialize etcd backend: ...`
 * fix: `make integration` now runs the file backend scripts (`test_yaml.sh`, `test_json.sh`)
