@@ -255,18 +255,30 @@ type RedisCmd struct {
 }
 
 func (r *RedisCmd) Run(cli *CLI) error {
-	return run(cli, r.backendConfig(cli))
+	r.resolvePassword(cli)
+	return run(cli, r.backendConfig())
+}
+
+// resolvePassword treats an empty --password or REDIS_PASSWORD as unset, so
+// that the first non-empty source wins: flag, then REDIS_PASSWORD, then
+// password in confd.toml.
+//
+// An empty --password stops the parser from reading REDIS_PASSWORD, so the
+// variable is read here. When neither gives a password, both are still
+// recorded as explicit sources, which would stop the confd.toml password
+// from applying, so those records are dropped.
+func (r *RedisCmd) resolvePassword(cli *CLI) {
+	if r.Password == "" {
+		r.Password = os.Getenv(redisPasswordEnv)
+	}
+	if r.Password == "" && cli.configSources != nil {
+		delete(cli.configSources.cli, "password")
+		delete(cli.configSources.env, "password")
+	}
 }
 
 // backendConfig builds the redis backend config from the parsed command.
-//
-// An empty REDIS_PASSWORD is treated as unset: it is still recorded as an
-// explicit source when the command line is parsed, which would stop a
-// password in confd.toml from applying, so that record is dropped here.
-func (r *RedisCmd) backendConfig(cli *CLI) backends.Config {
-	if value, isSet := os.LookupEnv(redisPasswordEnv); isSet && value == "" && cli.configSources != nil {
-		delete(cli.configSources.env, "password")
-	}
+func (r *RedisCmd) backendConfig() backends.Config {
 	return backends.Config{
 		Backend:      "redis",
 		BackendNodes: r.Node,
