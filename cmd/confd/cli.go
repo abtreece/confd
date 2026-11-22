@@ -237,15 +237,49 @@ func (v *VaultCmd) Run(cli *CLI) error {
 	return run(cli, cfg)
 }
 
+// redisPasswordEnv is the environment variable the redis command reads its
+// password from.
+const redisPasswordEnv = "REDIS_PASSWORD"
+
+// RedisCmd declares the AuthFlags fields itself rather than embedding
+// AuthFlags, so that REDIS_PASSWORD is bound to the redis password flag only
+// and no other backend reads it.
 type RedisCmd struct {
 	NodeFlags
 	TLSFlags
-	AuthFlags
+	BasicAuth bool   `name:"basic-auth" help:"use basic authentication"`
+	Username  string `help:"authentication username"`
+	Password  string `help:"Redis password (legacy: --client-key is used when no password is set)" env:"REDIS_PASSWORD"`
+	AuthToken string `name:"auth-token" help:"bearer token for authentication"`
 	Separator string `help:"separator to replace '/' in keys"`
 }
 
 func (r *RedisCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	r.resolvePassword(cli)
+	return run(cli, r.backendConfig())
+}
+
+// resolvePassword treats an empty --password or REDIS_PASSWORD as unset, so
+// that the first non-empty source wins: flag, then REDIS_PASSWORD, then
+// password in confd.toml.
+//
+// An empty --password stops the parser from reading REDIS_PASSWORD, so the
+// variable is read here. When neither gives a password, both are still
+// recorded as explicit sources, which would stop the confd.toml password
+// from applying, so those records are dropped.
+func (r *RedisCmd) resolvePassword(cli *CLI) {
+	if r.Password == "" {
+		r.Password = os.Getenv(redisPasswordEnv)
+	}
+	if r.Password == "" && cli.configSources != nil {
+		delete(cli.configSources.cli, "password")
+		delete(cli.configSources.env, "password")
+	}
+}
+
+// backendConfig builds the redis backend config from the parsed command.
+func (r *RedisCmd) backendConfig() backends.Config {
+	return backends.Config{
 		Backend:      "redis",
 		BackendNodes: r.Node,
 		ClientCert:   r.ClientCert,
@@ -255,7 +289,6 @@ func (r *RedisCmd) Run(cli *CLI) error {
 		Password:     r.Password,
 		Separator:    r.Separator,
 	}
-	return run(cli, cfg)
 }
 
 type ZookeeperCmd struct {
