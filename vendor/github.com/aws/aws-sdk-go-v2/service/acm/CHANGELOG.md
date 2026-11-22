@@ -1,3 +1,38 @@
+# v1.52.0 (2026-11-19)
+
+* **Feature**: AWS Certificate Manager now supports the ability to issue certificates from the Amazon N2 certificate authorities (CAs), an Amazon-operated CA hierarchy.
+
+# v1.51.5 (2026-11-10)
+
+* **Dependency Update**: Update to smithy-go v1.28.9.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.51.4 (2026-11-06)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.51.3 (2026-11-05)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.51.2 (2026-11-04)
+
+* **Dependency Update**: Update to smithy-go v1.28.8.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.51.1 (2026-10-30)
+
+* **Bug Fix**: Fix malformed JSON when serializing nil lists or maps in union members, map values, and list elements.
+
+# v1.51.0 (2026-10-28)
+
+* **Feature**: AWS Certificate Manager now supports the Automatic Certificate Management Environment (ACME) protocol in the AWS GovCloud (US-East) and AWS GovCloud (US-West) Regions.
+
+# v1.50.7 (2026-10-27)
+
+* **Dependency Update**: Update to smithy-go v1.28.7.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.50.6 (2026-10-22)
 
 * **Bug Fix**: Update smithy-go to v1.28.6

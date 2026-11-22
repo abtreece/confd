@@ -78,6 +78,18 @@ type CreateDocumentInput struct {
 	// A list of key-value pairs that describe attachments to a version of a document.
 	Attachments []types.AttachmentsSource
 
+	// The cloud providers that the document can run against. Valid values include the
+	// following:
+	//
+	//   - AWS - The document runs against Amazon Web Services resources.
+	//
+	//   - Azure - The document runs against Microsoft Azure resources.
+	//
+	//   - GCP - The document runs against Google Cloud resources.
+	//
+	// If you don't specify a value, the default is AWS .
+	CloudProviders []types.CloudProvider
+
 	// An optional field where you can specify a friendly name for the SSM document.
 	// This value can differ for each version of the document. You can update this
 	// value at a later time using the UpdateDocumentoperation.
@@ -141,7 +153,12 @@ func (v *CreateDocumentInput) Serialize(s smithy.ShapeSerializer) {
 }
 
 func (v *CreateDocumentInput) SerializeMembers(s smithy.ShapeSerializer) {
-	serializeAttachmentsSourceList(s, schemas.CreateDocumentRequest_Attachments, v.Attachments)
+	if v.Attachments != nil {
+		serializeAttachmentsSourceList(s, schemas.CreateDocumentRequest_Attachments, v.Attachments)
+	}
+	if v.CloudProviders != nil {
+		serializeCloudProviderList(s, schemas.CreateDocumentRequest_CloudProviders, v.CloudProviders)
+	}
 	if v.Content != nil {
 		s.WriteString(schemas.CreateDocumentRequest_Content, *v.Content)
 	}
@@ -157,8 +174,12 @@ func (v *CreateDocumentInput) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.Name != nil {
 		s.WriteString(schemas.CreateDocumentRequest_Name, *v.Name)
 	}
-	serializeDocumentRequiresList(s, schemas.CreateDocumentRequest_Requires, v.Requires)
-	serializeTagList(s, schemas.CreateDocumentRequest_Tags, v.Tags)
+	if v.Requires != nil {
+		serializeDocumentRequiresList(s, schemas.CreateDocumentRequest_Requires, v.Requires)
+	}
+	if v.Tags != nil {
+		serializeTagList(s, schemas.CreateDocumentRequest_Tags, v.Tags)
+	}
 	if v.TargetType != nil {
 		s.WriteString(schemas.CreateDocumentRequest_TargetType, *v.TargetType)
 	}

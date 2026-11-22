@@ -21,6 +21,11 @@ type AcmCertificateMetadata struct {
 	// The origin of the certificate's key pair.
 	CertificateKeyPairOrigin CertificateKeyPairOrigin
 
+	// The Extended Key Usage profile of the certificate. This value exists only for
+	// Amazon N2 certificates. If CertificateUsage was omitted from the request, this
+	// value is CLIENT_AND_SERVER_AUTH .
+	CertificateUsage CertificateUsage
+
 	// The time at which the certificate was requested.
 	CreatedAt *time.Time
 
@@ -56,6 +61,10 @@ type AcmCertificateMetadata struct {
 	// The time at which the certificate was revoked. This value exists only when the
 	// certificate status is REVOKED .
 	RevokedAt *time.Time
+
+	// The root hierarchy from which the certificate was issued. This value exists
+	// only for Amazon N2 certificates, which have a Type of AMAZON_ISSUED .
+	RootHierarchyType RootHierarchyType
 
 	// The status of the certificate.
 	//
@@ -103,6 +112,9 @@ func (v *AcmCertificateMetadata) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.CertificateKeyPairOrigin != "" {
 		s.WriteString(schemas.AcmCertificateMetadata_CertificateKeyPairOrigin, string(v.CertificateKeyPairOrigin))
 	}
+	if v.CertificateUsage != "" {
+		s.WriteString(schemas.AcmCertificateMetadata_CertificateUsage, string(v.CertificateUsage))
+	}
 	if v.CreatedAt != nil {
 		s.WriteTime(schemas.AcmCertificateMetadata_CreatedAt, *v.CreatedAt)
 	}
@@ -133,6 +145,9 @@ func (v *AcmCertificateMetadata) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.RevokedAt != nil {
 		s.WriteTime(schemas.AcmCertificateMetadata_RevokedAt, *v.RevokedAt)
 	}
+	if v.RootHierarchyType != "" {
+		s.WriteString(schemas.AcmCertificateMetadata_RootHierarchyType, string(v.RootHierarchyType))
+	}
 	if v.Status != "" {
 		s.WriteString(schemas.AcmCertificateMetadata_Status, string(v.Status))
 	}
@@ -158,6 +173,13 @@ func (v *AcmCertificateMetadata) Deserialize(d smithy.ShapeDeserializer) error {
 				return err
 			}
 			v.CertificateKeyPairOrigin = CertificateKeyPairOrigin(ev)
+			return nil
+		case schemas.AcmCertificateMetadata_CertificateUsage:
+			var ev string
+			if err := d.ReadString(schemas.AcmCertificateMetadata_CertificateUsage, &ev); err != nil {
+				return err
+			}
+			v.CertificateUsage = CertificateUsage(ev)
 			return nil
 		case schemas.AcmCertificateMetadata_CreatedAt:
 			v.CreatedAt = new(time.Time)
@@ -205,6 +227,13 @@ func (v *AcmCertificateMetadata) Deserialize(d smithy.ShapeDeserializer) error {
 		case schemas.AcmCertificateMetadata_RevokedAt:
 			v.RevokedAt = new(time.Time)
 			return d.ReadTime(schemas.AcmCertificateMetadata_RevokedAt, v.RevokedAt)
+		case schemas.AcmCertificateMetadata_RootHierarchyType:
+			var ev string
+			if err := d.ReadString(schemas.AcmCertificateMetadata_RootHierarchyType, &ev); err != nil {
+				return err
+			}
+			v.RootHierarchyType = RootHierarchyType(ev)
+			return nil
 		case schemas.AcmCertificateMetadata_Status:
 			var ev string
 			if err := d.ReadString(schemas.AcmCertificateMetadata_Status, &ev); err != nil {
@@ -243,6 +272,7 @@ func (v *AcmCertificateMetadata) Deserialize(d smithy.ShapeDeserializer) error {
 //	AcmCertificateMetadataFilterMemberInUse
 //	AcmCertificateMetadataFilterMemberManagedBy
 //	AcmCertificateMetadataFilterMemberRenewalStatus
+//	AcmCertificateMetadataFilterMemberRootHierarchyType
 //	AcmCertificateMetadataFilterMemberStatus
 //	AcmCertificateMetadataFilterMemberType
 //	AcmCertificateMetadataFilterMemberValidationMethod
@@ -390,6 +420,27 @@ func (v *AcmCertificateMetadataFilterMemberRenewalStatus) Deserialize(d smithy.S
 	return nil
 }
 
+// Filter by root hierarchy type. Specify N2_AMAZON_MANAGED or
+// N2_SFG2_AMAZON_MANAGED to return Amazon N2 certificates.
+type AcmCertificateMetadataFilterMemberRootHierarchyType struct {
+	Value RootHierarchyType
+
+	noSmithyDocumentSerde
+}
+
+func (*AcmCertificateMetadataFilterMemberRootHierarchyType) isAcmCertificateMetadataFilter() {}
+func (v *AcmCertificateMetadataFilterMemberRootHierarchyType) Serialize(s smithy.ShapeSerializer) {
+	s.WriteString(schemas.AcmCertificateMetadataFilter_RootHierarchyType, string(v.Value))
+}
+func (v *AcmCertificateMetadataFilterMemberRootHierarchyType) Deserialize(d smithy.ShapeDeserializer) error {
+	var s string
+	if err := d.ReadString(schemas.AcmCertificateMetadataFilter_RootHierarchyType, &s); err != nil {
+		return err
+	}
+	v.Value = RootHierarchyType(s)
+	return nil
+}
+
 // Filter by certificate status.
 type AcmCertificateMetadataFilterMemberStatus struct {
 	Value CertificateStatus
@@ -488,7 +539,9 @@ func (v *AcmeAccount) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.AcmeExternalAccountBindingArn != nil {
 		s.WriteString(schemas.AcmeAccount_AcmeExternalAccountBindingArn, *v.AcmeExternalAccountBindingArn)
 	}
-	serializeContactList(s, schemas.AcmeAccount_Contacts, v.Contacts)
+	if v.Contacts != nil {
+		serializeContactList(s, schemas.AcmeAccount_Contacts, v.Contacts)
+	}
 	if v.CreatedAt != nil {
 		s.WriteTime(schemas.AcmeAccount_CreatedAt, *v.CreatedAt)
 	}
@@ -566,7 +619,9 @@ func (v *AcmeAccountSummary) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.AcmeExternalAccountBindingArn != nil {
 		s.WriteString(schemas.AcmeAccountSummary_AcmeExternalAccountBindingArn, *v.AcmeExternalAccountBindingArn)
 	}
-	serializeContactList(s, schemas.AcmeAccountSummary_Contacts, v.Contacts)
+	if v.Contacts != nil {
+		serializeContactList(s, schemas.AcmeAccountSummary_Contacts, v.Contacts)
+	}
 	if v.CreatedAt != nil {
 		s.WriteTime(schemas.AcmeAccountSummary_CreatedAt, *v.CreatedAt)
 	}
@@ -663,7 +718,9 @@ func (v *AcmeDomainValidation) SerializeMembers(s smithy.ShapeSerializer) {
 		v.FailureDetails.SerializeMembers(s)
 		s.CloseStruct()
 	}
-	serializePrevalidationDetails(s, schemas.AcmeDomainValidation_PrevalidationDetails, v.PrevalidationDetails)
+	if v.PrevalidationDetails != nil {
+		serializePrevalidationDetails(s, schemas.AcmeDomainValidation_PrevalidationDetails, v.PrevalidationDetails)
+	}
 	if v.PrevalidationType != "" {
 		s.WriteString(schemas.AcmeDomainValidation_PrevalidationType, string(v.PrevalidationType))
 	}
@@ -773,7 +830,9 @@ func (v *AcmeDomainValidationSummary) SerializeMembers(s smithy.ShapeSerializer)
 		v.FailureDetails.SerializeMembers(s)
 		s.CloseStruct()
 	}
-	serializePrevalidationDetails(s, schemas.AcmeDomainValidationSummary_PrevalidationDetails, v.PrevalidationDetails)
+	if v.PrevalidationDetails != nil {
+		serializePrevalidationDetails(s, schemas.AcmeDomainValidationSummary_PrevalidationDetails, v.PrevalidationDetails)
+	}
 	if v.PrevalidationType != "" {
 		s.WriteString(schemas.AcmeDomainValidationSummary_PrevalidationType, string(v.PrevalidationType))
 	}
@@ -876,8 +935,12 @@ func (v *AcmeEndpoint) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.AuthorizationBehavior != "" {
 		s.WriteString(schemas.AcmeEndpoint_AuthorizationBehavior, string(v.AuthorizationBehavior))
 	}
-	serializeCertificateAuthority(s, schemas.AcmeEndpoint_CertificateAuthority, v.CertificateAuthority)
-	serializeTagList(s, schemas.AcmeEndpoint_CertificateTags, v.CertificateTags)
+	if v.CertificateAuthority != nil {
+		serializeCertificateAuthority(s, schemas.AcmeEndpoint_CertificateAuthority, v.CertificateAuthority)
+	}
+	if v.CertificateTags != nil {
+		serializeTagList(s, schemas.AcmeEndpoint_CertificateTags, v.CertificateTags)
+	}
 	if v.Contact != "" {
 		s.WriteString(schemas.AcmeEndpoint_Contact, string(v.Contact))
 	}
@@ -995,8 +1058,12 @@ func (v *AcmeEndpointSummary) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.AuthorizationBehavior != "" {
 		s.WriteString(schemas.AcmeEndpointSummary_AuthorizationBehavior, string(v.AuthorizationBehavior))
 	}
-	serializeCertificateAuthority(s, schemas.AcmeEndpointSummary_CertificateAuthority, v.CertificateAuthority)
-	serializeTagList(s, schemas.AcmeEndpointSummary_CertificateTags, v.CertificateTags)
+	if v.CertificateAuthority != nil {
+		serializeCertificateAuthority(s, schemas.AcmeEndpointSummary_CertificateAuthority, v.CertificateAuthority)
+	}
+	if v.CertificateTags != nil {
+		serializeTagList(s, schemas.AcmeEndpointSummary_CertificateTags, v.CertificateTags)
+	}
 	if v.Contact != "" {
 		s.WriteString(schemas.AcmeEndpointSummary_Contact, string(v.Contact))
 	}
@@ -1305,6 +1372,11 @@ type CertificateDetail struct {
 	// The origin of the certificate's key pair.
 	CertificateKeyPairOrigin CertificateKeyPairOrigin
 
+	// The Extended Key Usage profile of the certificate. This value exists only for
+	// Amazon N2 certificates. If CertificateUsage was omitted from the request, this
+	// value is CLIENT_AND_SERVER_AUTH .
+	CertificateUsage CertificateUsage
+
 	// The time at which the certificate was requested.
 	CreatedAt *time.Time
 
@@ -1365,8 +1437,8 @@ type CertificateDetail struct {
 	NotBefore *time.Time
 
 	// Contains the certificate options. Certificate transparency logging opt-out is
-	// no longer available. All public certificates are recorded in a certificate
-	// transparency log.
+	// no longer available. ACM records all public certificates other than Amazon N2
+	// certificates in a certificate transparency log.
 	Options *CertificateOptions
 
 	// Specifies whether the certificate is eligible for renewal. At this time, only
@@ -1386,6 +1458,10 @@ type CertificateDetail struct {
 	// The time at which the certificate was revoked. This value exists only when the
 	// certificate status is REVOKED .
 	RevokedAt *time.Time
+
+	// The root hierarchy from which the certificate was issued. This value exists
+	// only for Amazon N2 certificates, which have a Type of AMAZON_ISSUED .
+	RootHierarchyType RootHierarchyType
 
 	// The serial number of the certificate.
 	Serial *string
@@ -1458,21 +1534,30 @@ func (v *CertificateDetail) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.CertificateKeyPairOrigin != "" {
 		s.WriteString(schemas.CertificateDetail_CertificateKeyPairOrigin, string(v.CertificateKeyPairOrigin))
 	}
+	if v.CertificateUsage != "" {
+		s.WriteString(schemas.CertificateDetail_CertificateUsage, string(v.CertificateUsage))
+	}
 	if v.CreatedAt != nil {
 		s.WriteTime(schemas.CertificateDetail_CreatedAt, *v.CreatedAt)
 	}
 	if v.DomainName != nil {
 		s.WriteString(schemas.CertificateDetail_DomainName, *v.DomainName)
 	}
-	serializeDomainValidationList(s, schemas.CertificateDetail_DomainValidationOptions, v.DomainValidationOptions)
-	serializeExtendedKeyUsageList(s, schemas.CertificateDetail_ExtendedKeyUsages, v.ExtendedKeyUsages)
+	if v.DomainValidationOptions != nil {
+		serializeDomainValidationList(s, schemas.CertificateDetail_DomainValidationOptions, v.DomainValidationOptions)
+	}
+	if v.ExtendedKeyUsages != nil {
+		serializeExtendedKeyUsageList(s, schemas.CertificateDetail_ExtendedKeyUsages, v.ExtendedKeyUsages)
+	}
 	if v.FailureReason != "" {
 		s.WriteString(schemas.CertificateDetail_FailureReason, string(v.FailureReason))
 	}
 	if v.ImportedAt != nil {
 		s.WriteTime(schemas.CertificateDetail_ImportedAt, *v.ImportedAt)
 	}
-	serializeInUseList(s, schemas.CertificateDetail_InUseBy, v.InUseBy)
+	if v.InUseBy != nil {
+		serializeInUseList(s, schemas.CertificateDetail_InUseBy, v.InUseBy)
+	}
 	if v.IssuedAt != nil {
 		s.WriteTime(schemas.CertificateDetail_IssuedAt, *v.IssuedAt)
 	}
@@ -1482,7 +1567,9 @@ func (v *CertificateDetail) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.KeyAlgorithm != "" {
 		s.WriteString(schemas.CertificateDetail_KeyAlgorithm, string(v.KeyAlgorithm))
 	}
-	serializeKeyUsageList(s, schemas.CertificateDetail_KeyUsages, v.KeyUsages)
+	if v.KeyUsages != nil {
+		serializeKeyUsageList(s, schemas.CertificateDetail_KeyUsages, v.KeyUsages)
+	}
 	if v.ManagedBy != "" {
 		s.WriteString(schemas.CertificateDetail_ManagedBy, string(v.ManagedBy))
 	}
@@ -1511,6 +1598,9 @@ func (v *CertificateDetail) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.RevokedAt != nil {
 		s.WriteTime(schemas.CertificateDetail_RevokedAt, *v.RevokedAt)
 	}
+	if v.RootHierarchyType != "" {
+		s.WriteString(schemas.CertificateDetail_RootHierarchyType, string(v.RootHierarchyType))
+	}
 	if v.Serial != nil {
 		s.WriteString(schemas.CertificateDetail_Serial, *v.Serial)
 	}
@@ -1523,7 +1613,9 @@ func (v *CertificateDetail) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.Subject != nil {
 		s.WriteString(schemas.CertificateDetail_Subject, *v.Subject)
 	}
-	serializeDomainList(s, schemas.CertificateDetail_SubjectAlternativeNames, v.SubjectAlternativeNames)
+	if v.SubjectAlternativeNames != nil {
+		serializeDomainList(s, schemas.CertificateDetail_SubjectAlternativeNames, v.SubjectAlternativeNames)
+	}
 	if v.Type != "" {
 		s.WriteString(schemas.CertificateDetail_Type, string(v.Type))
 	}
@@ -1554,6 +1646,13 @@ func (v *CertificateDetail) Deserialize(d smithy.ShapeDeserializer) error {
 				return err
 			}
 			v.CertificateKeyPairOrigin = CertificateKeyPairOrigin(ev)
+			return nil
+		case schemas.CertificateDetail_CertificateUsage:
+			var ev string
+			if err := d.ReadString(schemas.CertificateDetail_CertificateUsage, &ev); err != nil {
+				return err
+			}
+			v.CertificateUsage = CertificateUsage(ev)
 			return nil
 		case schemas.CertificateDetail_CreatedAt:
 			v.CreatedAt = new(time.Time)
@@ -1628,6 +1727,13 @@ func (v *CertificateDetail) Deserialize(d smithy.ShapeDeserializer) error {
 		case schemas.CertificateDetail_RevokedAt:
 			v.RevokedAt = new(time.Time)
 			return d.ReadTime(schemas.CertificateDetail_RevokedAt, v.RevokedAt)
+		case schemas.CertificateDetail_RootHierarchyType:
+			var ev string
+			if err := d.ReadString(schemas.CertificateDetail_RootHierarchyType, &ev); err != nil {
+				return err
+			}
+			v.RootHierarchyType = RootHierarchyType(ev)
+			return nil
 		case schemas.CertificateDetail_Serial:
 			v.Serial = new(string)
 			return d.ReadString(schemas.CertificateDetail_Serial, v.Serial)
@@ -1822,8 +1928,8 @@ func (v *CertificateMetadataMemberAcmCertificateMetadata) Deserialize(d smithy.S
 // structure to change the domain validation method or specify whether to export
 // your certificate.
 //
-// All public certificates are recorded in a certificate transparency log. For
-// general information, see [Certificate Transparency Logging].
+// ACM records all public certificates other than Amazon N2 certificates in a
+// certificate transparency log. For general information, see [Certificate Transparency Logging].
 //
 // You can export public ACM certificates to use with Amazon Web Services services
 // as well as outside Amazon Web Services Cloud. For more information, see [Certificate Manager exportable public certificate].
@@ -1833,8 +1939,8 @@ func (v *CertificateMetadataMemberAcmCertificateMetadata) Deserialize(d smithy.S
 type CertificateOptions struct {
 
 	// This parameter has been deprecated. Certificate transparency logging opt-out is
-	// no longer available. All public certificates are recorded in a certificate
-	// transparency log.
+	// no longer available. ACM records all public certificates other than Amazon N2
+	// certificates in a certificate transparency log.
 	//
 	// Deprecated: Certificate transparency logging opt-out is no longer available.
 	CertificateTransparencyLoggingPreference CertificateTransparencyLoggingPreference
@@ -1922,7 +2028,9 @@ func (v *CertificateSearchResult) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.CertificateArn != nil {
 		s.WriteString(schemas.CertificateSearchResult_CertificateArn, *v.CertificateArn)
 	}
-	serializeCertificateMetadata(s, schemas.CertificateSearchResult_CertificateMetadata, v.CertificateMetadata)
+	if v.CertificateMetadata != nil {
+		serializeCertificateMetadata(s, schemas.CertificateSearchResult_CertificateMetadata, v.CertificateMetadata)
+	}
 	if v.X509Attributes != nil {
 		s.WriteStruct(schemas.CertificateSearchResult_X509Attributes)
 		v.X509Attributes.SerializeMembers(s)
@@ -1959,6 +2067,11 @@ type CertificateSummary struct {
 
 	// The origin of the certificate's key pair.
 	CertificateKeyPairOrigin CertificateKeyPairOrigin
+
+	// The Extended Key Usage profile of the certificate. This value exists only for
+	// Amazon N2 certificates. If CertificateUsage was omitted from the request, this
+	// value is CLIENT_AND_SERVER_AUTH .
+	CertificateUsage CertificateUsage
 
 	// The time at which the certificate was requested.
 	CreatedAt *time.Time
@@ -2027,6 +2140,10 @@ type CertificateSummary struct {
 	// certificate status is REVOKED .
 	RevokedAt *time.Time
 
+	// The root hierarchy from which the certificate was issued. This value exists
+	// only for Amazon N2 certificates, which have a Type of AMAZON_ISSUED .
+	RootHierarchyType RootHierarchyType
+
 	// The status of the certificate.
 	//
 	// A certificate enters status PENDING_VALIDATION upon being requested, unless it
@@ -2081,6 +2198,9 @@ func (v *CertificateSummary) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.CertificateKeyPairOrigin != "" {
 		s.WriteString(schemas.CertificateSummary_CertificateKeyPairOrigin, string(v.CertificateKeyPairOrigin))
 	}
+	if v.CertificateUsage != "" {
+		s.WriteString(schemas.CertificateSummary_CertificateUsage, string(v.CertificateUsage))
+	}
 	if v.CreatedAt != nil {
 		s.WriteTime(schemas.CertificateSummary_CreatedAt, *v.CreatedAt)
 	}
@@ -2093,7 +2213,9 @@ func (v *CertificateSummary) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.Exported != nil {
 		s.WriteBool(schemas.CertificateSummary_Exported, *v.Exported)
 	}
-	serializeExtendedKeyUsageNames(s, schemas.CertificateSummary_ExtendedKeyUsages, v.ExtendedKeyUsages)
+	if v.ExtendedKeyUsages != nil {
+		serializeExtendedKeyUsageNames(s, schemas.CertificateSummary_ExtendedKeyUsages, v.ExtendedKeyUsages)
+	}
 	if v.HasAdditionalSubjectAlternativeNames != nil {
 		s.WriteBool(schemas.CertificateSummary_HasAdditionalSubjectAlternativeNames, *v.HasAdditionalSubjectAlternativeNames)
 	}
@@ -2109,7 +2231,9 @@ func (v *CertificateSummary) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.KeyAlgorithm != "" {
 		s.WriteString(schemas.CertificateSummary_KeyAlgorithm, string(v.KeyAlgorithm))
 	}
-	serializeKeyUsageNames(s, schemas.CertificateSummary_KeyUsages, v.KeyUsages)
+	if v.KeyUsages != nil {
+		serializeKeyUsageNames(s, schemas.CertificateSummary_KeyUsages, v.KeyUsages)
+	}
 	if v.ManagedBy != "" {
 		s.WriteString(schemas.CertificateSummary_ManagedBy, string(v.ManagedBy))
 	}
@@ -2125,10 +2249,15 @@ func (v *CertificateSummary) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.RevokedAt != nil {
 		s.WriteTime(schemas.CertificateSummary_RevokedAt, *v.RevokedAt)
 	}
+	if v.RootHierarchyType != "" {
+		s.WriteString(schemas.CertificateSummary_RootHierarchyType, string(v.RootHierarchyType))
+	}
 	if v.Status != "" {
 		s.WriteString(schemas.CertificateSummary_Status, string(v.Status))
 	}
-	serializeDomainList(s, schemas.CertificateSummary_SubjectAlternativeNameSummaries, v.SubjectAlternativeNameSummaries)
+	if v.SubjectAlternativeNameSummaries != nil {
+		serializeDomainList(s, schemas.CertificateSummary_SubjectAlternativeNameSummaries, v.SubjectAlternativeNameSummaries)
+	}
 	if v.Type != "" {
 		s.WriteString(schemas.CertificateSummary_Type, string(v.Type))
 	}
@@ -2145,6 +2274,13 @@ func (v *CertificateSummary) Deserialize(d smithy.ShapeDeserializer) error {
 				return err
 			}
 			v.CertificateKeyPairOrigin = CertificateKeyPairOrigin(ev)
+			return nil
+		case schemas.CertificateSummary_CertificateUsage:
+			var ev string
+			if err := d.ReadString(schemas.CertificateSummary_CertificateUsage, &ev); err != nil {
+				return err
+			}
+			v.CertificateUsage = CertificateUsage(ev)
 			return nil
 		case schemas.CertificateSummary_CreatedAt:
 			v.CreatedAt = new(time.Time)
@@ -2208,6 +2344,13 @@ func (v *CertificateSummary) Deserialize(d smithy.ShapeDeserializer) error {
 		case schemas.CertificateSummary_RevokedAt:
 			v.RevokedAt = new(time.Time)
 			return d.ReadTime(schemas.CertificateSummary_RevokedAt, v.RevokedAt)
+		case schemas.CertificateSummary_RootHierarchyType:
+			var ev string
+			if err := d.ReadString(schemas.CertificateSummary_RootHierarchyType, &ev); err != nil {
+				return err
+			}
+			v.RootHierarchyType = RootHierarchyType(ev)
+			return nil
 		case schemas.CertificateSummary_Status:
 			var ev string
 			if err := d.ReadString(schemas.CertificateSummary_Status, &ev); err != nil {
@@ -2386,11 +2529,15 @@ func (v *DistinguishedName) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.Country != nil {
 		s.WriteString(schemas.DistinguishedName_Country, *v.Country)
 	}
-	serializeCustomAttributeList(s, schemas.DistinguishedName_CustomAttributes, v.CustomAttributes)
+	if v.CustomAttributes != nil {
+		serializeCustomAttributeList(s, schemas.DistinguishedName_CustomAttributes, v.CustomAttributes)
+	}
 	if v.DistinguishedNameQualifier != nil {
 		s.WriteString(schemas.DistinguishedName_DistinguishedNameQualifier, *v.DistinguishedNameQualifier)
 	}
-	serializeDomainComponentList(s, schemas.DistinguishedName_DomainComponents, v.DomainComponents)
+	if v.DomainComponents != nil {
+		serializeDomainComponentList(s, schemas.DistinguishedName_DomainComponents, v.DomainComponents)
+	}
 	if v.GenerationQualifier != nil {
 		s.WriteString(schemas.DistinguishedName_GenerationQualifier, *v.GenerationQualifier)
 	}
@@ -2790,7 +2937,9 @@ func (v *DomainValidation) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.ValidationDomain != nil {
 		s.WriteString(schemas.DomainValidation_ValidationDomain, *v.ValidationDomain)
 	}
-	serializeValidationEmailList(s, schemas.DomainValidation_ValidationEmails, v.ValidationEmails)
+	if v.ValidationEmails != nil {
+		serializeValidationEmailList(s, schemas.DomainValidation_ValidationEmails, v.ValidationEmails)
+	}
 	if v.ValidationMethod != "" {
 		s.WriteString(schemas.DomainValidation_ValidationMethod, string(v.ValidationMethod))
 	}
@@ -3028,7 +3177,9 @@ func (v *EmailValidationChallenge) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.ValidationDomain != nil {
 		s.WriteString(schemas.EmailValidationChallenge_ValidationDomain, *v.ValidationDomain)
 	}
-	serializeValidationEmailList(s, schemas.EmailValidationChallenge_ValidationEmails, v.ValidationEmails)
+	if v.ValidationEmails != nil {
+		serializeValidationEmailList(s, schemas.EmailValidationChallenge_ValidationEmails, v.ValidationEmails)
+	}
 }
 func (v *EmailValidationChallenge) Deserialize(d smithy.ShapeDeserializer) error {
 	return smithy.ReadStruct(d, schemas.EmailValidationChallenge, func(s *smithy.Schema) error {
@@ -3273,9 +3424,15 @@ func (v *Filters) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.ExportOption != "" {
 		s.WriteString(schemas.Filters_exportOption, string(v.ExportOption))
 	}
-	serializeExtendedKeyUsageFilterList(s, schemas.Filters_extendedKeyUsage, v.ExtendedKeyUsage)
-	serializeKeyAlgorithmList(s, schemas.Filters_keyTypes, v.KeyTypes)
-	serializeKeyUsageFilterList(s, schemas.Filters_keyUsage, v.KeyUsage)
+	if v.ExtendedKeyUsage != nil {
+		serializeExtendedKeyUsageFilterList(s, schemas.Filters_extendedKeyUsage, v.ExtendedKeyUsage)
+	}
+	if v.KeyTypes != nil {
+		serializeKeyAlgorithmList(s, schemas.Filters_keyTypes, v.KeyTypes)
+	}
+	if v.KeyUsage != nil {
+		serializeKeyUsageFilterList(s, schemas.Filters_keyUsage, v.KeyUsage)
+	}
 	if v.ManagedBy != "" {
 		s.WriteString(schemas.Filters_managedBy, string(v.ManagedBy))
 	}
@@ -3633,7 +3790,9 @@ func (v *PublicCertificateAuthority) Serialize(s smithy.ShapeSerializer) {
 }
 
 func (v *PublicCertificateAuthority) SerializeMembers(s smithy.ShapeSerializer) {
-	serializePublicKeyAlgorithmList(s, schemas.PublicCertificateAuthority_AllowedKeyAlgorithms, v.AllowedKeyAlgorithms)
+	if v.AllowedKeyAlgorithms != nil {
+		serializePublicKeyAlgorithmList(s, schemas.PublicCertificateAuthority_AllowedKeyAlgorithms, v.AllowedKeyAlgorithms)
+	}
 }
 func (v *PublicCertificateAuthority) Deserialize(d smithy.ShapeDeserializer) error {
 	return smithy.ReadStruct(d, schemas.PublicCertificateAuthority, func(s *smithy.Schema) error {
@@ -3686,7 +3845,9 @@ func (v *RenewalSummary) Serialize(s smithy.ShapeSerializer) {
 }
 
 func (v *RenewalSummary) SerializeMembers(s smithy.ShapeSerializer) {
-	serializeDomainValidationList(s, schemas.RenewalSummary_DomainValidationOptions, v.DomainValidationOptions)
+	if v.DomainValidationOptions != nil {
+		serializeDomainValidationList(s, schemas.RenewalSummary_DomainValidationOptions, v.DomainValidationOptions)
+	}
 	if v.RenewalStatus != "" {
 		s.WriteString(schemas.RenewalSummary_RenewalStatus, string(v.RenewalStatus))
 	}
@@ -4135,7 +4296,9 @@ func (v *ValidationConfiguration) Serialize(s smithy.ShapeSerializer) {
 }
 
 func (v *ValidationConfiguration) SerializeMembers(s smithy.ShapeSerializer) {
-	serializeValidationChallenge(s, schemas.ValidationConfiguration_ValidationChallenge, v.ValidationChallenge)
+	if v.ValidationChallenge != nil {
+		serializeValidationChallenge(s, schemas.ValidationConfiguration_ValidationChallenge, v.ValidationChallenge)
+	}
 	if v.ValidationMethod != "" {
 		s.WriteString(schemas.ValidationConfiguration_ValidationMethod, string(v.ValidationMethod))
 	}
@@ -4371,7 +4534,9 @@ func (v *X509Attributes) Serialize(s smithy.ShapeSerializer) {
 }
 
 func (v *X509Attributes) SerializeMembers(s smithy.ShapeSerializer) {
-	serializeExtendedKeyUsageNames(s, schemas.X509Attributes_ExtendedKeyUsages, v.ExtendedKeyUsages)
+	if v.ExtendedKeyUsages != nil {
+		serializeExtendedKeyUsageNames(s, schemas.X509Attributes_ExtendedKeyUsages, v.ExtendedKeyUsages)
+	}
 	if v.Issuer != nil {
 		s.WriteStruct(schemas.X509Attributes_Issuer)
 		v.Issuer.SerializeMembers(s)
@@ -4380,7 +4545,9 @@ func (v *X509Attributes) SerializeMembers(s smithy.ShapeSerializer) {
 	if v.KeyAlgorithm != "" {
 		s.WriteString(schemas.X509Attributes_KeyAlgorithm, string(v.KeyAlgorithm))
 	}
-	serializeKeyUsageNames(s, schemas.X509Attributes_KeyUsages, v.KeyUsages)
+	if v.KeyUsages != nil {
+		serializeKeyUsageNames(s, schemas.X509Attributes_KeyUsages, v.KeyUsages)
+	}
 	if v.NotAfter != nil {
 		s.WriteTime(schemas.X509Attributes_NotAfter, *v.NotAfter)
 	}
@@ -4395,7 +4562,9 @@ func (v *X509Attributes) SerializeMembers(s smithy.ShapeSerializer) {
 		v.Subject.SerializeMembers(s)
 		s.CloseStruct()
 	}
-	serializeGeneralNameList(s, schemas.X509Attributes_SubjectAlternativeNames, v.SubjectAlternativeNames)
+	if v.SubjectAlternativeNames != nil {
+		serializeGeneralNameList(s, schemas.X509Attributes_SubjectAlternativeNames, v.SubjectAlternativeNames)
+	}
 }
 func (v *X509Attributes) Deserialize(d smithy.ShapeDeserializer) error {
 	return smithy.ReadStruct(d, schemas.X509Attributes, func(s *smithy.Schema) error {

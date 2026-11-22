@@ -1,3 +1,57 @@
+# v1.51.0 (2026-11-12)
+
+* **Feature**: Adds support for cross-account replication with the new AssociateCrossAccountReplica, DisassociateCrossAccountReplica, and ListResourcePolicies APIs, CrossAccountPrimaryARN in CreateSecret, cross-account replication status in DescribeSecret, and PolicyName in the resource policy APIs.
+
+# v1.50.12 (2026-11-10)
+
+* **Dependency Update**: Update to smithy-go v1.28.9.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.50.11 (2026-11-06)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.50.10 (2026-11-05)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.50.9 (2026-11-04)
+
+* **Dependency Update**: Update to smithy-go v1.28.8.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.50.8 (2026-10-30)
+
+* **Bug Fix**: Fix malformed JSON when serializing nil lists or maps in union members, map values, and list elements.
+
+# v1.50.7 (2026-10-27)
+
+* **Dependency Update**: Update to smithy-go v1.28.7.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.50.6 (2026-10-22)
+
+* **Bug Fix**: Update smithy-go to v1.28.6
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.50.5 (2026-10-19)
+
+* **Bug Fix**: Allow lists with null values to deserialize into its zero value instead of failing
+
+# v1.50.4 (2026-10-09.2)
+
+* **Dependency Update**: Update to smithy-go v1.28.5.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.50.3 (2026-10-08)
+
+* **Dependency Update**: Update to smithy-go v1.28.4.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.50.2 (2026-10-06)
+
+* No change notes available for this release.
+
 # v1.50.1 (2026-09-24)
 
 * **Dependency Update**: Updated to the latest SDK module versions

@@ -143,6 +143,11 @@ var DeleteResourcePolicy = smithy.NewSchema(smithy.ShapeID{
 	Name:      "DeleteResourcePolicy",
 }, smithy.ShapeTypeOperation, 0)
 
+var DeregisterDefaultHostManagementConfiguration = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "DeregisterDefaultHostManagementConfiguration",
+}, smithy.ShapeTypeOperation, 0)
+
 var DeregisterManagedInstance = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "DeregisterManagedInstance",
@@ -596,6 +601,11 @@ var PutParameter = smithy.NewSchema(smithy.ShapeID{
 var PutResourcePolicy = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "PutResourcePolicy",
+}, smithy.ShapeTypeOperation, 0)
+
+var RegisterDefaultHostManagementConfiguration = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "RegisterDefaultHostManagementConfiguration",
 }, smithy.ShapeTypeOperation, 0)
 
 var RegisterDefaultPatchBaseline = smithy.NewSchema(smithy.ShapeID{
@@ -1598,7 +1608,7 @@ var AutomationDefinitionVersionNotFoundException_Message *smithy.Schema
 var AutomationExecution = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "AutomationExecution",
-}, smithy.ShapeTypeStructure, 36)
+}, smithy.ShapeTypeStructure, 37)
 var AutomationExecution_AutomationExecutionId *smithy.Schema
 
 var AutomationExecution_DocumentName *smithy.Schema
@@ -1670,6 +1680,8 @@ var AutomationExecution_AssociationId *smithy.Schema
 var AutomationExecution_ChangeRequestName *smithy.Schema
 
 var AutomationExecution_Variables *smithy.Schema
+
+var AutomationExecution_TargetsSummary *smithy.Schema
 
 var AutomationExecutionFilter = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -2124,8 +2136,10 @@ var _CloudConnectorArn = smithy.NewSchema(smithy.ShapeID{
 var CloudConnectorConfiguration = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "CloudConnectorConfiguration",
-}, smithy.ShapeTypeUnion, 1)
+}, smithy.ShapeTypeUnion, 2)
 var CloudConnectorConfiguration_AzureConfiguration *smithy.Schema
+
+var CloudConnectorConfiguration_GcpConfiguration *smithy.Schema
 
 var _CloudConnectorDescription = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -2143,10 +2157,14 @@ var CloudConnectorFilter_FilterValues *smithy.Schema
 var CloudConnectorFilterKey = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "CloudConnectorFilterKey",
-}, smithy.ShapeTypeEnum, 2)
+}, smithy.ShapeTypeEnum, 4)
 var CloudConnectorFilterKey_SubscriptionId *smithy.Schema
 
 var CloudConnectorFilterKey_TenantId *smithy.Schema
+
+var CloudConnectorFilterKey_ProjectId *smithy.Schema
+
+var CloudConnectorFilterKey_OrganizationId *smithy.Schema
 
 var _CloudConnectorFilterList = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -2183,7 +2201,7 @@ var _CloudConnectorMaxResults = smithy.NewSchema(smithy.ShapeID{
 var CloudConnectorSummary = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "CloudConnectorSummary",
-}, smithy.ShapeTypeStructure, 6)
+}, smithy.ShapeTypeStructure, 8)
 var CloudConnectorSummary_CloudConnectorId *smithy.Schema
 
 var CloudConnectorSummary_DisplayName *smithy.Schema
@@ -2196,11 +2214,31 @@ var CloudConnectorSummary_CreatedAt *smithy.Schema
 
 var CloudConnectorSummary_UpdatedAt *smithy.Schema
 
+var CloudConnectorSummary_Provider *smithy.Schema
+
+var CloudConnectorSummary_ConfigConnectorArn *smithy.Schema
+
 var _CloudConnectorSummaryList = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "CloudConnectorSummaryList",
 }, smithy.ShapeTypeList, 1)
 var _CloudConnectorSummaryList_member *smithy.Schema
+
+var CloudProvider = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "CloudProvider",
+}, smithy.ShapeTypeEnum, 3)
+var CloudProvider_AWS *smithy.Schema
+
+var CloudProvider_AZURE *smithy.Schema
+
+var CloudProvider_GCP *smithy.Schema
+
+var _CloudProviderList = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "CloudProviderList",
+}, smithy.ShapeTypeList, 1)
+var _CloudProviderList_member *smithy.Schema
 
 var _CloudWatchLogGroupName = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -2882,6 +2920,19 @@ var _DescriptionInDocument = smithy.NewSchema(smithy.ShapeID{
 	Name:      "DescriptionInDocument",
 }, smithy.ShapeTypeString, 0)
 
+var DHMCPermissionModel = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "DHMCPermissionModel",
+}, smithy.ShapeTypeEnum, 2)
+var DHMCPermissionModel_SERVICE_MANAGED *smithy.Schema
+
+var DHMCPermissionModel_SELF_MANAGED *smithy.Schema
+
+var _DHMCRoleArn = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "DHMCRoleArn",
+}, smithy.ShapeTypeString, 0)
+
 var _DisplayName = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "DisplayName",
@@ -2923,7 +2974,7 @@ var DocumentDefaultVersionDescription_DefaultVersionName *smithy.Schema
 var DocumentDescription = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "DocumentDescription",
-}, smithy.ShapeTypeStructure, 30)
+}, smithy.ShapeTypeStructure, 31)
 var DocumentDescription_Sha1 *smithy.Schema
 
 var DocumentDescription_Hash *smithy.Schema
@@ -2983,6 +3034,8 @@ var DocumentDescription_ReviewStatus *smithy.Schema
 var DocumentDescription_Category *smithy.Schema
 
 var DocumentDescription_CategoryEnum *smithy.Schema
+
+var DocumentDescription_CloudProviders *smithy.Schema
 
 var _DocumentDisplayName = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -3046,7 +3099,7 @@ var DocumentHashType_SHA1 *smithy.Schema
 var DocumentIdentifier = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "DocumentIdentifier",
-}, smithy.ShapeTypeStructure, 15)
+}, smithy.ShapeTypeStructure, 16)
 var DocumentIdentifier_Name *smithy.Schema
 
 var DocumentIdentifier_CreatedDate *smithy.Schema
@@ -3076,6 +3129,8 @@ var DocumentIdentifier_Requires *smithy.Schema
 var DocumentIdentifier_ReviewStatus *smithy.Schema
 
 var DocumentIdentifier_Author *smithy.Schema
+
+var DocumentIdentifier_CloudProviders *smithy.Schema
 
 var _DocumentIdentifierList = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -3361,7 +3416,7 @@ var _DocumentVersion = smithy.NewSchema(smithy.ShapeID{
 var DocumentVersionInfo = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "DocumentVersionInfo",
-}, smithy.ShapeTypeStructure, 10)
+}, smithy.ShapeTypeStructure, 11)
 var DocumentVersionInfo_Name *smithy.Schema
 
 var DocumentVersionInfo_DisplayName *smithy.Schema
@@ -3381,6 +3436,8 @@ var DocumentVersionInfo_Status *smithy.Schema
 var DocumentVersionInfo_StatusInformation *smithy.Schema
 
 var DocumentVersionInfo_ReviewStatus *smithy.Schema
+
+var DocumentVersionInfo_CloudProviders *smithy.Schema
 
 var DocumentVersionLimitExceeded = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -3580,6 +3637,63 @@ var FeatureNotAvailableException = smithy.NewSchema(smithy.ShapeID{
 	&smithytraits.AWSQueryError{ErrorCode: "FeatureNotAvailableException",
 		StatusCode: 400})
 var FeatureNotAvailableException_Message *smithy.Schema
+
+var GcpConfiguration = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "GcpConfiguration",
+}, smithy.ShapeTypeStructure, 4)
+var GcpConfiguration_OrganizationId *smithy.Schema
+
+var GcpConfiguration_WorkloadIdentityPoolProvider *smithy.Schema
+
+var GcpConfiguration_ServiceAccountEmail *smithy.Schema
+
+var GcpConfiguration_Targets *smithy.Schema
+
+var GcpConfigurationTargets = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "GcpConfigurationTargets",
+}, smithy.ShapeTypeUnion, 1)
+var GcpConfigurationTargets_Projects *smithy.Schema
+
+var _GcpOrganizationId = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "GcpOrganizationId",
+}, smithy.ShapeTypeString, 0)
+
+var GcpProject = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "GcpProject",
+}, smithy.ShapeTypeStructure, 2)
+var GcpProject_ProjectId *smithy.Schema
+
+var GcpProject_ProjectDisplayName *smithy.Schema
+
+var _GcpProjectDisplayName = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "GcpProjectDisplayName",
+}, smithy.ShapeTypeString, 0)
+
+var _GcpProjectId = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "GcpProjectId",
+}, smithy.ShapeTypeString, 0)
+
+var _GcpProjectList = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "GcpProjectList",
+}, smithy.ShapeTypeList, 1)
+var _GcpProjectList_member *smithy.Schema
+
+var _GcpServiceAccountEmail = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "GcpServiceAccountEmail",
+}, smithy.ShapeTypeString, 0)
+
+var _GcpWorkloadIdentityPoolProvider = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "GcpWorkloadIdentityPoolProvider",
+}, smithy.ShapeTypeString, 0)
 
 var _GetInventorySchemaMaxResults = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -7954,6 +8068,14 @@ var ProgressCounters_CancelledSteps *smithy.Schema
 
 var ProgressCounters_TimedOutSteps *smithy.Schema
 
+var Provider = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "Provider",
+}, smithy.ShapeTypeEnum, 2)
+var Provider_AZURE *smithy.Schema
+
+var Provider_GCP *smithy.Schema
+
 var _PSParameterName = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "PSParameterName",
@@ -8877,7 +8999,7 @@ var _SourceLocation = smithy.NewSchema(smithy.ShapeID{
 var SourceType = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "SourceType",
-}, smithy.ShapeTypeEnum, 4)
+}, smithy.ShapeTypeEnum, 5)
 var SourceType_AWS_EC2_INSTANCE *smithy.Schema
 
 var SourceType_AWS_IOT_THING *smithy.Schema
@@ -8885,6 +9007,8 @@ var SourceType_AWS_IOT_THING *smithy.Schema
 var SourceType_AWS_SSM_MANAGEDINSTANCE *smithy.Schema
 
 var SourceType_AZURE_INSTANCE *smithy.Schema
+
+var SourceType_GCP_INSTANCE *smithy.Schema
 
 var _StandardErrorContent = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -9231,6 +9355,20 @@ var _Targets = smithy.NewSchema(smithy.ShapeID{
 }, smithy.ShapeTypeList, 1)
 var _Targets_member *smithy.Schema
 
+var TargetsSummary = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "TargetsSummary",
+}, smithy.ShapeTypeStructure, 5)
+var TargetsSummary_TotalCount *smithy.Schema
+
+var TargetsSummary_StartedCount *smithy.Schema
+
+var TargetsSummary_CompletedCount *smithy.Schema
+
+var TargetsSummary_SuccessfulCount *smithy.Schema
+
+var TargetsSummary_FailedCount *smithy.Schema
+
 var _TargetType = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "TargetType",
@@ -9403,10 +9541,14 @@ var ValidationFinding_Scope *smithy.Schema
 var ValidationFindingCode = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "ValidationFindingCode",
-}, smithy.ShapeTypeEnum, 9)
+}, smithy.ShapeTypeEnum, 11)
 var ValidationFindingCode_TARGET_INACCESSIBLE *smithy.Schema
 
 var ValidationFindingCode_TARGET_UNUSABLE *smithy.Schema
+
+var ValidationFindingCode_TARGET_MISSING_PERMISSIONS *smithy.Schema
+
+var ValidationFindingCode_TARGET_API_DISABLED *smithy.Schema
 
 var ValidationFindingCode_TARGET_STATE_WARNING *smithy.Schema
 
@@ -9439,10 +9581,14 @@ var ValidationFindingScope_Id *smithy.Schema
 var ValidationFindingScopeType = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "ValidationFindingScopeType",
-}, smithy.ShapeTypeEnum, 2)
+}, smithy.ShapeTypeEnum, 4)
 var ValidationFindingScopeType_AZURE_TENANT *smithy.Schema
 
 var ValidationFindingScopeType_AZURE_SUBSCRIPTION *smithy.Schema
+
+var ValidationFindingScopeType_GCP_ORGANIZATION *smithy.Schema
+
+var ValidationFindingScopeType_GCP_PROJECT *smithy.Schema
 
 var ValidationFindingType = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -9649,7 +9795,7 @@ var CreateCloudConnectorResult_CloudConnectorId *smithy.Schema
 var CreateDocumentRequest = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "CreateDocumentRequest",
-}, smithy.ShapeTypeStructure, 10)
+}, smithy.ShapeTypeStructure, 11)
 var CreateDocumentRequest_Content *smithy.Schema
 
 var CreateDocumentRequest_Requires *smithy.Schema
@@ -9669,6 +9815,8 @@ var CreateDocumentRequest_DocumentFormat *smithy.Schema
 var CreateDocumentRequest_TargetType *smithy.Schema
 
 var CreateDocumentRequest_Tags *smithy.Schema
+
+var CreateDocumentRequest_CloudProviders *smithy.Schema
 
 var CreateDocumentResult = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -10001,6 +10149,16 @@ var DeleteResourcePolicyRequest_DeletionMode *smithy.Schema
 var DeleteResourcePolicyResponse = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "DeleteResourcePolicyResponse",
+}, smithy.ShapeTypeStructure, 0)
+
+var DeregisterDefaultHostManagementConfigurationRequest = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "DeregisterDefaultHostManagementConfigurationRequest",
+}, smithy.ShapeTypeStructure, 0)
+
+var DeregisterDefaultHostManagementConfigurationResult = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "DeregisterDefaultHostManagementConfigurationResult",
 }, smithy.ShapeTypeStructure, 0)
 
 var DeregisterManagedInstanceRequest = smithy.NewSchema(smithy.ShapeID{
@@ -11935,6 +12093,22 @@ var PutResourcePolicyResponse_PolicyId *smithy.Schema
 
 var PutResourcePolicyResponse_PolicyHash *smithy.Schema
 
+var RegisterDefaultHostManagementConfigurationRequest = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "RegisterDefaultHostManagementConfigurationRequest",
+}, smithy.ShapeTypeStructure, 3)
+var RegisterDefaultHostManagementConfigurationRequest_PermissionModel *smithy.Schema
+
+var RegisterDefaultHostManagementConfigurationRequest_RoleArn *smithy.Schema
+
+var RegisterDefaultHostManagementConfigurationRequest_Overwrite *smithy.Schema
+
+var RegisterDefaultHostManagementConfigurationResult = smithy.NewSchema(smithy.ShapeID{
+	Namespace: "com.amazonaws.ssm",
+	Name:      "RegisterDefaultHostManagementConfigurationResult",
+}, smithy.ShapeTypeStructure, 1)
+var RegisterDefaultHostManagementConfigurationResult_RoleArn *smithy.Schema
+
 var RegisterDefaultPatchBaselineRequest = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "RegisterDefaultPatchBaselineRequest",
@@ -12416,7 +12590,7 @@ var UpdateDocumentDefaultVersionResult_Description *smithy.Schema
 var UpdateDocumentRequest = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
 	Name:      "UpdateDocumentRequest",
-}, smithy.ShapeTypeStructure, 8)
+}, smithy.ShapeTypeStructure, 9)
 var UpdateDocumentRequest_Content *smithy.Schema
 
 var UpdateDocumentRequest_Attachments *smithy.Schema
@@ -12432,6 +12606,8 @@ var UpdateDocumentRequest_DocumentVersion *smithy.Schema
 var UpdateDocumentRequest_DocumentFormat *smithy.Schema
 
 var UpdateDocumentRequest_TargetType *smithy.Schema
+
+var UpdateDocumentRequest_CloudProviders *smithy.Schema
 
 var UpdateDocumentMetadataRequest = smithy.NewSchema(smithy.ShapeID{
 	Namespace: "com.amazonaws.ssm",
@@ -13419,6 +13595,16 @@ func init() {
 
 	_Runbooks_member = _Runbooks.AddMember("member", Runbook)
 
+	TargetsSummary_TotalCount = TargetsSummary.AddMember("TotalCount", _Integer)
+
+	TargetsSummary_StartedCount = TargetsSummary.AddMember("StartedCount", _Integer)
+
+	TargetsSummary_CompletedCount = TargetsSummary.AddMember("CompletedCount", _Integer)
+
+	TargetsSummary_SuccessfulCount = TargetsSummary.AddMember("SuccessfulCount", _Integer)
+
+	TargetsSummary_FailedCount = TargetsSummary.AddMember("FailedCount", _Integer)
+
 	AutomationExecution_AutomationExecutionId = AutomationExecution.AddMember("AutomationExecutionId", _AutomationExecutionId)
 
 	AutomationExecution_DocumentName = AutomationExecution.AddMember("DocumentName", _DocumentName)
@@ -13490,6 +13676,8 @@ func init() {
 	AutomationExecution_ChangeRequestName = AutomationExecution.AddMember("ChangeRequestName", _ChangeRequestName)
 
 	AutomationExecution_Variables = AutomationExecution.AddMember("Variables", _AutomationParameterMap)
+
+	AutomationExecution_TargetsSummary = AutomationExecution.AddMember("TargetsSummary", TargetsSummary)
 
 	AutomationExecutionFilterKey_DOCUMENT_NAME_PREFIX = AutomationExecutionFilterKey.AddMember("DOCUMENT_NAME_PREFIX", smithyprelude.Unit)
 
@@ -13807,11 +13995,33 @@ func init() {
 
 	_CategoryList_member = _CategoryList.AddMember("member", _Category)
 
+	GcpProject_ProjectId = GcpProject.AddMember("ProjectId", _GcpProjectId)
+
+	GcpProject_ProjectDisplayName = GcpProject.AddMember("ProjectDisplayName", _GcpProjectDisplayName)
+
+	_GcpProjectList_member = _GcpProjectList.AddMember("member", GcpProject)
+
+	GcpConfigurationTargets_Projects = GcpConfigurationTargets.AddMember("Projects", _GcpProjectList)
+
+	GcpConfiguration_OrganizationId = GcpConfiguration.AddMember("OrganizationId", _GcpOrganizationId)
+
+	GcpConfiguration_WorkloadIdentityPoolProvider = GcpConfiguration.AddMember("WorkloadIdentityPoolProvider", _GcpWorkloadIdentityPoolProvider)
+
+	GcpConfiguration_ServiceAccountEmail = GcpConfiguration.AddMember("ServiceAccountEmail", _GcpServiceAccountEmail)
+
+	GcpConfiguration_Targets = GcpConfiguration.AddMember("Targets", GcpConfigurationTargets)
+
 	CloudConnectorConfiguration_AzureConfiguration = CloudConnectorConfiguration.AddMember("AzureConfiguration", AzureConfiguration)
+
+	CloudConnectorConfiguration_GcpConfiguration = CloudConnectorConfiguration.AddMember("GcpConfiguration", GcpConfiguration)
 
 	CloudConnectorFilterKey_SubscriptionId = CloudConnectorFilterKey.AddMember("SubscriptionId", smithyprelude.Unit)
 
 	CloudConnectorFilterKey_TenantId = CloudConnectorFilterKey.AddMember("TenantId", smithyprelude.Unit)
+
+	CloudConnectorFilterKey_ProjectId = CloudConnectorFilterKey.AddMember("ProjectId", smithyprelude.Unit)
+
+	CloudConnectorFilterKey_OrganizationId = CloudConnectorFilterKey.AddMember("OrganizationId", smithyprelude.Unit)
 
 	_CloudConnectorFilterValues_member = _CloudConnectorFilterValues.AddMember("member", _CloudConnectorFilterValue)
 
@@ -13820,6 +14030,10 @@ func init() {
 	CloudConnectorFilter_FilterValues = CloudConnectorFilter.AddMember("FilterValues", _CloudConnectorFilterValues)
 
 	_CloudConnectorFilterList_member = _CloudConnectorFilterList.AddMember("member", CloudConnectorFilter)
+
+	Provider_AZURE = Provider.AddMember("AZURE", smithyprelude.Unit)
+
+	Provider_GCP = Provider.AddMember("GCP", smithyprelude.Unit)
 
 	CloudConnectorSummary_CloudConnectorId = CloudConnectorSummary.AddMember("CloudConnectorId", _CloudConnectorId)
 
@@ -13833,7 +14047,19 @@ func init() {
 
 	CloudConnectorSummary_UpdatedAt = CloudConnectorSummary.AddMember("UpdatedAt", _DateTime)
 
+	CloudConnectorSummary_Provider = CloudConnectorSummary.AddMember("Provider", Provider)
+
+	CloudConnectorSummary_ConfigConnectorArn = CloudConnectorSummary.AddMember("ConfigConnectorArn", _ConfigConnectorArn)
+
 	_CloudConnectorSummaryList_member = _CloudConnectorSummaryList.AddMember("member", CloudConnectorSummary)
+
+	CloudProvider_AWS = CloudProvider.AddMember("AWS", smithyprelude.Unit)
+
+	CloudProvider_AZURE = CloudProvider.AddMember("AZURE", smithyprelude.Unit)
+
+	CloudProvider_GCP = CloudProvider.AddMember("GCP", smithyprelude.Unit)
+
+	_CloudProviderList_member = _CloudProviderList.AddMember("member", CloudProvider, &smithytraits.XMLName{Name: "CloudProvider"})
 
 	CloudWatchOutputConfig_CloudWatchLogGroupName = CloudWatchOutputConfig.AddMember("CloudWatchLogGroupName", _CloudWatchLogGroupName)
 
@@ -14229,6 +14455,10 @@ func init() {
 
 	_DescribeActivationsFilterList_member = _DescribeActivationsFilterList.AddMember("member", DescribeActivationsFilter)
 
+	DHMCPermissionModel_SERVICE_MANAGED = DHMCPermissionModel.AddMember("SERVICE_MANAGED", smithyprelude.Unit)
+
+	DHMCPermissionModel_SELF_MANAGED = DHMCPermissionModel.AddMember("SELF_MANAGED", smithyprelude.Unit)
+
 	DocumentAlreadyExists_Message = DocumentAlreadyExists.AddMember("Message", _String)
 
 	DocumentDefaultVersionDescription_Name = DocumentDefaultVersionDescription.AddMember("Name", _DocumentName)
@@ -14399,6 +14629,8 @@ func init() {
 
 	DocumentDescription_CategoryEnum = DocumentDescription.AddMember("CategoryEnum", _CategoryEnumList)
 
+	DocumentDescription_CloudProviders = DocumentDescription.AddMember("CloudProviders", _CloudProviderList)
+
 	DocumentFilterKey_Name = DocumentFilterKey.AddMember("Name", smithyprelude.Unit)
 
 	DocumentFilterKey_Owner = DocumentFilterKey.AddMember("Owner", smithyprelude.Unit)
@@ -14442,6 +14674,8 @@ func init() {
 	DocumentIdentifier_ReviewStatus = DocumentIdentifier.AddMember("ReviewStatus", ReviewStatus)
 
 	DocumentIdentifier_Author = DocumentIdentifier.AddMember("Author", _DocumentAuthor)
+
+	DocumentIdentifier_CloudProviders = DocumentIdentifier.AddMember("CloudProviders", _CloudProviderList)
 
 	_DocumentIdentifierList_member = _DocumentIdentifierList.AddMember("member", DocumentIdentifier, &smithytraits.XMLName{Name: "DocumentIdentifier"})
 
@@ -14514,6 +14748,8 @@ func init() {
 	DocumentVersionInfo_StatusInformation = DocumentVersionInfo.AddMember("StatusInformation", _DocumentStatusInformation)
 
 	DocumentVersionInfo_ReviewStatus = DocumentVersionInfo.AddMember("ReviewStatus", ReviewStatus)
+
+	DocumentVersionInfo_CloudProviders = DocumentVersionInfo.AddMember("CloudProviders", _CloudProviderList)
 
 	DocumentVersionLimitExceeded_Message = DocumentVersionLimitExceeded.AddMember("Message", _String)
 
@@ -14706,6 +14942,8 @@ func init() {
 	SourceType_AWS_SSM_MANAGEDINSTANCE = SourceType.AddMember("AWS_SSM_MANAGEDINSTANCE", smithyprelude.Unit)
 
 	SourceType_AZURE_INSTANCE = SourceType.AddMember("AZURE_INSTANCE", smithyprelude.Unit)
+
+	SourceType_GCP_INSTANCE = SourceType.AddMember("GCP_INSTANCE", smithyprelude.Unit)
 
 	InstanceInfo_AgentType = InstanceInfo.AddMember("AgentType", _AgentType)
 
@@ -16615,6 +16853,10 @@ func init() {
 
 	ValidationFindingCode_TARGET_UNUSABLE = ValidationFindingCode.AddMember("TARGET_UNUSABLE", smithyprelude.Unit)
 
+	ValidationFindingCode_TARGET_MISSING_PERMISSIONS = ValidationFindingCode.AddMember("TARGET_MISSING_PERMISSIONS", smithyprelude.Unit)
+
+	ValidationFindingCode_TARGET_API_DISABLED = ValidationFindingCode.AddMember("TARGET_API_DISABLED", smithyprelude.Unit)
+
 	ValidationFindingCode_TARGET_STATE_WARNING = ValidationFindingCode.AddMember("TARGET_STATE_WARNING", smithyprelude.Unit)
 
 	ValidationFindingCode_AWS_ROLE_ASSUMPTION_FAILED = ValidationFindingCode.AddMember("AWS_ROLE_ASSUMPTION_FAILED", smithyprelude.Unit)
@@ -16632,6 +16874,10 @@ func init() {
 	ValidationFindingScopeType_AZURE_TENANT = ValidationFindingScopeType.AddMember("AZURE_TENANT", smithyprelude.Unit)
 
 	ValidationFindingScopeType_AZURE_SUBSCRIPTION = ValidationFindingScopeType.AddMember("AZURE_SUBSCRIPTION", smithyprelude.Unit)
+
+	ValidationFindingScopeType_GCP_ORGANIZATION = ValidationFindingScopeType.AddMember("GCP_ORGANIZATION", smithyprelude.Unit)
+
+	ValidationFindingScopeType_GCP_PROJECT = ValidationFindingScopeType.AddMember("GCP_PROJECT", smithyprelude.Unit)
 
 	ValidationFindingScope_Type = ValidationFindingScope.AddMember("Type", ValidationFindingScopeType)
 
@@ -16778,6 +17024,8 @@ func init() {
 	CreateDocumentRequest_TargetType = CreateDocumentRequest.AddMember("TargetType", _TargetType)
 
 	CreateDocumentRequest_Tags = CreateDocumentRequest.AddMember("Tags", _TagList)
+
+	CreateDocumentRequest_CloudProviders = CreateDocumentRequest.AddMember("CloudProviders", _CloudProviderList)
 
 	CreateDocumentResult_DocumentDescription = CreateDocumentResult.AddMember("DocumentDescription", DocumentDescription)
 
@@ -18155,6 +18403,14 @@ func init() {
 
 	PutResourcePolicyResponse_PolicyHash = PutResourcePolicyResponse.AddMember("PolicyHash", _PolicyHash)
 
+	RegisterDefaultHostManagementConfigurationRequest_PermissionModel = RegisterDefaultHostManagementConfigurationRequest.AddMember("PermissionModel", DHMCPermissionModel)
+
+	RegisterDefaultHostManagementConfigurationRequest_RoleArn = RegisterDefaultHostManagementConfigurationRequest.AddMember("RoleArn", _DHMCRoleArn)
+
+	RegisterDefaultHostManagementConfigurationRequest_Overwrite = RegisterDefaultHostManagementConfigurationRequest.AddMember("Overwrite", _Boolean)
+
+	RegisterDefaultHostManagementConfigurationResult_RoleArn = RegisterDefaultHostManagementConfigurationResult.AddMember("RoleArn", _DHMCRoleArn)
+
 	RegisterDefaultPatchBaselineRequest_BaselineId = RegisterDefaultPatchBaselineRequest.AddMember("BaselineId", _BaselineId)
 
 	RegisterDefaultPatchBaselineResult_BaselineId = RegisterDefaultPatchBaselineResult.AddMember("BaselineId", _BaselineId)
@@ -18468,6 +18724,8 @@ func init() {
 	UpdateDocumentRequest_DocumentFormat = UpdateDocumentRequest.AddMember("DocumentFormat", DocumentFormat)
 
 	UpdateDocumentRequest_TargetType = UpdateDocumentRequest.AddMember("TargetType", _TargetType)
+
+	UpdateDocumentRequest_CloudProviders = UpdateDocumentRequest.AddMember("CloudProviders", _CloudProviderList)
 
 	UpdateDocumentMetadataRequest_Name = UpdateDocumentMetadataRequest.AddMember("Name", _DocumentName)
 
