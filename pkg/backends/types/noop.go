@@ -1,6 +1,9 @@
 package types
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // NoopWatcher is an embeddable struct for polling-only backends that do not
 // support watch mode. It blocks until the context is canceled or the stop
@@ -10,7 +13,7 @@ type NoopWatcher struct{}
 func (NoopWatcher) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	select {
 	case <-ctx.Done():
-		return waitIndex, ctx.Err()
+		return waitIndex, fmt.Errorf("watch cancelled: %w", ctx.Err())
 	case <-stopChan:
 		return waitIndex, nil
 	}

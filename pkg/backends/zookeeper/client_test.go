@@ -238,7 +238,7 @@ func TestGetValues_ExistsError(t *testing.T) {
 	client := &Client{client: mock}
 
 	_, err := client.GetValues(context.Background(), []string{"/app/key"})
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
 }
@@ -257,7 +257,7 @@ func TestGetValues_ChildrenError(t *testing.T) {
 	client := &Client{client: mock}
 
 	_, err := client.GetValues(context.Background(), []string{"/app"})
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
 }
@@ -279,7 +279,7 @@ func TestGetValues_GetError(t *testing.T) {
 	client := &Client{client: mock}
 
 	_, err := client.GetValues(context.Background(), []string{"/app/key"})
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
 }
@@ -393,7 +393,7 @@ func TestWatchPrefix_GetValuesError(t *testing.T) {
 	stopChan := make(chan bool)
 
 	_, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 1, stopChan)
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("WatchPrefix() error = %v, want %v", err, expectedErr)
 	}
 }
@@ -413,7 +413,7 @@ func TestWatch_GetWError(t *testing.T) {
 	go client.watch("/app/key", respChan, cancelRoutine)
 
 	resp := <-respChan
-	if resp.err != expectedErr {
+	if !errors.Is(resp.err, expectedErr) {
 		t.Errorf("watch() error = %v, want %v", resp.err, expectedErr)
 	}
 	close(cancelRoutine)
@@ -438,7 +438,7 @@ func TestWatch_ChildrenWError(t *testing.T) {
 	go client.watch("/app/key", respChan, cancelRoutine)
 
 	resp := <-respChan
-	if resp.err != expectedErr {
+	if !errors.Is(resp.err, expectedErr) {
 		t.Errorf("watch() error = %v, want %v", resp.err, expectedErr)
 	}
 	close(cancelRoutine)
@@ -560,7 +560,7 @@ func TestGetValues_RecursiveError(t *testing.T) {
 	client := &Client{client: mock}
 
 	_, err := client.GetValues(context.Background(), []string{"/app"})
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
 }
@@ -594,7 +594,7 @@ func TestHealthCheck_Error(t *testing.T) {
 	if err == nil {
 		t.Error("HealthCheck() expected error, got nil")
 	}
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
 	}
 }
@@ -625,7 +625,7 @@ func TestGetValues_ContextCancellation(t *testing.T) {
 	close(ready)
 
 	err := <-errCh
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("GetValues() with cancelled context: error = %v, want context.Canceled", err)
 	}
 }

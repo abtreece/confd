@@ -3,6 +3,7 @@ package types_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ func TestNoopWatcher_ContextCanceled(t *testing.T) {
 
 	stopChan := make(chan bool)
 	idx, err := w.WatchPrefix(ctx, "/prefix", nil, 42, stopChan)
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 	if idx != 42 {

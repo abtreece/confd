@@ -181,7 +181,7 @@ func TestWatchPrefix_ChannelError(t *testing.T) {
 	client.pscChan <- watchResponse{waitIndex: 0, err: expectedErr}
 
 	index, err := client.WatchPrefix(context.Background(), "/app", []string{"/app/key"}, 1, nil)
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("WatchPrefix() error = %v, want %v", err, expectedErr)
 	}
 	if index != 0 {
@@ -1114,7 +1114,7 @@ func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
 	}
 
 	// Verify context.Canceled error is returned
-	if watchErr != context.Canceled {
+	if !errors.Is(watchErr, context.Canceled) {
 		t.Errorf("WatchPrefix() error = %v, want context.Canceled", watchErr)
 	}
 	if watchIndex != 1 {

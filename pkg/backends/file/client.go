@@ -224,7 +224,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 					"failed_path": path,
 					"error":       err.Error(),
 				},
-			}, err
+			}, fmt.Errorf("stat %q: %w", path, err)
 		}
 
 		pathList = append(pathList, path)
@@ -247,7 +247,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 						"failed_path": path,
 						"error":       err.Error(),
 					},
-				}, err
+				}, fmt.Errorf("open %q: %w", path, err)
 			}
 			if closeErr := f.Close(); closeErr != nil {
 				log.Warning("Failed to close file during detailed health check: %v", closeErr)
@@ -282,29 +282,29 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("create file watcher: %w", err)
 	}
 	defer watcher.Close()
 	for _, path := range c.filepath {
 		isDir, err := util.IsDirectory(path)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("check whether %q is a directory: %w", path, err)
 		}
 		if isDir {
 			dirs, err := util.RecursiveDirsLookup(path, "*")
 			if err != nil {
-				return 0, err
+				return 0, fmt.Errorf("look up directories under %q: %w", path, err)
 			}
 			for _, dir := range dirs {
 				err = watcher.Add(dir)
 				if err != nil {
-					return 0, err
+					return 0, fmt.Errorf("watch directory %q: %w", dir, err)
 				}
 			}
 		} else {
 			err = watcher.Add(path)
 			if err != nil {
-				return 0, err
+				return 0, fmt.Errorf("watch file %q: %w", path, err)
 			}
 		}
 	}

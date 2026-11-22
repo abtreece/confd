@@ -2,6 +2,7 @@ package imds
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -559,7 +560,7 @@ func TestWatchPrefix_ContextCancellation(t *testing.T) {
 	waitIndex := uint64(42)
 
 	index, err := client.WatchPrefix(ctx, "/meta-data", nil, waitIndex, stopChan)
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("WatchPrefix() error = %v, want context.Canceled", err)
 	}
 	if index != waitIndex {

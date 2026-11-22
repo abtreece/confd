@@ -35,7 +35,7 @@ func New(dialTimeout time.Duration) (*Client, error) {
 
 	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load AWS config: %w", err)
 	}
 
 	var ssmOpts []func(*ssm.Options)
@@ -89,7 +89,7 @@ func (c *Client) getParametersWithPrefix(ctx context.Context, prefix string) (ma
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return parameters, err
+			return parameters, fmt.Errorf("get ssm parameters by path: %w", err)
 		}
 		for _, p := range page.Parameters {
 			parameters[*p.Name] = *p.Value
@@ -106,7 +106,7 @@ func (c *Client) getParameter(ctx context.Context, name string) (map[string]stri
 	}
 	resp, err := c.client.GetParameter(ctx, input)
 	if err != nil {
-		return parameters, err
+		return parameters, fmt.Errorf("get ssm parameter: %w", err)
 	}
 	parameters[*resp.Parameter.Name] = *resp.Parameter.Value
 	return parameters, nil
@@ -131,7 +131,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		logger.ErrorContext(ctx, "Backend health check failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err.Error())
-		return err
+		return fmt.Errorf("ssm health check: %w", err)
 	}
 
 	logger.InfoContext(ctx, "Backend health check passed",
@@ -165,7 +165,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 				Details: map[string]string{
 					"error": err.Error(),
 				},
-			}, err
+			}, fmt.Errorf("ssm health check: %w", err)
 		}
 
 		paramCount += len(result.Parameters)

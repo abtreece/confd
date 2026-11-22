@@ -3,13 +3,17 @@
 package template
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 )
 
 // chownFile sets the owner and group of the named file.
 func chownFile(path string, uid, gid int) error {
-	return os.Chown(path, uid, gid)
+	if err := os.Chown(path, uid, gid); err != nil {
+		return fmt.Errorf("chown %q: %w", path, err)
+	}
+	return nil
 }
 
 // destOwnershipMatches reports whether the dest file's uid and gid match

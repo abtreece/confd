@@ -44,7 +44,7 @@ func getOrCreateClient(cfg backends.Config) (backends.StoreClient, error) {
 	log.Info("Creating new backend client for %s", cfg.Backend)
 	client, err := backends.New(cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create backend client: %w", err)
 	}
 
 	clientCache[hash] = client

@@ -72,13 +72,13 @@ func IsConfigChanged(src, dest string) (bool, error) {
 		return true, nil
 	}
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("stat destination file: %w", err)
 	}
 
 	// Single stat for src
 	srcStat, err := os.Stat(src)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("stat source file: %w", err)
 	}
 
 	// Short-circuit: size differs = content differs
@@ -124,13 +124,13 @@ func IsConfigChanged(src, dest string) (bool, error) {
 func computeMD5(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("open file for hashing: %w", err)
 	}
 	defer f.Close()
 
 	h := md5.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return "", err
+		return "", fmt.Errorf("hash file: %w", err)
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
@@ -138,7 +138,7 @@ func computeMD5(path string) (string, error) {
 func IsDirectory(path string) (bool, error) {
 	f, err := os.Stat(path)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("stat path: %w", err)
 	}
 	switch mode := f.Mode(); {
 	case mode.IsDir():
@@ -162,7 +162,7 @@ func recursiveLookup(root string, pattern string, dirsLookup bool) ([]string, er
 
 	root, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolve symlinks: %w", err)
 	}
 	isDir, err := IsDirectory(root)
 	if err != nil {
@@ -175,12 +175,12 @@ func recursiveLookup(root string, pattern string, dirsLookup bool) ([]string, er
 			}
 			match, err := filepath.Match(pattern, f.Name())
 			if err != nil {
-				return err
+				return fmt.Errorf("match pattern %q: %w", pattern, err)
 			}
 			if match {
 				root, err := filepath.EvalSymlinks(root)
 				if err != nil {
-					return err
+					return fmt.Errorf("resolve symlinks: %w", err)
 				}
 				isDir, err := IsDirectory(root)
 				if err != nil {
@@ -195,7 +195,7 @@ func recursiveLookup(root string, pattern string, dirsLookup bool) ([]string, er
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("walk %q: %w", root, err)
 		}
 	} else {
 		if !dirsLookup {

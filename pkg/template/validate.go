@@ -381,7 +381,7 @@ func newValidationFuncMap() template.FuncMap {
 func loadMockData(path string) (map[string]interface{}, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read mock data file: %w", err)
 	}
 
 	var data map[string]interface{}
