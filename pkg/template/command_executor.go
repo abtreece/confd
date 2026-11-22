@@ -116,10 +116,7 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 		}
 	}
 
-	if cmdErr != nil {
-		return fmt.Errorf("config check failed: %w", cmdErr)
-	}
-	return nil
+	return cmdErr
 }
 
 // executeReload executes the reload command to notify the application of config changes.
