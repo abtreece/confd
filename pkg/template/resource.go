@@ -25,11 +25,11 @@ type Config struct {
 	Noop          bool   `toml:"noop"`
 	Prefix        string `toml:"prefix"`
 	StoreClient   backends.StoreClient
-	// Backend is the type of the global backend behind StoreClient (e.g.
-	// "etcd"). It is used to name the backend in error messages.
-	Backend  string
 	SyncOnly      bool `toml:"sync-only"`
 	TemplateDir   string
+	// Backend is the type of the global backend behind StoreClient (e.g.
+	// "etcd"). It is used to name the backend in error messages.
+	Backend string
 	// Diff settings for noop mode
 	ShowDiff    bool
 	DiffContext int
@@ -82,12 +82,12 @@ type TemplateResource struct {
 	noop              bool
 	store             *memkv.Store
 	storeClient       backends.StoreClient
+	syncOnly          bool
+	templateDir       string
 	// backendName is the type of the backend behind storeClient and path is
 	// the template resource file; both identify the resource in errors.
 	backendName string
 	path        string
-	syncOnly          bool
-	templateDir       string
 	// Parsed duration values
 	minReloadIntervalDur time.Duration
 	debounceDur          time.Duration

@@ -41,7 +41,7 @@ keys = ["/app/name"]
 
 	confd := NewConfdBinary(t)
 	confd.SetEnv("APP_NAME", "healthcheck-test")
-	err := confd.Start(ctx, "env", "--watch", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
+	err := confd.Start(ctx, "env", "--interval", "2", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
 	if err != nil {
 		t.Fatalf("Failed to start confd: %v", err)
 	}
@@ -100,7 +100,7 @@ keys = ["/app/name"]
 
 	confd := NewConfdBinary(t)
 	confd.SetEnv("APP_NAME", "ready-test")
-	err := confd.Start(ctx, "env", "--watch", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
+	err := confd.Start(ctx, "env", "--interval", "2", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
 	if err != nil {
 		t.Fatalf("Failed to start confd: %v", err)
 	}
@@ -150,7 +150,7 @@ keys = ["/app/name"]
 
 	confd := NewConfdBinary(t)
 	confd.SetEnv("APP_NAME", "detailed-test")
-	err := confd.Start(ctx, "env", "--watch", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
+	err := confd.Start(ctx, "env", "--interval", "2", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
 	if err != nil {
 		t.Fatalf("Failed to start confd: %v", err)
 	}

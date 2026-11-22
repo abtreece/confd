@@ -503,6 +503,16 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		tmplCfg.BatchInterval = d
 	}
 
+	// Watch mode needs every backend in use to support watching. This is
+	// checked whenever watch is enabled, including with --preflight and
+	// --onetime, so a configuration that cannot run in watch mode is never
+	// reported as working.
+	if cli.Watch {
+		if err := template.CheckWatchSupport(tmplCfg); err != nil {
+			return fmt.Errorf("check watch support: %w", err)
+		}
+	}
+
 	// Preflight mode: run connectivity checks and exit
 	if cli.Preflight {
 		if err := template.Preflight(tmplCfg); err != nil {
@@ -530,9 +540,6 @@ func run(cli *CLI, backendCfg backends.Config) error {
 
 	var processor template.Processor
 	if cli.Watch {
-		if err := template.CheckWatchSupport(tmplCfg); err != nil {
-			return fmt.Errorf("start watch mode: %w", err)
-		}
 		if tmplCfg.BatchInterval > 0 {
 			// Use batch processor when --batch-interval is specified
 			log.Info("Batch processing enabled with interval %v", tmplCfg.BatchInterval)
