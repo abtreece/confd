@@ -58,7 +58,7 @@ When a `[backend]` section is present, it overrides the global backend configure
 * `username` (string) - Username for authentication.
 * `password` (string) - Password for authentication.
 * `auth_token` (string) - Authentication token (for Vault).
-* `auth_type` (string) - Authentication type (for Vault): `token`, `app-id`, `userpass`, or `approle`.
+* `auth_type` (string) - Authentication type (for Vault): `token`, `app-id`, `userpass`, or `app-role`.
 
 See the backend-specific documentation for additional options.
 
@@ -142,7 +142,7 @@ reload_cmd = "/usr/bin/systemctl reload myapp"
 [backend]
 backend = "vault"
 nodes = ["https://vault.example.com:8200"]
-auth_type = "approle"
+auth_type = "app-role"
 role_id = "my-role-id"
 secret_id = "my-secret-id"
 ```
