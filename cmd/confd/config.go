@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -96,15 +97,20 @@ type TOMLConfig struct {
 	MetricsAddr string `toml:"metrics_addr"`
 }
 
+// configSources records where each option was supplied. cli and env are
+// filled while parsing and decide whether a confd.toml value may be applied;
+// toml is filled when the config file is loaded.
 type configSources struct {
-	cli map[string]bool
-	env map[string]bool
+	cli  map[string]bool
+	env  map[string]bool
+	toml map[string]bool
 }
 
 func newConfigSources(ctx *kong.Context) *configSources {
 	sources := &configSources{
-		cli: make(map[string]bool),
-		env: make(map[string]bool),
+		cli:  make(map[string]bool),
+		env:  make(map[string]bool),
+		toml: make(map[string]bool),
 	}
 	for _, path := range ctx.Path {
 		if path.Flag == nil {
@@ -138,6 +144,67 @@ func (s *configSources) isExplicit(name string) bool {
 	}
 	name = normalizeConfigName(name)
 	return s.cli[name] || s.env[name]
+}
+
+// recordTOML notes every top-level key the config file defines.
+func (s *configSources) recordTOML(md toml.MetaData) {
+	if s == nil {
+		return
+	}
+	if s.toml == nil {
+		s.toml = make(map[string]bool)
+	}
+	for _, key := range md.Keys() {
+		if len(key) == 1 {
+			s.toml[key[0]] = true
+		}
+	}
+}
+
+// isSupplied reports whether the operator supplied the option at all: on the
+// command line, through its environment variable, or as a key in confd.toml.
+// An option supplied with its default value still counts.
+func (s *configSources) isSupplied(name string) bool {
+	if s == nil {
+		return false
+	}
+	return s.isExplicit(name) || s.toml[normalizeConfigName(name)]
+}
+
+// backendFlagScope lists the backends that use each connection timeout and
+// retry flag. It mirrors the constructor calls in backends.New
+// (pkg/backends/client.go): a backend uses a setting only if New passes that
+// setting to its constructor. Update this table whenever those calls change.
+var backendFlagScope = []struct {
+	flag   string
+	usedBy []string
+}{
+	{"dial-timeout", []string{"acm", "dynamodb", "etcd", "imds", "redis", "secretsmanager", "ssm", "zookeeper"}},
+	{"read-timeout", []string{"redis"}},
+	{"write-timeout", []string{"redis"}},
+	{"retry-max-attempts", []string{"redis"}},
+	{"retry-base-delay", []string{"redis"}},
+	{"retry-max-delay", []string{"redis"}},
+}
+
+// ignoredBackendFlagWarnings returns one message for each timeout or retry
+// flag that was supplied but is not used by the backend.
+func ignoredBackendFlagWarnings(sources *configSources, backend string) []string {
+	var warnings []string
+	for _, scope := range backendFlagScope {
+		if !sources.isSupplied(scope.flag) || slices.Contains(scope.usedBy, backend) {
+			continue
+		}
+		warnings = append(warnings, fmt.Sprintf("--%s has no effect with the %s backend", scope.flag, backend))
+	}
+	return warnings
+}
+
+// warnIgnoredBackendFlags logs the ignoredBackendFlagWarnings messages.
+func warnIgnoredBackendFlags(sources *configSources, backend string) {
+	for _, warning := range ignoredBackendFlagWarnings(sources, backend) {
+		log.Warning("%s", warning)
+	}
 }
 
 func tomlDefined(md toml.MetaData, names ...string) bool {
@@ -180,6 +247,7 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	}
 
 	sources := cli.configSources
+	sources.recordTOML(md)
 
 	// Apply TOML settings as defaults (CLI flags take precedence)
 	// Global settings

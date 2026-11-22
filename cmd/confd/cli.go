@@ -78,14 +78,16 @@ type CLI struct {
 	ReloadCmdTimeout time.Duration `name:"reload-cmd-timeout" help:"default timeout for reload commands (e.g., 60s)" default:"60s" env:"CONFD_RELOAD_CMD_TIMEOUT"`
 
 	// Connection timeouts
-	DialTimeout  time.Duration `name:"dial-timeout" help:"connection timeout for backends" default:"5s" env:"CONFD_DIAL_TIMEOUT"`
-	ReadTimeout  time.Duration `name:"read-timeout" help:"read timeout for backend operations" default:"1s" env:"CONFD_READ_TIMEOUT"`
-	WriteTimeout time.Duration `name:"write-timeout" help:"write timeout for backend operations" default:"1s" env:"CONFD_WRITE_TIMEOUT"`
+	// Which backends use each of these is recorded in backendFlagScope
+	// (config.go); keep the help text in step with it.
+	DialTimeout  time.Duration `name:"dial-timeout" help:"connection timeout (not used by consul, env, file or vault)" default:"5s" env:"CONFD_DIAL_TIMEOUT"`
+	ReadTimeout  time.Duration `name:"read-timeout" help:"redis only: read timeout" default:"1s" env:"CONFD_READ_TIMEOUT"`
+	WriteTimeout time.Duration `name:"write-timeout" help:"redis only: write timeout" default:"1s" env:"CONFD_WRITE_TIMEOUT"`
 
-	// Retry configuration
-	RetryMaxAttempts int           `name:"retry-max-attempts" help:"max retry attempts for connections" default:"3" env:"CONFD_RETRY_MAX_ATTEMPTS"`
-	RetryBaseDelay   time.Duration `name:"retry-base-delay" help:"initial backoff delay" default:"100ms" env:"CONFD_RETRY_BASE_DELAY"`
-	RetryMaxDelay    time.Duration `name:"retry-max-delay" help:"maximum backoff delay" default:"5s" env:"CONFD_RETRY_MAX_DELAY"`
+	// Retry configuration (redis only, see backendFlagScope)
+	RetryMaxAttempts int           `name:"retry-max-attempts" help:"redis only: max connection retry attempts" default:"3" env:"CONFD_RETRY_MAX_ATTEMPTS"`
+	RetryBaseDelay   time.Duration `name:"retry-base-delay" help:"redis only: initial retry backoff delay" default:"100ms" env:"CONFD_RETRY_BASE_DELAY"`
+	RetryMaxDelay    time.Duration `name:"retry-max-delay" help:"redis only: maximum retry backoff delay" default:"5s" env:"CONFD_RETRY_MAX_DELAY"`
 
 	// Watch mode timeouts
 	WatchErrorBackoff time.Duration `name:"watch-error-backoff" help:"backoff after watch errors" default:"2s" env:"CONFD_WATCH_ERROR_BACKOFF"`
@@ -417,6 +419,11 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	if cli.LogFormat != "" {
 		log.SetFormat(cli.LogFormat)
 	}
+
+	// Warn about timeout and retry flags the backend does not use. This runs
+	// before the backend client is created so that it is logged even when the
+	// backend then fails to connect.
+	warnIgnoredBackendFlags(cli.configSources, backendCfg.Backend)
 
 	// Check-config mode: validate configuration and exit (no backend needed)
 	if cli.CheckConfig {
