@@ -349,3 +349,299 @@ func writeConfigFile(t *testing.T, content string) string {
 	}
 	return configFile
 }
+
+func TestLoadConfigFile_DocumentedKeys(t *testing.T) {
+	configTOML := `
+backend_timeout = "45s"
+check_cmd_timeout = "15s"
+reload_cmd_timeout = "90s"
+shutdown_timeout = "20s"
+debounce = "2s"
+systemd_notify = true
+watchdog_interval = "25s"
+log_level = "debug"
+log_format = "json"
+`
+
+	tests := []struct {
+		name string
+		env  map[string]string
+		args []string
+		// check receives the CLI after the config file has been loaded
+		check func(*testing.T, *CLI)
+	}{
+		{
+			name: "toml values applied",
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.BackendTimeout != 45*time.Second {
+					t.Errorf("BackendTimeout = %v, want 45s", cli.BackendTimeout)
+				}
+				if cli.CheckCmdTimeout != 15*time.Second {
+					t.Errorf("CheckCmdTimeout = %v, want 15s", cli.CheckCmdTimeout)
+				}
+				if cli.ReloadCmdTimeout != 90*time.Second {
+					t.Errorf("ReloadCmdTimeout = %v, want 1m30s", cli.ReloadCmdTimeout)
+				}
+				if cli.ShutdownTimeout != 20*time.Second {
+					t.Errorf("ShutdownTimeout = %v, want 20s", cli.ShutdownTimeout)
+				}
+				if cli.DebounceStr != "2s" {
+					t.Errorf("DebounceStr = %q, want 2s", cli.DebounceStr)
+				}
+				if !cli.SystemdNotify {
+					t.Error("SystemdNotify = false, want true")
+				}
+				if cli.WatchdogInterval != 25*time.Second {
+					t.Errorf("WatchdogInterval = %v, want 25s", cli.WatchdogInterval)
+				}
+				if cli.LogLevel != "debug" {
+					t.Errorf("LogLevel = %q, want debug", cli.LogLevel)
+				}
+				if cli.LogFormat != "json" {
+					t.Errorf("LogFormat = %q, want json", cli.LogFormat)
+				}
+			},
+		},
+		{
+			name: "cli backend_timeout beats toml",
+			args: []string{"--backend-timeout", "30s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.BackendTimeout != 30*time.Second {
+					t.Errorf("BackendTimeout = %v, want 30s", cli.BackendTimeout)
+				}
+			},
+		},
+		{
+			name: "env backend_timeout beats toml",
+			env:  map[string]string{"CONFD_BACKEND_TIMEOUT": "30s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.BackendTimeout != 30*time.Second {
+					t.Errorf("BackendTimeout = %v, want 30s", cli.BackendTimeout)
+				}
+			},
+		},
+		{
+			name: "cli check_cmd_timeout beats toml",
+			args: []string{"--check-cmd-timeout", "30s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.CheckCmdTimeout != 30*time.Second {
+					t.Errorf("CheckCmdTimeout = %v, want 30s", cli.CheckCmdTimeout)
+				}
+			},
+		},
+		{
+			name: "env check_cmd_timeout beats toml",
+			env:  map[string]string{"CONFD_CHECK_CMD_TIMEOUT": "30s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.CheckCmdTimeout != 30*time.Second {
+					t.Errorf("CheckCmdTimeout = %v, want 30s", cli.CheckCmdTimeout)
+				}
+			},
+		},
+		{
+			name: "cli reload_cmd_timeout beats toml",
+			args: []string{"--reload-cmd-timeout", "60s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.ReloadCmdTimeout != 60*time.Second {
+					t.Errorf("ReloadCmdTimeout = %v, want 1m0s", cli.ReloadCmdTimeout)
+				}
+			},
+		},
+		{
+			name: "env reload_cmd_timeout beats toml",
+			env:  map[string]string{"CONFD_RELOAD_CMD_TIMEOUT": "60s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.ReloadCmdTimeout != 60*time.Second {
+					t.Errorf("ReloadCmdTimeout = %v, want 1m0s", cli.ReloadCmdTimeout)
+				}
+			},
+		},
+		{
+			name: "cli shutdown_timeout beats toml",
+			args: []string{"--shutdown-timeout", "30s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.ShutdownTimeout != 30*time.Second {
+					t.Errorf("ShutdownTimeout = %v, want 30s", cli.ShutdownTimeout)
+				}
+			},
+		},
+		{
+			name: "env shutdown_timeout beats toml",
+			env:  map[string]string{"CONFD_SHUTDOWN_TIMEOUT": "30s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.ShutdownTimeout != 30*time.Second {
+					t.Errorf("ShutdownTimeout = %v, want 30s", cli.ShutdownTimeout)
+				}
+			},
+		},
+		{
+			name: "cli debounce beats toml",
+			args: []string{"--debounce", "500ms"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.DebounceStr != "500ms" {
+					t.Errorf("DebounceStr = %q, want 500ms", cli.DebounceStr)
+				}
+			},
+		},
+		{
+			name: "env debounce beats toml",
+			env:  map[string]string{"CONFD_DEBOUNCE": "500ms"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.DebounceStr != "500ms" {
+					t.Errorf("DebounceStr = %q, want 500ms", cli.DebounceStr)
+				}
+			},
+		},
+		{
+			name: "cli systemd_notify beats toml",
+			args: []string{"--systemd-notify=false"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.SystemdNotify {
+					t.Error("SystemdNotify = true, want false")
+				}
+			},
+		},
+		{
+			name: "env systemd_notify beats toml",
+			env:  map[string]string{"CONFD_SYSTEMD_NOTIFY": "false"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.SystemdNotify {
+					t.Error("SystemdNotify = true, want false")
+				}
+			},
+		},
+		{
+			name: "cli watchdog_interval beats toml",
+			args: []string{"--watchdog-interval", "10s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.WatchdogInterval != 10*time.Second {
+					t.Errorf("WatchdogInterval = %v, want 10s", cli.WatchdogInterval)
+				}
+			},
+		},
+		{
+			name: "env watchdog_interval beats toml",
+			env:  map[string]string{"CONFD_WATCHDOG_INTERVAL": "10s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.WatchdogInterval != 10*time.Second {
+					t.Errorf("WatchdogInterval = %v, want 10s", cli.WatchdogInterval)
+				}
+			},
+		},
+		{
+			name: "cli log_level beats toml",
+			args: []string{"--log-level", "warn"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.LogLevel != "warn" {
+					t.Errorf("LogLevel = %q, want warn", cli.LogLevel)
+				}
+			},
+		},
+		{
+			name: "env log_level beats toml",
+			env:  map[string]string{"CONFD_LOG_LEVEL": "warn"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.LogLevel != "warn" {
+					t.Errorf("LogLevel = %q, want warn", cli.LogLevel)
+				}
+			},
+		},
+		{
+			name: "cli log_format beats toml",
+			args: []string{"--log-format", "text"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.LogFormat != "text" {
+					t.Errorf("LogFormat = %q, want text", cli.LogFormat)
+				}
+			},
+		},
+		{
+			name: "env log_format beats toml",
+			env:  map[string]string{"CONFD_LOG_FORMAT": "text"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.LogFormat != "text" {
+					t.Errorf("LogFormat = %q, want text", cli.LogFormat)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearCONFDEnvVars(t)
+			for key, value := range tt.env {
+				t.Setenv(key, value)
+			}
+			configFile := writeConfigFile(t, configTOML)
+			args := append([]string{"--config-file", configFile}, tt.args...)
+			cli, _ := parseCLI(t, append(args, "env"))
+
+			if err := loadConfigFile(cli, &backends.Config{}); err != nil {
+				t.Fatalf("loadConfigFile failed: %v", err)
+			}
+			tt.check(t, cli)
+		})
+	}
+}
+
+func TestLoadConfigFile_HyphenatedLogKeys(t *testing.T) {
+	clearCONFDEnvVars(t)
+
+	configFile := writeConfigFile(t, `
+log-level = "debug"
+log-format = "json"
+`)
+	cli, _ := parseCLI(t, []string{"--config-file", configFile, "env"})
+	if err := loadConfigFile(cli, &backends.Config{}); err != nil {
+		t.Fatalf("loadConfigFile failed: %v", err)
+	}
+	if cli.LogLevel != "debug" {
+		t.Errorf("LogLevel = %q, want debug", cli.LogLevel)
+	}
+	if cli.LogFormat != "json" {
+		t.Errorf("LogFormat = %q, want json", cli.LogFormat)
+	}
+}
+
+func TestLoadConfigFile_DocumentedKeysInvalidDurations(t *testing.T) {
+	keys := []string{
+		"backend_timeout", "check_cmd_timeout", "reload_cmd_timeout",
+		"shutdown_timeout", "debounce", "watchdog_interval",
+	}
+
+	for _, key := range keys {
+		t.Run(key, func(t *testing.T) {
+			clearCONFDEnvVars(t)
+
+			configFile := writeConfigFile(t, key+` = "not-a-duration"`)
+			cli, _ := parseCLI(t, []string{"--config-file", configFile, "env"})
+
+			err := loadConfigFile(cli, &backends.Config{})
+			if err == nil {
+				t.Fatalf("expected error for invalid %s", key)
+			}
+			if !strings.Contains(err.Error(), "invalid "+key) {
+				t.Errorf("error = %q, want it to name %s", err, key)
+			}
+		})
+	}
+}
