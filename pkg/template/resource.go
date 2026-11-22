@@ -94,6 +94,10 @@ type TemplateResource struct {
 	lastReloadTime       time.Time
 	checkCmdTimeoutDur   time.Duration
 	reloadCmdTimeoutDur  time.Duration
+	// reloadPending is true when reload_cmd failed after the destination was
+	// replaced. The destination is then in sync, so the reload is retried the
+	// next time the resource is processed. In memory only.
+	reloadPending bool
 	// Diff settings
 	showDiff    bool
 	diffContext int
@@ -392,7 +396,7 @@ func (t *TemplateResource) sync() error {
 		if !t.keepStageFile {
 			removeStageFile(staged)
 		}
-		return nil
+		return t.retryPendingReload()
 	}
 
 	// Config has changed - run check command before syncing
@@ -411,9 +415,12 @@ func (t *TemplateResource) sync() error {
 		return err
 	}
 
-	// Run reload command after successful sync
+	// Run reload command after successful sync. The destination is already
+	// replaced, so a failure is remembered and retried on the next cycle.
 	if !t.syncOnly && t.ReloadCmd != "" {
-		if err := t.reload(); err != nil {
+		err := t.reload()
+		t.reloadPending = err != nil
+		if err != nil {
 			return err
 		}
 	}
@@ -459,6 +466,34 @@ func (t *TemplateResource) check() error {
 // If min_reload_interval is set and not enough time has passed since the last
 // reload, the reload is skipped and a warning is logged.
 func (t *TemplateResource) reload() error {
+	return t.runReload(t.StageFile.Name())
+}
+
+// retryPendingReload runs the reload command again when an earlier reload
+// failed after the destination was replaced. It is called when the destination
+// is in sync, so there is no stage file: {{.src}} resolves to the destination,
+// whose content is what the stage file held. The reload stays pending if it
+// fails again or is throttled by min_reload_interval.
+func (t *TemplateResource) retryPendingReload() error {
+	if !t.reloadPending || t.noop || t.syncOnly || t.ReloadCmd == "" {
+		return nil
+	}
+
+	log.Info("Retrying reload_cmd for %s after an earlier failure", t.Dest)
+	lastSuccessfulReload := t.lastReloadTime
+	if err := t.runReload(t.Dest); err != nil {
+		return err
+	}
+	// A throttled reload also returns nil; only a reload that ran and
+	// succeeded moves lastReloadTime.
+	if !t.lastReloadTime.Equal(lastSuccessfulReload) {
+		t.reloadPending = false
+	}
+	return nil
+}
+
+// runReload executes the reload command with srcPath substituted for {{.src}}.
+func (t *TemplateResource) runReload(srcPath string) error {
 	// Initialize cmdExecutor if not already set (for backward compatibility with tests)
 	if t.cmdExecutor == nil {
 		cmdExec, err := newCommandExecutor(commandExecutorConfig{
@@ -477,7 +512,7 @@ func (t *TemplateResource) reload() error {
 		}
 		t.cmdExecutor = cmdExec
 	}
-	return t.cmdExecutor.executeReload(t.StageFile.Name(), t.Dest)
+	return t.cmdExecutor.executeReload(srcPath, t.Dest)
 }
 
 
@@ -520,7 +555,8 @@ func (t *TemplateResource) process() error {
 	}
 	if unchanged {
 		log.Debug("Target config %s in sync", t.Dest)
-		return nil
+		err = t.retryPendingReload()
+		return err
 	}
 
 	if err = t.createStageFile(rendered); err != nil {

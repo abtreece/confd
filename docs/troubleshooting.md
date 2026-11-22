@@ -52,7 +52,7 @@ At debug level:
 Target config <dest> in sync
 ```
 
-**Cause:** the rendered output, file mode and ownership all match the destination, so confd does nothing. Neither `check_cmd` nor `reload_cmd` runs when nothing changed.
+**Cause:** the rendered output, file mode and ownership all match the destination, so confd does not write the file. `check_cmd` does not run when nothing changed, and `reload_cmd` runs only to retry a reload that failed on an earlier cycle (see [The reload command fails](#the-reload-command-fails)).
 
 **Fix:** none needed. If you expected a change, the backend is returning the same values as before: check the keys and prefix (see [Missing key](#missing-key)).
 
@@ -297,7 +297,12 @@ run command: <error>
 
 **Cause:** `reload_cmd` exited non-zero. Read `exit_code` and `output` in the `Command failed` record. `exit_code=127` with a "command not found" message from the shell means the command is not on confd's `PATH`, which is often shorter under a service manager than in your shell: use absolute paths. A permission error in the output means the user confd runs as is not allowed to perform the reload.
 
-**Important:** the destination file has already been replaced when `reload_cmd` runs. On the next cycle confd finds the destination in sync and does **not** run the reload again, so the application keeps running with its old configuration until something else changes. After fixing the cause, reload the application yourself, or remove the destination file so that confd regenerates it and reruns the commands.
+**Retry:** the destination file has already been replaced when `reload_cmd` runs, so the application keeps running with its old configuration until a reload succeeds. confd remembers the failed reload and retries `reload_cmd` the next time it processes the resource, even though the destination is now in sync. It logs `Retrying reload_cmd for <dest> after an earlier failure` at info level, and a retry that fails is reported like the first failure. The retry stops after the first success.
+
+- With `--interval` the retry runs on every cycle until it succeeds. With `--watch` the resource is only processed when a watched key changes, so the retry waits for the next change.
+- A retry runs `reload_cmd` only: the file is not rendered again and `check_cmd` does not run. There is no stage file, so `{{.src}}` in `reload_cmd` is the destination path during a retry.
+- The pending retry is held in memory. It is lost when confd restarts or reloads its template resources on `SIGHUP`, and a `--onetime` run cannot retry: it exits non-zero, and a second run finds the destination in sync and does not run `reload_cmd`. In those cases reload the application yourself, or remove the destination file so that confd regenerates it and reruns the commands.
+- `--noop` and `--sync-only` never run `reload_cmd`, including retries.
 
 ### A command times out
 
@@ -314,7 +319,7 @@ command timed out after <timeout>
 
 | Log line | Reason |
 |----------|--------|
-| `Target config <dest> in sync` (debug) | Nothing changed, so no commands run. |
+| `Target config <dest> in sync` (debug) | Nothing changed, so `check_cmd` does not run, and `reload_cmd` runs only to retry a reload that failed earlier. |
 | `Reload throttled for <dest> (next allowed in <duration>)` | `min_reload_interval` has not elapsed since the last reload. The file was still updated; the reload for this change is skipped, not deferred. |
 | `Noop mode enabled. <dest> will not be modified` | `--noop` is set (on the command line, as `CONFD_NOOP`, or `noop = true` in `confd.toml`). |
 | none | `--sync-only` is set, which writes files but skips both commands. |

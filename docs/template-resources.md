@@ -69,6 +69,8 @@ When multiple template resources specify identical backend configurations, confd
 When using the `reload_cmd` feature it's important that the command exits on its own. The reload
 command is not managed by confd, and will block the configuration run until it exits.
 
+If `reload_cmd` fails, the destination file has already been replaced. confd remembers the failure and retries `reload_cmd` the next time it processes the resource, even though the destination is in sync, until the command succeeds. With `--interval` that is the next cycle; in watch mode it is the next change to a watched key. The pending retry is kept in memory only, so it is lost on restart and on `SIGHUP`. During a retry there is no stage file, so `{{.src}}` in `reload_cmd` is the destination path.
+
 `check_cmd` and `reload_cmd` run through a shell: `/bin/sh -c` on Unix and `cmd /C` on Windows.
 Shell quoting and expansion (variables, globs, pipes, `&&`) apply to the rendered command string,
 including the substituted `{{.src}}` and `{{.dest}}` paths. The full command line is logged only at
