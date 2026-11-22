@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -627,13 +628,24 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		return nil
 	}
 
+	procErrs := &processorErrors{errChan: errChan, doneChan: doneChan}
+	// finish shuts down once the processor has stopped. A processor that
+	// stopped because no template resource loaded makes confd exit non-zero.
+	finish := func() error {
+		procErrs.waitDone()
+		if err := shutdown(); err != nil {
+			return err
+		}
+		return procErrs.fatal
+	}
+
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	var stopOnce sync.Once
 	for {
 		select {
 		case err := <-errChan:
-			log.Error("%s", err.Error())
+			procErrs.handle(err)
 		case s := <-signalChan:
 			switch s {
 			case syscall.SIGHUP:
@@ -655,11 +667,50 @@ func run(cli *CLI, backendCfg backends.Config) error {
 				}
 				cancel() // Cancel context to signal all goroutines
 				stopOnce.Do(func() { close(stopChan) })
-				<-doneChan
-				return shutdown()
+				return finish()
 			}
 		case <-doneChan:
-			return shutdown()
+			return finish()
+		}
+	}
+}
+
+// processorErrors receives the errors a long-running processor reports.
+// Errors are logged and the processor carries on, except for
+// template.ErrNoTemplateResources: the processor has stopped, and the error
+// is kept in fatal for run to return once shutdown has completed.
+type processorErrors struct {
+	errChan  <-chan error
+	doneChan <-chan bool
+	fatal    error
+}
+
+func (p *processorErrors) handle(err error) {
+	if errors.Is(err, template.ErrNoTemplateResources) {
+		// Not logged here: run returns it and it is reported on exit.
+		p.fatal = err
+		return
+	}
+	log.Error("%s", err.Error())
+}
+
+// waitDone handles errors until the processor has stopped, then the ones it
+// reported just before stopping. A processor sends its last error before it
+// closes doneChan, so that error may still be unread when doneChan closes.
+func (p *processorErrors) waitDone() {
+	for {
+		select {
+		case err := <-p.errChan:
+			p.handle(err)
+		case <-p.doneChan:
+			for {
+				select {
+				case err := <-p.errChan:
+					p.handle(err)
+				default:
+					return
+				}
+			}
 		}
 	}
 }

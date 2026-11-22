@@ -44,14 +44,10 @@ func (w *watchLoop) run(start func(ts []*TemplateResource)) {
 
 	// Outer loop for handling reloads
 	for {
-		ts, err := getTemplateResources(w.config)
+		ts, err := loadTemplateResources(w.config)
 		if err != nil {
-			if len(ts) == 0 {
-				log.Error("Failed to load any template resources: %s", err.Error())
-				w.errChan <- err
-				return
-			}
-			log.Warning("Some template resources failed to load: %s", err.Error())
+			w.errChan <- err
+			return
 		}
 
 		// Calculate total watched keys for metrics

@@ -78,7 +78,7 @@ These are used by the redis backend only.
 
 ## Error Handling Options
 
-* `failure_mode` (string) - Error handling mode: `best-effort` or `fail-fast`. Default: `"best-effort"`
+* `failure_mode` (string) - Error handling mode: `best-effort` or `fail-fast`. Default: `"best-effort"`. With `--onetime` it also decides whether the remaining resources are processed when a resource file fails to load; see [`--failure-mode`](command-line-flags.md#--failure-mode)
   - `best-effort`: Continue processing remaining templates when one fails
   - `fail-fast`: Stop all processing on first template error
 
