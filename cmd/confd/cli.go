@@ -237,15 +237,37 @@ func (v *VaultCmd) Run(cli *CLI) error {
 	return run(cli, cfg)
 }
 
+// redisPasswordEnv is the environment variable the redis command reads its
+// password from.
+const redisPasswordEnv = "REDIS_PASSWORD"
+
+// RedisCmd declares the AuthFlags fields itself rather than embedding
+// AuthFlags, so that REDIS_PASSWORD is bound to the redis password flag only
+// and no other backend reads it.
 type RedisCmd struct {
 	NodeFlags
 	TLSFlags
-	AuthFlags
+	BasicAuth bool   `name:"basic-auth" help:"use basic authentication"`
+	Username  string `help:"authentication username"`
+	Password  string `help:"Redis password (legacy: --client-key is used when no password is set)" env:"REDIS_PASSWORD"`
+	AuthToken string `name:"auth-token" help:"bearer token for authentication"`
 	Separator string `help:"separator to replace '/' in keys"`
 }
 
 func (r *RedisCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	return run(cli, r.backendConfig(cli))
+}
+
+// backendConfig builds the redis backend config from the parsed command.
+//
+// An empty REDIS_PASSWORD is treated as unset: it is still recorded as an
+// explicit source when the command line is parsed, which would stop a
+// password in confd.toml from applying, so that record is dropped here.
+func (r *RedisCmd) backendConfig(cli *CLI) backends.Config {
+	if value, isSet := os.LookupEnv(redisPasswordEnv); isSet && value == "" && cli.configSources != nil {
+		delete(cli.configSources.env, "password")
+	}
+	return backends.Config{
 		Backend:      "redis",
 		BackendNodes: r.Node,
 		ClientCert:   r.ClientCert,
@@ -255,7 +277,6 @@ func (r *RedisCmd) Run(cli *CLI) error {
 		Password:     r.Password,
 		Separator:    r.Separator,
 	}
-	return run(cli, cfg)
 }
 
 type ZookeeperCmd struct {

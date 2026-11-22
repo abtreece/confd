@@ -27,6 +27,29 @@ export REDIS_PASSWORD=secret
 confd redis --node 127.0.0.1:6379 --onetime
 ```
 
+Or in `confd.toml`:
+
+```toml
+password = "secret"
+```
+
+When the password is set in more than one place, the first non-empty source in this order is used:
+
+1. `--password` flag
+2. `REDIS_PASSWORD` environment variable
+3. `password` in `confd.toml`
+4. Legacy client key: `--client-key` flag, `CONFD_CLIENT_KEY` environment variable, or `client_key` in `confd.toml`
+
+Only that one source is used. If authentication fails with it, confd does not try the next one.
+
+#### Legacy: client key as password
+
+Earlier versions read the Redis password from the client key setting. This still works when no password is set by any of the first three sources above, but new configurations should use `--password`, `REDIS_PASSWORD`, or `password`:
+
+```bash
+confd redis --node 127.0.0.1:6379 --client-key secret --onetime
+```
+
 ### Database Selection
 
 Specify a database number (default is 0):
@@ -58,7 +81,8 @@ This transforms `/myapp/database/url` to `myapp:database:url` when querying Redi
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-n, --node` | Redis server address (host:port or socket path) | - |
-| `--password` | Redis password | - |
+| `--password` | Redis password (env: `REDIS_PASSWORD`) | - |
+| `--client-key` | Legacy way to supply the Redis password; used only when no password is set | - |
 | `--separator` | Character to replace `/` in keys | `/` |
 
 ## Data Types
@@ -217,14 +241,15 @@ keys = [
 [backend]
 backend = "redis"
 nodes = ["redis.example.com:6379"]
-client_key = "secretpassword"
+password = "secretpassword"
 separator = ":"
 ```
 
 Available backend options:
 - `backend` - Must be `"redis"`
 - `nodes` - Array of Redis server addresses (host:port or socket path)
-- `client_key` - Redis password
+- `password` - Redis password
+- `client_key` - Legacy way to supply the Redis password; used only when `password` is not set
 - `separator` - Character to replace `/` in keys (default: `/`)
 
 ## Connection Behavior
