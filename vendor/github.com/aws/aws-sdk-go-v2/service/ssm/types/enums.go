@@ -405,6 +405,8 @@ type CloudConnectorFilterKey string
 const (
 	CloudConnectorFilterKeySubscriptionId CloudConnectorFilterKey = "SubscriptionId"
 	CloudConnectorFilterKeyTenantId       CloudConnectorFilterKey = "TenantId"
+	CloudConnectorFilterKeyProjectId      CloudConnectorFilterKey = "ProjectId"
+	CloudConnectorFilterKeyOrganizationId CloudConnectorFilterKey = "OrganizationId"
 )
 
 // Values returns all known values for CloudConnectorFilterKey. Note that this can
@@ -415,6 +417,29 @@ func (CloudConnectorFilterKey) Values() []CloudConnectorFilterKey {
 	return []CloudConnectorFilterKey{
 		"SubscriptionId",
 		"TenantId",
+		"ProjectId",
+		"OrganizationId",
+	}
+}
+
+type CloudProvider string
+
+// Enum values for CloudProvider
+const (
+	CloudProviderAws   CloudProvider = "AWS"
+	CloudProviderAzure CloudProvider = "Azure"
+	CloudProviderGcp   CloudProvider = "GCP"
+)
+
+// Values returns all known values for CloudProvider. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (CloudProvider) Values() []CloudProvider {
+	return []CloudProvider{
+		"AWS",
+		"Azure",
+		"GCP",
 	}
 }
 
@@ -677,6 +702,25 @@ func (DescribeActivationsFilterKeys) Values() []DescribeActivationsFilterKeys {
 		"ActivationIds",
 		"DefaultInstanceName",
 		"IamRole",
+	}
+}
+
+type DHMCPermissionModel string
+
+// Enum values for DHMCPermissionModel
+const (
+	DHMCPermissionModelServiceManaged DHMCPermissionModel = "SERVICE_MANAGED"
+	DHMCPermissionModelSelfManaged    DHMCPermissionModel = "SELF_MANAGED"
+)
+
+// Values returns all known values for DHMCPermissionModel. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (DHMCPermissionModel) Values() []DHMCPermissionModel {
+	return []DHMCPermissionModel{
+		"SERVICE_MANAGED",
+		"SELF_MANAGED",
 	}
 }
 
@@ -2210,6 +2254,25 @@ func (PlatformType) Values() []PlatformType {
 	}
 }
 
+type Provider string
+
+// Enum values for Provider
+const (
+	ProviderAzure Provider = "Azure"
+	ProviderGcp   Provider = "GCP"
+)
+
+// Values returns all known values for Provider. Note that this can be expanded in
+// the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (Provider) Values() []Provider {
+	return []Provider{
+		"Azure",
+		"GCP",
+	}
+}
+
 type RebootOption string
 
 // Enum values for RebootOption
@@ -2433,6 +2496,7 @@ const (
 	SourceTypeAwsIotThing           SourceType = "AWS::IoT::Thing"
 	SourceTypeAwsSsmManagedinstance SourceType = "AWS::SSM::ManagedInstance"
 	SourceTypeAzureInstance         SourceType = "Microsoft.Compute/virtualMachines"
+	SourceTypeGcpInstance           SourceType = "compute.googleapis.com/Instance"
 )
 
 // Values returns all known values for SourceType. Note that this can be expanded
@@ -2445,6 +2509,7 @@ func (SourceType) Values() []SourceType {
 		"AWS::IoT::Thing",
 		"AWS::SSM::ManagedInstance",
 		"Microsoft.Compute/virtualMachines",
+		"compute.googleapis.com/Instance",
 	}
 }
 
@@ -2506,6 +2571,8 @@ type ValidationFindingCode string
 const (
 	ValidationFindingCodeTargetInaccessible                    ValidationFindingCode = "TargetInaccessible"
 	ValidationFindingCodeTargetUnusable                        ValidationFindingCode = "TargetUnusable"
+	ValidationFindingCodeTargetMissingPermissions              ValidationFindingCode = "TargetMissingPermissions"
+	ValidationFindingCodeTargetApiDisabled                     ValidationFindingCode = "TargetApiDisabled"
 	ValidationFindingCodeTargetStateWarning                    ValidationFindingCode = "TargetStateWarning"
 	ValidationFindingCodeAwsRoleAssumptionFailed               ValidationFindingCode = "AwsRoleAssumptionFailed"
 	ValidationFindingCodeWebIdentityTokenFailed                ValidationFindingCode = "WebIdentityTokenFailed"
@@ -2523,6 +2590,8 @@ func (ValidationFindingCode) Values() []ValidationFindingCode {
 	return []ValidationFindingCode{
 		"TargetInaccessible",
 		"TargetUnusable",
+		"TargetMissingPermissions",
+		"TargetApiDisabled",
 		"TargetStateWarning",
 		"AwsRoleAssumptionFailed",
 		"WebIdentityTokenFailed",
@@ -2539,6 +2608,8 @@ type ValidationFindingScopeType string
 const (
 	ValidationFindingScopeTypeAzureTenant       ValidationFindingScopeType = "azure:tenant"
 	ValidationFindingScopeTypeAzureSubscription ValidationFindingScopeType = "azure:subscription"
+	ValidationFindingScopeTypeGcpOrganization   ValidationFindingScopeType = "gcp:organization"
+	ValidationFindingScopeTypeGcpProject        ValidationFindingScopeType = "gcp:project"
 )
 
 // Values returns all known values for ValidationFindingScopeType. Note that this
@@ -2549,6 +2620,8 @@ func (ValidationFindingScopeType) Values() []ValidationFindingScopeType {
 	return []ValidationFindingScopeType{
 		"azure:tenant",
 		"azure:subscription",
+		"gcp:organization",
+		"gcp:project",
 	}
 }
 

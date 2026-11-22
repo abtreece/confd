@@ -34,7 +34,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -504,21 +503,33 @@ func (m *deserializeResponseMiddleware) HandleDeserialize(
 	middleware.DeserializeOutput, middleware.Metadata, error,
 ) {
 	out, md, err := next.HandleDeserialize(ctx, in)
-	if err != nil {
-		return out, md, err
-	}
 
 	resp, ok := out.RawResponse.(*smithyhttp.Response)
 	if !ok {
+		if err != nil {
+			// Transport-level failure with no HTTP response to close.
+			return out, md, err
+		}
 		return out, md, &smithy.DeserializationError{Err: fmt.Errorf("unknown transport type %T", out.RawResponse)}
 	}
 
-	// Event streams close their own body in the event stream deserializer.
+	// Close the response body on return. CloseResponseBody keeps the body
+	// open only for a successful caller-owned stream (a streaming payload
+	// with a nil error); on any error -- including one surfaced by an
+	// interceptor that runs after OperationDeserializer (after transmit or
+	// before deserialization) -- it closes the received body. Registering
+	// this before the error check below is what covers those interceptor
+	// aborts. Event streams close their own body in the event stream
+	// deserializer.
 	if !m.operationSchema.IsInputEventStream() && !m.operationSchema.IsOutputEventStream() {
 		_, isStreamingPayload := m.output.(smithy.StreamingOutput)
 		defer func() {
 			smithyhttp.CloseResponseBody(ctx, resp, isStreamingPayload, err)
 		}()
+	}
+
+	if err != nil {
+		return out, md, err
 	}
 
 	_, span := tracing.StartSpan(ctx, "OperationDeserializer")
@@ -655,16 +666,14 @@ func resolveRetryer(o *Options) {
 			so.MaxAttempts = v
 		})
 	}
-	if os.Getenv("AWS_NEW_RETRIES_2026") == "true" {
-		// DynamoDB uses a shorter base backoff (25ms) and one additional
-		// retry attempt (4 total) by default.
-		standardOptions = append(standardOptions, func(so *retry.StandardOptions) {
-			if o.RetryMaxAttempts == 0 {
-				so.MaxAttempts = 4
-			}
-			so.BaseDelay = 25 * time.Millisecond
-		})
-	}
+	// DynamoDB uses a shorter base backoff (25ms) and one additional
+	// retry attempt (4 total) by default.
+	standardOptions = append(standardOptions, func(so *retry.StandardOptions) {
+		if o.RetryMaxAttempts == 0 {
+			so.MaxAttempts = 4
+		}
+		so.BaseDelay = 25 * time.Millisecond
+	})
 
 	switch o.RetryMode {
 	case aws.RetryModeAdaptive:
