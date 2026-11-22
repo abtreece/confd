@@ -51,12 +51,15 @@ func TestMonitorPrefix_NonBlockingErrChan(t *testing.T) {
 	defer cancel()
 
 	p := &watchProcessor{
-		config: Config{
-			Ctx:               ctx,
-			WatchErrorBackoff: time.Millisecond,
+		watchLoop: watchLoop{
+			name: "watch",
+			config: Config{
+				Ctx:               ctx,
+				WatchErrorBackoff: time.Millisecond,
+			},
+			errChan:      make(chan error), // unbuffered, no reader — fills instantly
+			internalStop: make(chan bool),
 		},
-		errChan:      make(chan error), // unbuffered, no reader — fills instantly
-		internalStop: make(chan bool),
 	}
 
 	tr := &TemplateResource{
@@ -90,13 +93,16 @@ func TestMonitorForBatch_NonBlockingErrChan(t *testing.T) {
 	defer cancel()
 
 	p := &batchWatchProcessor{
-		config: Config{
-			Ctx:               ctx,
-			WatchErrorBackoff: time.Millisecond,
+		watchLoop: watchLoop{
+			name: "batch watch",
+			config: Config{
+				Ctx:               ctx,
+				WatchErrorBackoff: time.Millisecond,
+			},
+			errChan:      make(chan error), // unbuffered, no reader
+			internalStop: make(chan bool),
 		},
-		errChan:      make(chan error), // unbuffered, no reader
-		changeChan:   make(chan *TemplateResource, 1),
-		internalStop: make(chan bool),
+		changeChan: make(chan *TemplateResource, 1),
 	}
 
 	tr := &TemplateResource{

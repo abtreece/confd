@@ -27,7 +27,6 @@ type secretsManagerAPI interface {
 
 // Client is a wrapper around the AWS Secrets Manager client.
 type Client struct {
-	types.NoopWatcher
 	types.NoopCloser
 	client       secretsManagerAPI
 	versionStage string
@@ -35,9 +34,8 @@ type Client struct {
 }
 
 // New creates a new Secrets Manager client with automatic region detection.
-func New(versionStage string, noFlatten bool, dialTimeout time.Duration) (*Client, error) {
-	ctx := context.Background()
-
+// AWS config loading is bounded by ctx.
+func New(ctx context.Context, versionStage string, noFlatten bool, dialTimeout time.Duration) (*Client, error) {
 	if versionStage == "" {
 		versionStage = "AWSCURRENT"
 	}

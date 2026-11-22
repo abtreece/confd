@@ -156,7 +156,7 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
   - `config.go` - Configuration loading from file, env vars, and flags
   - `main.go` - Entry point
 - **pkg/backends/** - Backend abstraction layer with `StoreClient` interface
-  - Each backend implements `GetValues()`, `WatchPrefix()`, and `HealthCheck()`
+  - Each backend implements `GetValues()`, `HealthCheck()`, and `Close()`; watch-capable backends also implement the optional `Watcher` interface (`WatchPrefix()`)
   - `client.go` contains factory function `New()` that creates appropriate backend
   - Backends: acm/, consul/, dynamodb/, env/, etcd/, file/, imds/, redis/, secretsmanager/, ssm/, vault/, zookeeper/
 - **pkg/template/** - Template processing (follows Single Responsibility Principle)

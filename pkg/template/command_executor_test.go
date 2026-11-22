@@ -9,6 +9,8 @@ import (
 	"testing"
 	"text/template"
 	"time"
+
+	"github.com/abtreece/confd/pkg/log"
 )
 
 func TestExecuteCheck_Success(t *testing.T) {
@@ -515,6 +517,210 @@ func TestExecuteCheck_LongCommandWithTimeout(t *testing.T) {
 	}
 	if err == nil {
 		t.Error("executeCheck() expected timeout error, got nil")
+	}
+}
+
+// captureLogs redirects confd's log output to a temp file at the given level
+// and returns a function that reads everything logged so far. pkg/log binds its
+// handler to os.Stdout when SetLevel is called, so os.Stdout is swapped first.
+func captureLogs(t *testing.T, level string) func() string {
+	t.Helper()
+
+	logFile, err := os.CreateTemp(t.TempDir(), "confd-log-*.txt")
+	if err != nil {
+		t.Fatalf("Failed to create log capture file: %v", err)
+	}
+
+	origStdout := os.Stdout
+	os.Stdout = logFile
+	log.SetLevel(level)
+	t.Cleanup(func() {
+		os.Stdout = origStdout
+		log.SetLevel("info")
+		logFile.Close()
+	})
+
+	return func() string {
+		t.Helper()
+		data, err := os.ReadFile(logFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to read captured logs: %v", err)
+		}
+		return string(data)
+	}
+}
+
+// commandLogMarker stands in for a credential embedded in a command string.
+// The marker commands below produce no output, so the marker can only reach
+// the logs through the command string itself.
+const commandLogMarker = "confd-marker-s3cr3t-token"
+
+// runMarkerCommands runs a failing check command and a succeeding reload
+// command that both contain commandLogMarker.
+func runMarkerCommands(t *testing.T) {
+	t.Helper()
+
+	executor, err := newCommandExecutor(commandExecutorConfig{
+		CheckCmd:  "test " + commandLogMarker + " = other",
+		ReloadCmd: ": " + commandLogMarker,
+		Dest:      "/tmp/marker-dest.conf",
+	})
+	if err != nil {
+		t.Fatalf("newCommandExecutor() unexpected error: %v", err)
+	}
+
+	if err := executor.executeCheck("/tmp/marker-stage"); err == nil {
+		t.Fatal("executeCheck() expected error for failing command, got nil")
+	}
+	if err := executor.executeReload("/tmp/marker-stage", "/tmp/marker-dest.conf"); err != nil {
+		t.Fatalf("executeReload() unexpected error: %v", err)
+	}
+}
+
+func TestCommandExecutor_CommandNotLoggedAtInfo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+	logs := captureLogs(t, "info")
+
+	runMarkerCommands(t)
+
+	got := logs()
+	if strings.Contains(got, commandLogMarker) {
+		t.Errorf("command string leaked into info-level logs:\n%s", got)
+	}
+	// Operators must still be able to tell which command ran.
+	for _, want := range []string{
+		"Command failed",
+		"Command completed successfully",
+		"command_type=check",
+		"command_type=reload",
+		"dest=/tmp/marker-dest.conf",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("info-level logs missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestCommandExecutor_CommandLoggedAtDebug(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+	logs := captureLogs(t, "debug")
+
+	runMarkerCommands(t)
+
+	got := logs()
+	for _, want := range []string{
+		"command=test " + commandLogMarker + " = other",
+		"command=: " + commandLogMarker,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("debug-level logs missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestCommandExecutor_ExitStatus(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+	logs := captureLogs(t, "info")
+
+	executor, err := newCommandExecutor(commandExecutorConfig{
+		CheckCmd: "exit 3",
+	})
+	if err != nil {
+		t.Fatalf("newCommandExecutor() unexpected error: %v", err)
+	}
+
+	err = executor.executeCheck("/tmp/test")
+	if err == nil || !strings.Contains(err.Error(), "exit status 3") {
+		t.Errorf("executeCheck() expected 'exit status 3' error, got: %v", err)
+	}
+	if got := logs(); !strings.Contains(got, "exit_code=3") {
+		t.Errorf("logs missing exit_code=3:\n%s", got)
+	}
+}
+
+func TestCommandExecutor_MissingCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+	logs := captureLogs(t, "info")
+
+	executor, err := newCommandExecutor(commandExecutorConfig{
+		ReloadCmd: "nonexistent_command_12345",
+	})
+	if err != nil {
+		t.Fatalf("newCommandExecutor() unexpected error: %v", err)
+	}
+
+	// The shell reports a missing command as exit status 127.
+	err = executor.executeReload("/tmp/test", "/tmp/dest")
+	if err == nil || !strings.Contains(err.Error(), "exit status 127") {
+		t.Errorf("executeReload() expected 'exit status 127' error, got: %v", err)
+	}
+	if got := logs(); !strings.Contains(got, "exit_code=127") {
+		t.Errorf("logs missing exit_code=127:\n%s", got)
+	}
+}
+
+func TestCommandExecutor_OutputCapture(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+	logs := captureLogs(t, "debug")
+
+	executor, err := newCommandExecutor(commandExecutorConfig{
+		CheckCmd: "echo 'test output'",
+	})
+	if err != nil {
+		t.Fatalf("newCommandExecutor() unexpected error: %v", err)
+	}
+
+	if err := executor.executeCheck("/tmp/test"); err != nil {
+		t.Fatalf("executeCheck() unexpected error: %v", err)
+	}
+
+	got := logs()
+	for _, want := range []string{"output=test output", "output_size_bytes=12"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("logs missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestCommandExecutor_OutputTruncation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows")
+	}
+	logs := captureLogs(t, "info")
+
+	// 500 "a" bytes fill the logged output limit; everything after is cut.
+	const pastLimit = "PAST-LIMIT"
+	executor, err := newCommandExecutor(commandExecutorConfig{
+		CheckCmd: "printf 'a%.0s' $(seq 1 500); printf " + pastLimit + "; exit 1",
+	})
+	if err != nil {
+		t.Fatalf("newCommandExecutor() unexpected error: %v", err)
+	}
+
+	if err := executor.executeCheck("/tmp/test"); err == nil {
+		t.Fatal("executeCheck() expected error for exit 1, got nil")
+	}
+
+	got := logs()
+	wantOutput := "output=" + strings.Repeat("a", 500) + "... (truncated)"
+	if !strings.Contains(got, wantOutput) {
+		t.Errorf("logs missing output truncated to 500 bytes:\n%s", got)
+	}
+	if strings.Contains(got, pastLimit) {
+		t.Errorf("logs contain output past the truncation limit:\n%s", got)
+	}
+	if !strings.Contains(got, "output_size_bytes=510") {
+		t.Errorf("logs missing full output size (output_size_bytes=510):\n%s", got)
 	}
 }
 

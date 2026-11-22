@@ -15,7 +15,6 @@ var replacer = strings.NewReplacer("/", "_")
 
 // Client provides a shell for the env client
 type Client struct {
-	types.NoopWatcher
 	types.NoopCloser
 }
 

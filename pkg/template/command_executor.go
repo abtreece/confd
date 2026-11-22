@@ -102,7 +102,7 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 		return fmt.Errorf("render check command: %w", err)
 	}
 
-	cmdErr := e.runCommandWithTimeout(cmdBuffer.String(), e.checkCmdTimeout)
+	cmdErr := e.runCommandWithTimeout("check", cmdBuffer.String(), e.checkCmdTimeout)
 
 	// Record metrics
 	if metrics.Enabled() {
@@ -148,7 +148,7 @@ func (e *commandExecutor) executeReload(stagePath, destPath string) error {
 		return fmt.Errorf("render reload command: %w", err)
 	}
 
-	cmdErr := e.runCommandWithTimeout(cmdBuffer.String(), e.reloadCmdTimeout)
+	cmdErr := e.runCommandWithTimeout("reload", cmdBuffer.String(), e.reloadCmdTimeout)
 
 	// Record metrics
 	if metrics.Enabled() {
@@ -179,10 +179,14 @@ func (e *commandExecutor) executeReload(stagePath, destPath string) error {
 // On Unix systems, it creates a new process group to ensure all child processes
 // are killed when the command times out or is cancelled.
 // It returns an error if the command fails, times out, or the context is cancelled.
-func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duration) error {
+//
+// Operators sometimes embed credentials in command strings, so the full command
+// is logged only at debug level. Records at other levels identify the command by
+// commandType ("check" or "reload") and the destination path.
+func (e *commandExecutor) runCommandWithTimeout(commandType, cmd string, timeout time.Duration) error {
 	start := time.Now()
-	logger := log.With("command", cmd, "timeout", timeout.String())
-	logger.DebugContext(e.ctx, "Starting command execution")
+	logger := log.With("command_type", commandType, "dest", e.dest, "timeout", timeout.String())
+	logger.DebugContext(e.ctx, "Starting command execution", "command", cmd)
 
 	ctx := e.ctx
 	if timeout > 0 {
@@ -252,27 +256,5 @@ func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duratio
 		"duration_ms", duration.Milliseconds(),
 		"output_size_bytes", outputSize)
 	logger.DebugContext(e.ctx, "Command output", "output", outputStr)
-	return nil
-}
-
-// runCommand executes the given command and logs its output.
-// It handles cross-platform execution (Windows vs Unix).
-// It returns nil if the command returns 0, otherwise returns the error.
-func runCommand(cmd string) error {
-	log.Debug("Running %s", cmd)
-	// All commands are operator-configured via template resources, not user input.
-	var c *exec.Cmd
-	if runtime.GOOS == "windows" {
-		c = exec.Command("cmd", "/C", cmd) // #nosec G204
-	} else {
-		c = exec.Command("/bin/sh", "-c", cmd) // #nosec G204
-	}
-
-	output, err := c.CombinedOutput()
-	if err != nil {
-		log.Error("%q", string(output))
-		return fmt.Errorf("run command: %w", err)
-	}
-	log.Debug("%q", string(output))
 	return nil
 }

@@ -341,65 +341,6 @@ func TestGetValues_MixedSecrets(t *testing.T) {
 	}
 }
 
-func TestWatchPrefix(t *testing.T) {
-	mock := &mockSecretsManager{}
-	client := newTestClient(mock, "", false)
-
-	stopChan := make(chan bool, 1)
-
-	// Send stop signal immediately
-	go func() {
-		stopChan <- true
-	}()
-
-	index, err := client.WatchPrefix(context.Background(), "/test", []string{"/test/key"}, 0, stopChan)
-	if err != nil {
-		t.Errorf("WatchPrefix() unexpected error: %v", err)
-	}
-	if index != 0 {
-		t.Errorf("WatchPrefix() index = %d, want 0", index)
-	}
-}
-
-func TestWatchPrefix_ContextCancellation(t *testing.T) {
-	mock := &mockSecretsManager{}
-	client := newTestClient(mock, "", false)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	stopChan := make(chan bool)
-	waitIndex := uint64(42)
-
-	index, err := client.WatchPrefix(ctx, "/test", []string{"/test/key"}, waitIndex, stopChan)
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("WatchPrefix() error = %v, want context.Canceled", err)
-	}
-	if index != waitIndex {
-		t.Errorf("WatchPrefix() index = %d, want %d", index, waitIndex)
-	}
-}
-
-func TestWatchPrefix_ReturnsWaitIndex(t *testing.T) {
-	mock := &mockSecretsManager{}
-	client := newTestClient(mock, "", false)
-
-	stopChan := make(chan bool, 1)
-	waitIndex := uint64(123)
-
-	go func() {
-		stopChan <- true
-	}()
-
-	index, err := client.WatchPrefix(context.Background(), "/test", []string{"/test/key"}, waitIndex, stopChan)
-	if err != nil {
-		t.Errorf("WatchPrefix() unexpected error: %v", err)
-	}
-	if index != waitIndex {
-		t.Errorf("WatchPrefix() index = %d, want %d", index, waitIndex)
-	}
-}
-
 func TestHealthCheck_Success_NotFound(t *testing.T) {
 	// HealthCheck uses ListSecrets - empty list is success (connectivity is working)
 	mock := &mockSecretsManager{

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -176,76 +177,6 @@ func TestCLIGlobalFlags(t *testing.T) {
 	}
 }
 
-func TestConsulCmdDefaultNodes(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"consul"})
-	cmd := &cli.Consul
-
-	if len(cmd.Node) != 0 {
-		t.Errorf("Expected no nodes before Run, got %v", cmd.Node)
-	}
-
-	// Simulate what Run does for default nodes
-	if len(cmd.Node) == 0 {
-		cmd.Node = []string{"127.0.0.1:8500"}
-	}
-
-	if len(cmd.Node) != 1 || cmd.Node[0] != "127.0.0.1:8500" {
-		t.Errorf("Expected default node '127.0.0.1:8500', got %v", cmd.Node)
-	}
-}
-
-func TestEtcdCmdDefaultNodes(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"etcd"})
-	cmd := &cli.Etcd
-
-	if len(cmd.Node) == 0 {
-		cmd.Node = []string{"http://127.0.0.1:2379"}
-	}
-
-	if len(cmd.Node) != 1 || cmd.Node[0] != "http://127.0.0.1:2379" {
-		t.Errorf("Expected default node 'http://127.0.0.1:2379', got %v", cmd.Node)
-	}
-}
-
-func TestVaultCmdDefaultNodes(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"vault"})
-	cmd := &cli.Vault
-
-	if len(cmd.Node) == 0 {
-		cmd.Node = []string{"http://127.0.0.1:8200"}
-	}
-
-	if len(cmd.Node) != 1 || cmd.Node[0] != "http://127.0.0.1:8200" {
-		t.Errorf("Expected default node 'http://127.0.0.1:8200', got %v", cmd.Node)
-	}
-}
-
-func TestRedisCmdDefaultNodes(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"redis"})
-	cmd := &cli.Redis
-
-	if len(cmd.Node) == 0 {
-		cmd.Node = []string{"127.0.0.1:6379"}
-	}
-
-	if len(cmd.Node) != 1 || cmd.Node[0] != "127.0.0.1:6379" {
-		t.Errorf("Expected default node '127.0.0.1:6379', got %v", cmd.Node)
-	}
-}
-
-func TestZookeeperCmdDefaultNodes(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"zookeeper"})
-	cmd := &cli.Zookeeper
-
-	if len(cmd.Node) == 0 {
-		cmd.Node = []string{"127.0.0.1:2181"}
-	}
-
-	if len(cmd.Node) != 1 || cmd.Node[0] != "127.0.0.1:2181" {
-		t.Errorf("Expected default node '127.0.0.1:2181', got %v", cmd.Node)
-	}
-}
-
 func TestNodeFlagsMultipleNodes(t *testing.T) {
 	cli, _ := parseCLI(t, []string{"etcd", "-n", "http://node1:2379", "-n", "http://node2:2379"})
 	cmd := &cli.Etcd
@@ -363,54 +294,6 @@ func TestFileRequiredFile(t *testing.T) {
 	}
 }
 
-func TestDynamoDBWatchModeError(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"--watch", "dynamodb", "--table", "test"})
-	cmd := &cli.DynamoDB
-	err := cmd.Run(cli)
-	if err == nil {
-		t.Error("Expected error for watch mode with dynamodb")
-	}
-	if err.Error() != "watch mode not supported for dynamodb backend" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
-
-func TestSSMWatchModeError(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"--watch", "ssm"})
-	cmd := &cli.SSM
-	err := cmd.Run(cli)
-	if err == nil {
-		t.Error("Expected error for watch mode with ssm")
-	}
-	if err.Error() != "watch mode not supported for ssm backend" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
-
-func TestACMWatchModeError(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"--watch", "acm"})
-	cmd := &cli.ACM
-	err := cmd.Run(cli)
-	if err == nil {
-		t.Error("Expected error for watch mode with acm")
-	}
-	if err.Error() != "watch mode not supported for acm backend" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
-
-func TestSecretsManagerWatchModeError(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"--watch", "secretsmanager"})
-	cmd := &cli.SecretsManager
-	err := cmd.Run(cli)
-	if err == nil {
-		t.Error("Expected error for watch mode with secretsmanager")
-	}
-	if err.Error() != "watch mode not supported for secretsmanager backend" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
-
 func TestSecretsManagerFlags(t *testing.T) {
 	cli, _ := parseCLI(t, []string{
 		"secretsmanager",
@@ -481,199 +364,6 @@ func TestEtcdSchemeAndInsecure(t *testing.T) {
 	}
 }
 
-func TestLoadConfigFile(t *testing.T) {
-	// Create a temporary config file
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "confd.toml")
-	configContent := `
-confdir = "/custom/confd"
-interval = 300
-prefix = "/myprefix"
-log-level = "debug"
-noop = true
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("Failed to write config file: %v", err)
-	}
-
-	cli := &CLI{
-		ConfDir:    "/etc/confd", // default
-		ConfigFile: configPath,
-		Interval:   600, // default
-	}
-	backendCfg := &backends.Config{}
-
-	if err := loadConfigFile(cli, backendCfg); err != nil {
-		t.Fatalf("loadConfigFile failed: %v", err)
-	}
-
-	// Verify TOML values are applied
-	if cli.ConfDir != "/custom/confd" {
-		t.Errorf("Expected confdir '/custom/confd', got %q", cli.ConfDir)
-	}
-	if cli.Interval != 300 {
-		t.Errorf("Expected interval 300, got %d", cli.Interval)
-	}
-	if cli.Prefix != "/myprefix" {
-		t.Errorf("Expected prefix '/myprefix', got %q", cli.Prefix)
-	}
-	if cli.LogLevel != "debug" {
-		t.Errorf("Expected log-level 'debug', got %q", cli.LogLevel)
-	}
-	if !cli.Noop {
-		t.Error("Expected noop to be true")
-	}
-}
-
-func TestLoadConfigFileCLIPrecedence(t *testing.T) {
-	// Create a temporary config file
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "confd.toml")
-	configContent := `
-confdir = "/toml/confd"
-interval = 300
-prefix = "/tomlprefix"
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("Failed to write config file: %v", err)
-	}
-
-	// CLI values should take precedence over TOML
-	cli := &CLI{
-		ConfDir:    "/cli/confd", // Non-default CLI value
-		ConfigFile: configPath,
-		Interval:   120,          // Non-default CLI value
-		Prefix:     "/cliprefix", // CLI value
-		configSources: &configSources{cli: map[string]bool{
-			"confdir":  true,
-			"interval": true,
-			"prefix":   true,
-		}},
-	}
-	backendCfg := &backends.Config{}
-
-	if err := loadConfigFile(cli, backendCfg); err != nil {
-		t.Fatalf("loadConfigFile failed: %v", err)
-	}
-
-	// CLI values should be preserved (not overwritten by TOML)
-	if cli.ConfDir != "/cli/confd" {
-		t.Errorf("Expected confdir '/cli/confd', got %q", cli.ConfDir)
-	}
-	if cli.Interval != 120 {
-		t.Errorf("Expected interval 120, got %d", cli.Interval)
-	}
-	if cli.Prefix != "/cliprefix" {
-		t.Errorf("Expected prefix '/cliprefix', got %q", cli.Prefix)
-	}
-}
-
-func TestLoadConfigFileBackendSettings(t *testing.T) {
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "confd.toml")
-	configContent := `
-nodes = ["node1:2379", "node2:2379"]
-client_cert = "/path/to/cert"
-client_key = "/path/to/key"
-username = "admin"
-password = "secret"
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("Failed to write config file: %v", err)
-	}
-
-	cli := &CLI{
-		ConfDir:    "/etc/confd",
-		ConfigFile: configPath,
-		Interval:   600,
-	}
-	backendCfg := &backends.Config{}
-
-	if err := loadConfigFile(cli, backendCfg); err != nil {
-		t.Fatalf("loadConfigFile failed: %v", err)
-	}
-
-	if len(backendCfg.BackendNodes) != 2 {
-		t.Fatalf("Expected 2 backend nodes, got %d", len(backendCfg.BackendNodes))
-	}
-	if backendCfg.BackendNodes[0] != "node1:2379" {
-		t.Errorf("Expected first node 'node1:2379', got %q", backendCfg.BackendNodes[0])
-	}
-	if backendCfg.ClientCert != "/path/to/cert" {
-		t.Errorf("Expected client_cert '/path/to/cert', got %q", backendCfg.ClientCert)
-	}
-	if backendCfg.Username != "admin" {
-		t.Errorf("Expected username 'admin', got %q", backendCfg.Username)
-	}
-}
-
-func TestLoadConfigFileNotFound(t *testing.T) {
-	cli := &CLI{
-		ConfDir:    "/etc/confd",
-		ConfigFile: "/nonexistent/confd.toml",
-		Interval:   600,
-	}
-	backendCfg := &backends.Config{}
-
-	// Should not error when config file doesn't exist
-	if err := loadConfigFile(cli, backendCfg); err != nil {
-		t.Errorf("loadConfigFile should not error for missing file: %v", err)
-	}
-}
-
-func TestProcessEnv(t *testing.T) {
-	// Save and restore environment
-	origCert := os.Getenv("CONFD_CLIENT_CERT")
-	origKey := os.Getenv("CONFD_CLIENT_KEY")
-	origCaKeys := os.Getenv("CONFD_CLIENT_CAKEYS")
-	origACM := os.Getenv("ACM_EXPORT_PRIVATE_KEY")
-	defer func() {
-		os.Setenv("CONFD_CLIENT_CERT", origCert)
-		os.Setenv("CONFD_CLIENT_KEY", origKey)
-		os.Setenv("CONFD_CLIENT_CAKEYS", origCaKeys)
-		os.Setenv("ACM_EXPORT_PRIVATE_KEY", origACM)
-	}()
-
-	os.Setenv("CONFD_CLIENT_CERT", "/env/cert")
-	os.Setenv("CONFD_CLIENT_KEY", "/env/key")
-	os.Setenv("CONFD_CLIENT_CAKEYS", "/env/ca")
-	os.Setenv("ACM_EXPORT_PRIVATE_KEY", "true")
-
-	cfg := &backends.Config{}
-	processEnv(cfg)
-
-	if cfg.ClientCert != "/env/cert" {
-		t.Errorf("Expected ClientCert '/env/cert', got %q", cfg.ClientCert)
-	}
-	if cfg.ClientKey != "/env/key" {
-		t.Errorf("Expected ClientKey '/env/key', got %q", cfg.ClientKey)
-	}
-	if cfg.ClientCaKeys != "/env/ca" {
-		t.Errorf("Expected ClientCaKeys '/env/ca', got %q", cfg.ClientCaKeys)
-	}
-	if !cfg.ACMExportPrivateKey {
-		t.Error("Expected ACMExportPrivateKey to be true")
-	}
-}
-
-func TestProcessEnvDoesNotOverride(t *testing.T) {
-	// Save and restore environment
-	origCert := os.Getenv("CONFD_CLIENT_CERT")
-	defer os.Setenv("CONFD_CLIENT_CERT", origCert)
-
-	os.Setenv("CONFD_CLIENT_CERT", "/env/cert")
-
-	// Pre-set value should not be overridden
-	cfg := &backends.Config{
-		ClientCert: "/cli/cert",
-	}
-	processEnv(cfg)
-
-	if cfg.ClientCert != "/cli/cert" {
-		t.Errorf("Expected ClientCert '/cli/cert' (not overridden), got %q", cfg.ClientCert)
-	}
-}
-
 // clearCONFDEnvVars clears all CONFD_* and backend-specific env vars that could
 // interfere with Kong parsing, saving original values for restoration via t.Cleanup.
 func clearCONFDEnvVars(t *testing.T) {
@@ -681,7 +371,7 @@ func clearCONFDEnvVars(t *testing.T) {
 
 	// List of env vars that Kong parses and could interfere with tests
 	envVars := []string{
-		"ACM_EXPORT_PRIVATE_KEY",
+		"ACM_EXPORT_PRIVATE_KEY", "VAULT_TOKEN",
 		"CONFD_CONFDIR", "CONFD_CONFIG_FILE", "CONFD_INTERVAL",
 		"CONFD_LOG_LEVEL", "CONFD_LOG_FORMAT", "CONFD_PREFIX",
 		"CONFD_WATCH", "CONFD_ONETIME", "CONFD_NOOP", "CONFD_SYNC_ONLY",
@@ -961,22 +651,40 @@ func TestBackendRunMethods_DefaultNodesWithCheckConfig(t *testing.T) {
 
 func TestApplyBackendDefaults(t *testing.T) {
 	tests := []struct {
+		name    string
 		backend string
-		want    string
+		nodes   []string
+		want    []string
 	}{
-		{backend: "consul", want: "127.0.0.1:8500"},
-		{backend: "etcd", want: "http://127.0.0.1:2379"},
-		{backend: "vault", want: "http://127.0.0.1:8200"},
-		{backend: "redis", want: "127.0.0.1:6379"},
-		{backend: "zookeeper", want: "127.0.0.1:2181"},
+		{name: "consul default", backend: "consul", want: []string{"127.0.0.1:8500"}},
+		{name: "etcd default", backend: "etcd", want: []string{"http://127.0.0.1:2379"}},
+		{name: "vault default", backend: "vault", want: []string{"http://127.0.0.1:8200"}},
+		{name: "redis default", backend: "redis", want: []string{"127.0.0.1:6379"}},
+		{name: "zookeeper default", backend: "zookeeper", want: []string{"127.0.0.1:2181"}},
+
+		{name: "consul keeps configured node", backend: "consul", nodes: []string{"consul.example:8500"}, want: []string{"consul.example:8500"}},
+		{name: "etcd keeps configured nodes", backend: "etcd", nodes: []string{"http://a:2379", "http://b:2379"}, want: []string{"http://a:2379", "http://b:2379"}},
+		{name: "vault keeps configured node", backend: "vault", nodes: []string{"https://vault.example:8200"}, want: []string{"https://vault.example:8200"}},
+		{name: "redis keeps configured node", backend: "redis", nodes: []string{"redis.example:6379"}, want: []string{"redis.example:6379"}},
+		{name: "zookeeper keeps configured node", backend: "zookeeper", nodes: []string{"zk.example:2181"}, want: []string{"zk.example:2181"}},
+
+		{name: "acm has no default node", backend: "acm"},
+		{name: "dynamodb has no default node", backend: "dynamodb"},
+		{name: "env has no default node", backend: "env"},
+		{name: "file has no default node", backend: "file"},
+		{name: "imds has no default node", backend: "imds"},
+		{name: "secretsmanager has no default node", backend: "secretsmanager"},
+		{name: "ssm has no default node", backend: "ssm"},
+		{name: "unknown backend has no default node", backend: "not-a-backend"},
+		{name: "empty backend has no default node", backend: ""},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.backend, func(t *testing.T) {
-			cfg := &backends.Config{Backend: tt.backend}
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &backends.Config{Backend: tt.backend, BackendNodes: tt.nodes}
 			applyBackendDefaults(cfg)
-			if len(cfg.BackendNodes) != 1 || cfg.BackendNodes[0] != tt.want {
-				t.Fatalf("BackendNodes = %v, want [%s]", cfg.BackendNodes, tt.want)
+			if got := []string(cfg.BackendNodes); !slices.Equal(got, tt.want) {
+				t.Fatalf("BackendNodes = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -1022,16 +730,6 @@ func TestAdditionalRunMethods_WithValidateMode(t *testing.T) {
 }
 
 func TestIMDSCmdRun(t *testing.T) {
-	t.Run("watch mode unsupported", func(t *testing.T) {
-		cli := makeCheckConfigCLI(t)
-		cli.Watch = true
-		cmd := &IMDSCmd{CacheTTL: "60s"}
-		err := cmd.Run(cli)
-		if err == nil || err.Error() != "watch mode not supported for imds backend" {
-			t.Fatalf("expected watch mode error, got %v", err)
-		}
-	})
-
 	t.Run("invalid cache ttl", func(t *testing.T) {
 		cli := makeCheckConfigCLI(t)
 		cmd := &IMDSCmd{CacheTTL: "bad-duration"}

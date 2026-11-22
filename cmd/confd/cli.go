@@ -275,9 +275,6 @@ type DynamoDBCmd struct {
 }
 
 func (d *DynamoDBCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for dynamodb backend")
-	}
 	cfg := backends.Config{
 		Backend: "dynamodb",
 		Table:   d.Table,
@@ -288,9 +285,6 @@ func (d *DynamoDBCmd) Run(cli *CLI) error {
 type SSMCmd struct{}
 
 func (s *SSMCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for ssm backend")
-	}
 	cfg := backends.Config{
 		Backend: "ssm",
 	}
@@ -302,9 +296,6 @@ type ACMCmd struct {
 }
 
 func (a *ACMCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for acm backend")
-	}
 	cfg := backends.Config{
 		Backend:             "acm",
 		ACMExportPrivateKey: a.ExportPrivateKey,
@@ -318,9 +309,6 @@ type SecretsManagerCmd struct {
 }
 
 func (s *SecretsManagerCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for secretsmanager backend")
-	}
 	cfg := backends.Config{
 		Backend:                    "secretsmanager",
 		SecretsManagerVersionStage: s.VersionStage,
@@ -358,10 +346,6 @@ type IMDSCmd struct {
 }
 
 func (i *IMDSCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for imds backend")
-	}
-
 	cacheTTL, err := time.ParseDuration(i.CacheTTL)
 	if err != nil {
 		return fmt.Errorf("invalid imds-cache-ttl: %w", err)
@@ -441,8 +425,23 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	// Initialize template cache
 	template.InitTemplateCache(cli.TemplateCache, cli.StatCacheTTL)
 
+	// Create root context for cancellation. Until endStartup is called, a
+	// shutdown signal cancels it and backend construction is abandoned.
+	ctx, cancel, endStartup := newRootContext()
+	defer cancel()
+	defer endStartup()
+
 	// Create store client
-	storeClient, err := backends.New(backendCfg)
+	storeClient, err := awaitStoreClient(ctx, func() (backends.StoreClient, error) {
+		return backends.New(ctx, backendCfg)
+	})
+	endStartup()
+	if ctx.Err() != nil {
+		if err == nil {
+			closeAbandonedStoreClient(storeClient)
+		}
+		return startupInterruptedError(ctx)
+	}
 	if err != nil {
 		return fmt.Errorf("create store client: %w", err)
 	}
@@ -470,10 +469,6 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		}()
 	}
 
-	// Create root context for cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// Parse failure mode
 	failureMode, err := template.ParseFailureMode(cli.FailureMode)
 	if err != nil {
@@ -486,6 +481,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		ConfigDir:         filepath.Join(cli.ConfDir, "conf.d"),
 		TemplateDir:       filepath.Join(cli.ConfDir, "templates"),
 		StoreClient:       storeClient,
+		Backend:           backendCfg.Backend,
 		Noop:              cli.Noop,
 		Prefix:            cli.Prefix,
 		SyncOnly:          cli.SyncOnly,
@@ -516,6 +512,16 @@ func run(cli *CLI, backendCfg backends.Config) error {
 			return fmt.Errorf("invalid batch-interval duration %q: %w", cli.BatchIntervalStr, err)
 		}
 		tmplCfg.BatchInterval = d
+	}
+
+	// Watch mode needs every backend in use to support watching. This is
+	// checked whenever watch is enabled, including with --preflight and
+	// --onetime, so a configuration that cannot run in watch mode is never
+	// reported as working.
+	if cli.Watch {
+		if err := template.CheckWatchSupport(tmplCfg); err != nil {
+			return fmt.Errorf("check watch support: %w", err)
+		}
 	}
 
 	// Preflight mode: run connectivity checks and exit
@@ -615,6 +621,92 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		case <-doneChan:
 			return shutdown()
 		}
+	}
+}
+
+// newRootContext returns the root context, its cancel function, and
+// endStartup. Until endStartup is called, SIGINT or SIGTERM cancels the
+// context with a cause naming the signal, so startup work that honours the
+// context can be interrupted. endStartup stops that handling and returns only
+// once any signal already delivered has been applied to the context; after it
+// returns, signals are left to whatever handling the caller installs next.
+func newRootContext() (ctx context.Context, cancel context.CancelFunc, endStartup func()) {
+	ctx, cancelCause := context.WithCancelCause(context.Background())
+	interrupt := func(s os.Signal) {
+		cancelCause(fmt.Errorf("received signal %v: %w", s, context.Canceled))
+	}
+
+	startupSignals := make(chan os.Signal, 1)
+	signal.Notify(startupSignals, syscall.SIGINT, syscall.SIGTERM)
+	stopWatching := make(chan struct{})
+	watcherDone := make(chan struct{})
+	go func() {
+		defer close(watcherDone)
+		select {
+		case s := <-startupSignals:
+			interrupt(s)
+		case <-stopWatching:
+		}
+	}()
+
+	var endOnce sync.Once
+	endStartup = func() {
+		endOnce.Do(func() {
+			signal.Stop(startupSignals)
+			close(stopWatching)
+			<-watcherDone
+			select {
+			case s := <-startupSignals:
+				interrupt(s)
+			default:
+			}
+		})
+	}
+	return ctx, func() { cancelCause(nil) }, endStartup
+}
+
+// awaitStoreClient runs construct and returns its result, unless ctx is
+// cancelled first, in which case it returns a startup interrupted error
+// without waiting. Not every backend constructor honours a context, so the wait is
+// abandoned here rather than relying on construct to return; a client that an
+// abandoned construct produces later is closed.
+func awaitStoreClient(ctx context.Context, construct func() (backends.StoreClient, error)) (backends.StoreClient, error) {
+	type constructResult struct {
+		client backends.StoreClient
+		err    error
+	}
+	resultChan := make(chan constructResult, 1)
+	go func() {
+		client, err := construct()
+		resultChan <- constructResult{client: client, err: err}
+	}()
+
+	select {
+	case result := <-resultChan:
+		return result.client, result.err
+	case <-ctx.Done():
+		go func() {
+			if result := <-resultChan; result.err == nil {
+				closeAbandonedStoreClient(result.client)
+			}
+		}()
+		return nil, startupInterruptedError(ctx)
+	}
+}
+
+// startupInterruptedError reports why ctx was cancelled during startup.
+func startupInterruptedError(ctx context.Context) error {
+	return fmt.Errorf("startup interrupted: %w", context.Cause(ctx))
+}
+
+// closeAbandonedStoreClient closes a store client that was constructed but
+// will not be used because startup was interrupted.
+func closeAbandonedStoreClient(client backends.StoreClient) {
+	if client == nil {
+		return
+	}
+	if err := client.Close(); err != nil {
+		log.Warning("Error closing store client: %v", err)
 	}
 }
 

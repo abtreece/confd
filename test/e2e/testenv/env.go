@@ -118,7 +118,7 @@ func (e *E2ETestEnv) CreateConfig(ctx context.Context) (template.Config, error) 
 		return template.Config{}, fmt.Errorf("failed to get backend endpoint: %w", err)
 	}
 
-	storeClient, err := backends.New(backends.Config{
+	storeClient, err := backends.New(ctx, backends.Config{
 		Backend:      e.container.BackendName(),
 		BackendNodes: []string{endpoint},
 		DialTimeout:  5 * time.Second,

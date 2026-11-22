@@ -1,6 +1,7 @@
 package template
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -626,7 +627,7 @@ func setupDirectoriesAndFiles(tt templateTest, t *testing.T) {
 func templateResource() (*TemplateResource, error) {
 	backendConf := backends.Config{
 		Backend: "env"}
-	client, err := backends.New(backendConf)
+	client, err := backends.New(context.Background(), backendConf)
 	if err != nil {
 		return nil, fmt.Errorf("create env backend: %w", err)
 	}

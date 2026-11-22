@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/abtreece/confd/pkg/backends"
 	"github.com/abtreece/confd/pkg/backends/types"
 )
 
-// mockStoreClient is a mock implementation of backends.StoreClient
+// mockStoreClient is a mock implementation of backends.StoreClient for a
+// polling-only backend: it does not implement backends.Watcher.
 type mockStoreClient struct {
 	getValuesResult map[string]string
 	getValuesError  error
-	watchResult     uint64
-	watchError      error
 	healthError     error
 	closeError      error
 	closeCalled     bool
@@ -24,10 +24,6 @@ func (m *mockStoreClient) GetValues(ctx context.Context, keys []string) (map[str
 	return m.getValuesResult, m.getValuesError
 }
 
-func (m *mockStoreClient) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
-	return m.watchResult, m.watchError
-}
-
 func (m *mockStoreClient) HealthCheck(ctx context.Context) error {
 	return m.healthError
 }
@@ -35,6 +31,17 @@ func (m *mockStoreClient) HealthCheck(ctx context.Context) error {
 func (m *mockStoreClient) Close() error {
 	m.closeCalled = true
 	return m.closeError
+}
+
+// mockWatchClient is a mockStoreClient that also implements backends.Watcher.
+type mockWatchClient struct {
+	mockStoreClient
+	watchResult uint64
+	watchError  error
+}
+
+func (m *mockWatchClient) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+	return m.watchResult, m.watchError
 }
 
 type detailedMockStoreClient struct {
@@ -139,11 +146,11 @@ func TestInstrumentedClient_WatchPrefix_Success(t *testing.T) {
 	Registry = nil
 	Initialize()
 
-	mock := &mockStoreClient{
+	mock := &mockWatchClient{
 		watchResult: 123,
 	}
 
-	wrapped := WrapStoreClient(mock, "etcd").(*InstrumentedClient)
+	wrapped := WrapStoreClient(mock, "etcd").(backends.Watcher)
 
 	result, err := wrapped.WatchPrefix(context.Background(), "/prefix", []string{"key"}, 0, nil)
 
@@ -156,6 +163,65 @@ func TestInstrumentedClient_WatchPrefix_Success(t *testing.T) {
 
 	// Cleanup
 	Registry = nil
+}
+
+func TestInstrumentedClient_WatchPrefix_Error(t *testing.T) {
+	Registry = nil
+	Initialize()
+	defer func() { Registry = nil }()
+
+	watchErr := errors.New("watch failed")
+	mock := &mockWatchClient{watchError: watchErr}
+
+	wrapped := WrapStoreClient(mock, "etcd").(backends.Watcher)
+
+	_, err := wrapped.WatchPrefix(context.Background(), "/prefix", []string{"key"}, 0, nil)
+	if !errors.Is(err, watchErr) {
+		t.Errorf("WatchPrefix error = %v, want it to wrap %v", err, watchErr)
+	}
+}
+
+// TestWrapStoreClient_PreservesWatchCapability verifies that instrumentation
+// neither hides nor invents watch support: the wrapped client implements
+// backends.Watcher exactly when the client it wraps does.
+func TestWrapStoreClient_PreservesWatchCapability(t *testing.T) {
+	Registry = nil
+	Initialize()
+	defer func() { Registry = nil }()
+
+	tests := []struct {
+		name      string
+		client    backends.StoreClient
+		wantWatch bool
+	}{
+		{"watcher stays a watcher", &mockWatchClient{watchResult: 7}, true},
+		{"non-watcher stays a non-watcher", &mockStoreClient{}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wrapped := WrapStoreClient(tt.client, "test")
+			if wrapped == tt.client {
+				t.Fatal("WrapStoreClient returned the original client with metrics enabled")
+			}
+
+			watcher, gotWatch := wrapped.(backends.Watcher)
+			if gotWatch != tt.wantWatch {
+				t.Fatalf("wrapped client implements Watcher = %v, want %v", gotWatch, tt.wantWatch)
+			}
+			if !gotWatch {
+				return
+			}
+
+			index, err := watcher.WatchPrefix(context.Background(), "/prefix", nil, 0, nil)
+			if err != nil {
+				t.Fatalf("WatchPrefix returned error: %v", err)
+			}
+			if index != 7 {
+				t.Errorf("WatchPrefix index = %d, want 7 from the wrapped client", index)
+			}
+		})
+	}
 }
 
 func TestInstrumentedClient_HealthCheck_Success(t *testing.T) {

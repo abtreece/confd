@@ -38,18 +38,18 @@ confd vault --onetime --log-level debug \
       --prefix "kv-v1" \
       --node "$VAULT_ADDR"
 
-# Test: Vault watch mode rejection (currently blocks rather than errors)
-echo "Test: Vault watch mode behavior"
+# Test: Vault watch mode rejection (watch not supported)
+echo "Test: Vault watch mode rejection"
 if confd vault --watch --onetime --log-level error \
     --confdir ./test/integration/shared/confdir \
     --auth-type token \
     --auth-token "$VAULT_TOKEN" \
     --prefix "kv-v1" \
-    --node "$VAULT_ADDR" 2>&1; then
-    echo "OK: Vault does not error on watch (blocking behavior)"
-else
-    echo "OK: Vault handled watch mode as expected"
+    --node "$VAULT_ADDR" 2>/dev/null; then
+    echo "ERROR: confd with --watch should have failed for Vault backend"
+    exit 1
 fi
+echo "OK: --watch correctly rejected for Vault"
 
 # Disable kv-v1 secrets for next tests
 vault secrets disable kv-v1

@@ -25,7 +25,6 @@ type dynamoDBAPI interface {
 // Client is a wrapper around the DynamoDB client
 // and also holds the table to lookup key value pairs from
 type Client struct {
-	types.NoopWatcher
 	types.NoopCloser
 	client dynamoDBAPI
 	table  string
@@ -33,9 +32,8 @@ type Client struct {
 
 // NewDynamoDBClient returns a *Client connected to DynamoDB.
 // It validates that the specified table exists before returning.
-func NewDynamoDBClient(table string, dialTimeout time.Duration) (*Client, error) {
-	ctx := context.Background()
-
+// AWS config loading and table validation are bounded by ctx.
+func NewDynamoDBClient(ctx context.Context, table string, dialTimeout time.Duration) (*Client, error) {
 	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("load AWS config: %w", err)

@@ -1,6 +1,7 @@
 package template
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -19,7 +20,12 @@ var (
 // getOrCreateClient returns a cached StoreClient for the given config,
 // or creates a new one if not cached. This prevents duplicate connections
 // when multiple template resources use identical backend configurations.
-func getOrCreateClient(cfg backends.Config) (backends.StoreClient, error) {
+// ctx bounds client creation only; a nil ctx is treated as context.Background().
+func getOrCreateClient(ctx context.Context, cfg backends.Config) (backends.StoreClient, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	hash := configHash(cfg)
 
 	// Check cache first with read lock
@@ -42,7 +48,7 @@ func getOrCreateClient(cfg backends.Config) (backends.StoreClient, error) {
 	}
 
 	log.Info("Creating new backend client for %s", cfg.Backend)
-	client, err := backends.New(cfg)
+	client, err := backends.New(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create backend client: %w", err)
 	}
