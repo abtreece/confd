@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -46,8 +47,8 @@ func TestProcess_LoadErrorBestEffort(t *testing.T) {
 	if err == nil {
 		t.Fatal("Process() = nil, want an error for the resource that failed to load")
 	}
-	if !strings.Contains(err.Error(), badPath) {
-		t.Errorf("Process() error = %q, want it to name %s", err, badPath)
+	if !strings.Contains(err.Error(), filepath.Base(badPath)) {
+		t.Errorf("Process() error = %q, want it to name %s", err, filepath.Base(badPath))
 	}
 	got, readErr := os.ReadFile(destPath)
 	if readErr != nil {
@@ -68,8 +69,8 @@ func TestProcess_LoadErrorFailFast(t *testing.T) {
 	if err == nil {
 		t.Fatal("Process() = nil, want an error for the resource that failed to load")
 	}
-	if !strings.Contains(err.Error(), badPath) {
-		t.Errorf("Process() error = %q, want it to name %s", err, badPath)
+	if !strings.Contains(err.Error(), filepath.Base(badPath)) {
+		t.Errorf("Process() error = %q, want it to name %s", err, filepath.Base(badPath))
 	}
 	if fileExists(destPath) {
 		t.Errorf("%s was written; fail-fast must not process anything after a load error", destPath)
@@ -90,8 +91,8 @@ func TestProcess_LoadErrorBestEffort_ReportsEveryError(t *testing.T) {
 		t.Fatal("Process() = nil, want an error")
 	}
 	for _, want := range []string{badPath, noSrcPath, missingKeyDest} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("Process() error = %q, want it to mention %s", err, want)
+		if !strings.Contains(err.Error(), filepath.Base(want)) {
+			t.Errorf("Process() error = %q, want it to mention %s", err, filepath.Base(want))
 		}
 	}
 	if !errors.Is(err, ErrEmptySrc) {
@@ -145,8 +146,8 @@ func expectNoTemplateResources(t *testing.T, doneChan chan bool, errChan chan er
 			if !errors.Is(err, ErrNoTemplateResources) {
 				continue
 			}
-			if !strings.Contains(err.Error(), wantNamed) {
-				t.Errorf("error = %q, want it to name %s", err, wantNamed)
+			if !strings.Contains(err.Error(), filepath.Base(wantNamed)) {
+				t.Errorf("error = %q, want it to name %s", err, filepath.Base(wantNamed))
 			}
 			return
 		default:
