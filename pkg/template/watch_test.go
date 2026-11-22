@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -193,6 +194,80 @@ func testReloadRestartsMonitors(t *testing.T, newProcessor newWatchModeProcessor
 
 	close(stopChan)
 	waitForDone(t, doneChan, testShutdownTimeout)
+
+	select {
+	case err := <-errChan:
+		t.Errorf("unexpected processor error: %v", err)
+	default:
+	}
+}
+
+// alwaysChangedWatchClient is a StoreClient whose WatchPrefix reports a change
+// on every call, modelling a key that never stops changing. It counts
+// GetValues calls, which happen once each time a resource is processed.
+type alwaysChangedWatchClient struct {
+	fetches atomic.Int64
+}
+
+func (c *alwaysChangedWatchClient) GetValues(_ context.Context, _ []string) (map[string]string, error) {
+	c.fetches.Add(1)
+	return map[string]string{"/debounce/value": "v"}, nil
+}
+
+func (c *alwaysChangedWatchClient) WatchPrefix(_ context.Context, _ string, _ []string, waitIndex uint64, _ chan bool) (uint64, error) {
+	return waitIndex + 1, nil
+}
+
+func (c *alwaysChangedWatchClient) HealthCheck(_ context.Context) error { return nil }
+func (c *alwaysChangedWatchClient) Close() error                        { return nil }
+
+var _ backends.StoreClient = (*alwaysChangedWatchClient)(nil)
+
+// TestWatchProcessor_DebounceIsFixedDelay pins debounce as a fixed delay:
+// after a change the monitor waits one debounce period and then processes,
+// and changes arriving during the wait do not extend it. A key that changes
+// continuously is therefore processed about once per debounce period, neither
+// once per change nor never.
+func TestWatchProcessor_DebounceIsFixedDelay(t *testing.T) {
+	const (
+		debounce = 200 * time.Millisecond
+		periods  = 5
+	)
+
+	env := newProcessorTestEnv(t)
+	writeWatchResource(env, "debounce", "/debounce/value")
+
+	client := &alwaysChangedWatchClient{}
+	config := Config{
+		Ctx:               context.Background(),
+		ConfigDir:         env.confDir,
+		TemplateDir:       env.templDir,
+		StoreClient:       client,
+		WatchErrorBackoff: time.Minute,
+		Debounce:          debounce,
+	}
+	stopChan := make(chan bool)
+	doneChan := make(chan bool)
+	errChan := make(chan error, testErrorChannelBuffer)
+
+	start := time.Now()
+	go WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{})).Process()
+
+	time.Sleep(periods * debounce)
+	close(stopChan)
+	waitForDone(t, doneChan, testShutdownTimeout)
+	elapsed := time.Since(start)
+	processed := client.fetches.Load()
+
+	// A debounce that restarted on every change would never process here.
+	if processed < 2 {
+		t.Errorf("resource processed %d times in %v with debounce %v, want at least 2: continuous changes must not starve processing", processed, elapsed, debounce)
+	}
+	// Each processing run follows one full debounce wait, so the count is
+	// bounded by the elapsed time however the scheduler behaves.
+	if limit := int64(elapsed / debounce); processed > limit {
+		t.Errorf("resource processed %d times in %v with debounce %v, want at most %d: processing must wait one debounce period per run", processed, elapsed, debounce, limit)
+	}
 
 	select {
 	case err := <-errChan:
