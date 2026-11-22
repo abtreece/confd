@@ -2,7 +2,7 @@
 
 This guide is organized by symptom. Find the message confd printed (or the behavior you are seeing), then follow the cause, how to confirm it, and the fix.
 
-Messages are shown without the timestamp, hostname and PID prefix that confd adds to every log line. Placeholders such as `<dest>` stand for values from your configuration. Errors that come from a backend's client library (etcd, Consul, Vault, Redis, the AWS SDK) are not quoted here: they appear after the confd text shown, and vary by backend and version.
+Every log line starts with a timestamp, the hostname, the program name with its PID, and the level (`DEBUG`, `INFO`, `WARN` or `ERROR`). Messages are shown here without that prefix, but the level is worth filtering on: everything that stops a template resource from being applied is logged at `ERROR`. Placeholders such as `<dest>` stand for values from your configuration. Errors that come from a backend's client library (etcd, Consul, Vault, Redis, the AWS SDK) are not quoted here: they appear after the confd text shown, and vary by backend and version.
 
 ## Start Here
 
@@ -19,8 +19,8 @@ Things to know about them:
 
 - `--check-config` and `--validate` never connect to a backend. They cannot catch connection, authentication or missing key problems, and they do not check whether the backend supports watch mode.
 - `--validate` replaces `getv`, `gets`, `getvs`, `ls` and the other store functions with stubs that return empty values, so it finds syntax errors and unknown functions but not missing keys.
-- `--preflight` only warns when a template resource matches no keys. `<src>: no keys found for prefix <prefix>` is logged at warning level and the command still exits 0, so read its output rather than relying on the exit status.
-- `--onetime` exits with status 1 if any template resource fails, which makes it the quickest way to reproduce a problem from a shell.
+- `--preflight` only warns when a template resource matches no keys. `<template path>: no keys found for prefix <prefix>` is logged at warning level and the command still exits 0, so read its output rather than relying on the exit status.
+- `--onetime` exits non-zero if any template resource fails, which makes it the quickest way to reproduce a problem from a shell. The status is usually 1, but when a `check_cmd` or `reload_cmd` fails confd exits with that command's own exit code.
 
 Add `--log-level debug` to any of these to see each step: which resource files were found, the backend fetch, template cache hits and misses, stage file creation, and the full `check_cmd` and `reload_cmd` strings. See [Logging](logging.md) for levels and formats, and [Noop Mode](noop-mode.md) for diff output.
 
@@ -85,7 +85,7 @@ Failed to load template resource <path>: cannot process template resource <path>
 How much damage one bad file does depends on the mode:
 
 - With `--onetime`, confd exits with an error and processes **no** resources, including the valid ones. `--failure-mode` does not change this; it only applies to errors during processing.
-- In interval and watch mode, confd logs `Some template resources failed to load: <error>` and carries on with the resources that did load. If none load, it logs `Failed to load any template resources: <error>` and stops.
+- In interval and watch mode, confd logs `Some template resources failed to load: <error>` and carries on with the resources that did load. If none load, it logs `Failed to load any template resources: <error>` and shuts down. It exits with status 0 in that case, so a service manager does not record a failure: check the log.
 
 ### Other load-time errors
 
@@ -120,7 +120,7 @@ These are reported the same way, as `Failed to load template resource <path>: <e
 - `src` is always relative to `<confdir>/templates`. `src = "nginx.conf.tmpl"` with the default `--confdir` means `/etc/confd/templates/nginx.conf.tmpl`. A missing template is reported as `missing template: <path>` with the full path confd looked for.
 - `dest` is used exactly as written. A relative `dest` resolves against confd's working directory, which differs between an interactive shell and a service manager. Use absolute paths.
 - `--resource` is relative to `<confdir>/conf.d` unless it is absolute. A wrong name gives `resource file not found: <path>`.
-- `--config-file` defaults to `/etc/confd/confd.toml`. A missing config file is not an error (confd logs `Skipping confd config file.` at debug level and uses flags and environment variables); an unparseable one stops confd with `decode config file <path>: <detail>`.
+- `--config-file` defaults to `/etc/confd/confd.toml`. A missing config file is not an error and is not reported: confd silently falls back to flags and environment variables, so a typo in the path looks the same as having no config file. An unparseable one stops confd with `decode config file <path>: <detail>`.
 
 ## Template Errors
 
@@ -151,7 +151,7 @@ execute template: <location>: error calling getv: key does not exist: <key>
 3. **Two prefixes.** A global `--prefix` (or `prefix` in `confd.toml`) and a resource `prefix` are concatenated, global first: `production` plus `myapp` becomes `/production/myapp`.
 4. **The key really is absent**, or the credentials confd uses cannot read it.
 
-**Confirm:** `confd --preflight <backend> ...` reports per resource either `<src>: <n> keys found` or the warning `<src>: no keys found for prefix <prefix>`. The prefix it prints is the combined one confd actually uses. With `--log-level debug`, the `Backend fetch completed` record includes `value_count`, and the env, file and redis backends also log the fetched keys as `Key Map: ...`.
+**Confirm:** `confd --preflight <backend> ...` reports per resource either `<template path>: <n> keys found` or the warning `<template path>: no keys found for prefix <prefix>`. The prefix it prints is the combined one confd actually uses. With `--log-level debug`, the `Backend fetch completed` record includes `value_count`, and the env, file and redis backends also log the fetched keys as `Key Map: ...`.
 
 **Fix:** correct `keys` or `prefix`. If the key is legitimately optional, give `getv` a default (`{{getv "/db/port" "5432"}}`) or guard the block with `exists`.
 
@@ -215,12 +215,20 @@ The client was created but a read failed. In interval and watch mode confd keeps
 
 **Confirm:** `confd --preflight <backend> ...` runs a health check and a key read, then exits. A failed health check is reported as `global backend connectivity failed: <client error>`, or `per-resource backend connectivity failed for <src>: <client error>` for a resource with its own `[backend]` section. With `--metrics-addr` set, the `/ready` and `/ready/detailed` endpoints report backend health from a running confd.
 
-**Fix:** work through the client error. General points that apply to every backend:
+**Fix:** work through the client error. Things to check on the confd side:
 
-- Check the address confd is using. It logs `Backend source(s) set to <nodes>` at startup. If you passed no `--node`, that is the backend's localhost default, which is rarely right inside a container.
-- Timeouts are short by default. Raise `--dial-timeout`, `--read-timeout` and `--write-timeout` for slow or distant backends, and `--backend-timeout` for large key sets.
-- Connection retries are tuned with `--retry-max-attempts`, `--retry-base-delay` and `--retry-max-delay`.
-- TLS handshake errors come from the client library. Check `--client-ca-keys`, `--client-cert` and `--client-key`, and that `--scheme` matches what the server expects.
+- Check the address confd is using. It logs `Backend source(s) set to <nodes>` at startup. If you passed no `--node`, consul, etcd, redis, vault and zookeeper fall back to a default address on `127.0.0.1`.
+- `--backend-timeout` (default 30s) is the deadline confd puts on each key fetch, for every backend.
+- The connection timeout and retry flags are **not** used by every backend. Changing one that your backend ignores has no effect:
+
+  | Flag | Used by |
+  |------|---------|
+  | `--dial-timeout` | etcd, redis and zookeeper (connecting); imds (client setup); acm, dynamodb, secretsmanager and ssm (only the region lookup against instance metadata, and only when `AWS_REGION` is not set) |
+  | `--read-timeout`, `--write-timeout` | redis |
+  | `--retry-max-attempts`, `--retry-base-delay`, `--retry-max-delay` | redis |
+
+  consul, vault, env and file use none of these.
+- TLS handshake errors come from the client library. For consul, etcd and vault, check `--client-ca-keys`, `--client-cert` and `--client-key`; for consul also check that `--scheme` matches what the agent serves.
 
 Backend-specific messages that confd itself produces:
 
@@ -250,12 +258,12 @@ confd renders to a temporary stage file in the **destination's directory**, sets
 | `failed to chown stage file: <OS error>` | The resource sets `uid`, `gid`, `owner` or `group` to something other than the user confd runs as, and confd lacks the privilege to change ownership. | Run confd as that user, run it with sufficient privilege, or remove the ownership fields. They default to confd's effective uid and gid. |
 | `failed to chmod stage file: <OS error>` | The filesystem rejects the requested `mode`. | Check the mount (some volume types ignore or refuse mode changes). |
 | `parse file mode "<mode>": <detail>` | `mode` is not a number. | Use an octal string such as `"0644"`. |
-| `rename stage file to destination: <OS error>` | The rename over the destination failed. | Check the OS error. When the destination is a mount point or on another filesystem, confd falls back to writing the file in place and logs `File sync completed (write fallback)`. |
+| `rename stage file to destination: <OS error>` | The rename over the destination failed. | Check the OS error. For a cross-device rename or a busy mount point, confd instead tries to write the destination in place; other rename errors are reported as shown. |
 | `stat destination file: <OS error>` | confd cannot read the destination's metadata to compare it. | Give confd search permission on every directory in the path. |
 
 If `mode` is not set, confd keeps the mode of an existing destination and uses `0644` for a new file.
 
-A destination that confd rewrites on every run, with no change in content, usually means something else is changing its mode or ownership between runs. At info level confd logs why it considers the file different: `<dest> has mode <actual> should be <expected>`, `<dest> has size <actual> should be <expected>`, or `<dest> has md5sum <actual> should be <expected>`.
+A destination that confd rewrites on every run, with no change in content, usually means something else is changing its mode or ownership between runs. At info level confd logs why it considers the file different: `<dest> has mode <actual> should be <expected>`, `<dest> has UID <actual> should be <expected>`, `<dest> has GID <actual> should be <expected>`, `<dest> has size <actual> should be <expected>`, or `<dest> has md5sum <actual> should be <expected>`.
 
 For container users and volume ownership, see the troubleshooting section of [Docker](docker.md#troubleshooting). For systemd sandboxing options that restrict writable paths, see [Service Deployment](service-deployment.md#security-hardening).
 
@@ -344,8 +352,8 @@ Two cases the startup check does not cover:
 
 1. **The change is outside what the resource watches.** A resource watches its `prefix` and `keys`. Changes elsewhere do not trigger it.
 2. **Redis is not publishing keyspace notifications.** confd's Redis watch depends on them, and they have to be enabled on the Redis server. See [Watch Mode Support](../pkg/backends/redis/README.md#watch-mode-support) in the Redis README.
-3. **The watch is failing.** Watch errors are logged at error level and retried after `--watch-error-backoff` (default 2s). A steady stream of the same error every couple of seconds means the watch never establishes: treat it as a [backend connection error](#backend-connection-errors).
-4. **The change is being held back.** With `debounce` or `--debounce`, confd waits for changes to stop for that long before processing; a key that changes continuously keeps resetting the timer. With `--batch-interval`, changes are processed when the interval expires. At debug level look for `Debouncing changes for <dest> (<duration>)` and `Queued change for batch processing: <dest>`.
+3. **The watch is failing.** When a watch call returns an error, confd logs it at error level and waits `--watch-error-backoff` (default 2s) before trying again. Look for error lines that repeat at about that spacing and treat them as a [backend connection error](#backend-connection-errors).
+4. **The change is being delayed.** With `debounce` or `--debounce`, confd waits that long after a change before processing it. The wait is not extended by further changes: a key that changes continuously is processed about once per debounce period, not held back indefinitely. With `--batch-interval`, changes are processed when the interval expires. At debug level look for `Debouncing changes for <dest> (<duration>)` and `Queued change for batch processing: <dest>`.
 5. **The change was processed but produced identical output.** See [The destination is already up to date](#the-destination-is-already-up-to-date).
 
 ### Too many renders or reloads, or high CPU
@@ -356,7 +364,7 @@ Two cases the startup check does not cover:
 
 **Fix:**
 
-- Set `debounce` on the resource, or `--debounce` globally, so a burst of changes is processed once.
+- Set `debounce` on the resource, or `--debounce` globally, so a burst of changes is processed about once per debounce period instead of once per change.
 - Use `--batch-interval` to process all changed resources together on a fixed interval.
 - Set `min_reload_interval` on resources whose reload is expensive.
 - Narrow `keys` so a resource does not watch more of the tree than its template reads.
@@ -366,11 +374,11 @@ Two cases the startup check does not cover:
 
 ## Errors Are Logged but confd Keeps Running
 
-**Cause:** this is the default. In interval and watch mode a failing resource is logged at error level and retried on the next cycle or change; other resources are unaffected. Only `--onetime` turns a processing error into a non-zero exit status.
+**Cause:** this is the default. In interval and watch mode a failing resource is logged at error level and retried on the next cycle or change; other resources are unaffected. Only `--onetime` turns a processing error into a non-zero exit status. While the backend is failing, the `/ready` endpoint (with `--metrics-addr` set) returns 503.
 
 **Fix:** to stop a cycle at the first failure, use `--failure-mode fail-fast`; confd logs `Fail-fast mode: stopping after error in <dest>` and skips the remaining resources for that cycle. To detect failures from outside, alert on error-level log lines or, with `--metrics-addr` set, on `confd_template_process_total` with `status="error"` and on `confd_backend_errors_total`.
 
-If the log contains `error dropped (errChan full) for <dest>: <error>`, errors are arriving faster than confd reports them. The error text is still in that line; treat it as a sign that many resources are failing at once.
+If the log contains `error dropped (errChan full) for <dest>: <error>`, confd's internal error queue was full when the error was raised. The error text is still in that line.
 
 ## Platform-Specific Issues
 
@@ -380,7 +388,7 @@ confd's behavior under systemd, Docker and Kubernetes is covered where those dep
 - **Docker:** the non-root container user, volume mounts, reaching a backend on the host, and signals are in [Docker](docker.md#troubleshooting).
 - **Kubernetes:** probes, sidecar layout and reloading after a ConfigMap update are in [Service Deployment](service-deployment.md#kubernetes-deployment) and [Docker](docker.md#kubernetes).
 
-When confd runs as PID 1 in a container it must receive signals directly. If `SIGHUP` or `SIGTERM` appear to be ignored, check that the log shows `Captured SIGHUP. Reloading configuration...` or the corresponding shutdown line; if not, the signal is not reaching the confd process.
+If `SIGHUP` or `SIGTERM` appear to be ignored, check the log for `Captured SIGHUP. Reloading configuration...` or the corresponding shutdown line. If it is absent, the signal did not reach the confd process.
 
 ## Getting More Help
 
