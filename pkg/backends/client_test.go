@@ -2,9 +2,13 @@ package backends
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestNew_InvalidBackend(t *testing.T) {
@@ -12,7 +16,7 @@ func TestNew_InvalidBackend(t *testing.T) {
 		Backend: "invalid",
 	}
 
-	_, err := New(config)
+	_, err := New(context.Background(), config)
 	if err == nil {
 		t.Error("New() expected error for invalid backend, got nil")
 	}
@@ -26,7 +30,7 @@ func TestNew_EnvBackend(t *testing.T) {
 		Backend: "env",
 	}
 
-	client, err := New(config)
+	client, err := New(context.Background(), config)
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}
@@ -48,7 +52,7 @@ func TestNew_FileBackend(t *testing.T) {
 		YAMLFile: []string{yamlFile},
 	}
 
-	client, err := New(config)
+	client, err := New(context.Background(), config)
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}
@@ -67,7 +71,7 @@ func TestNew_DefaultBackendIsEtcd(t *testing.T) {
 	}
 
 	// This will fail to connect, but we can verify it tries etcd
-	_, err := New(config)
+	_, err := New(context.Background(), config)
 	// Error is expected since there's no etcd server
 	// The important thing is it doesn't return "invalid backend"
 	if err != nil && err.Error() == "invalid backend" {
@@ -81,7 +85,7 @@ func TestStoreClient_Interface(t *testing.T) {
 		Backend: "env",
 	}
 
-	client, err := New(config)
+	client, err := New(context.Background(), config)
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}
@@ -115,7 +119,7 @@ database:
 		YAMLFile: []string{yamlFile},
 	}
 
-	client, err := New(config)
+	client, err := New(context.Background(), config)
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}
@@ -142,7 +146,7 @@ func TestNew_VaultBackendEmptyNodes(t *testing.T) {
 		AuthToken:    "test-token",
 	}
 
-	_, err := New(config)
+	_, err := New(context.Background(), config)
 	if err == nil {
 		t.Error("New() expected error for vault backend with empty nodes, got nil")
 	}
@@ -160,7 +164,7 @@ func TestNew_VaultBackendNilNodes(t *testing.T) {
 		AuthToken:    "test-token",
 	}
 
-	_, err := New(config)
+	_, err := New(context.Background(), config)
 	if err == nil {
 		t.Error("New() expected error for vault backend with nil nodes, got nil")
 	}
@@ -172,3 +176,41 @@ func TestNew_VaultBackendNilNodes(t *testing.T) {
 // Note: Testing other backends (consul, etcd, redis, zookeeper, vault, dynamodb, ssm)
 // requires running backend services. These are covered by integration tests in
 // .github/workflows/integration-tests.yml
+
+func TestNew_IMDSContextCancelled(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(func() {
+		close(release)
+		server.Close()
+	})
+
+	missing := filepath.Join(t.TempDir(), "missing")
+	t.Setenv("IMDS_ENDPOINT", server.URL)
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "false")
+	t.Setenv("AWS_CONFIG_FILE", missing)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", missing)
+	t.Setenv("AWS_PROFILE", "")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := time.Now()
+	_, err := New(ctx, Config{Backend: "imds", DialTimeout: 30 * time.Second})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("New() with cancelled context expected error, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("New() error = %v, want it to wrap context.Canceled", err)
+	}
+	if elapsed > 5*time.Second {
+		t.Errorf("New() took %v with an already-cancelled context", elapsed)
+	}
+}

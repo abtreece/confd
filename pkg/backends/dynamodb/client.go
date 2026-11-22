@@ -33,9 +33,8 @@ type Client struct {
 
 // NewDynamoDBClient returns a *Client connected to DynamoDB.
 // It validates that the specified table exists before returning.
-func NewDynamoDBClient(table string, dialTimeout time.Duration) (*Client, error) {
-	ctx := context.Background()
-
+// AWS config loading and table validation are bounded by ctx.
+func NewDynamoDBClient(ctx context.Context, table string, dialTimeout time.Duration) (*Client, error) {
 	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("load AWS config: %w", err)

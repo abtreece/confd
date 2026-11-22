@@ -30,9 +30,8 @@ type Client struct {
 }
 
 // New creates a new SSM client with automatic region detection.
-func New(dialTimeout time.Duration) (*Client, error) {
-	ctx := context.Background()
-
+// AWS config loading is bounded by ctx.
+func New(ctx context.Context, dialTimeout time.Duration) (*Client, error) {
 	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("load AWS config: %w", err)

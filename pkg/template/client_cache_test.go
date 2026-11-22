@@ -140,7 +140,7 @@ func TestGetOrCreateClient(t *testing.T) {
 	}
 
 	// First call should create a new client
-	client1, err := getOrCreateClient(cfg)
+	client1, err := getOrCreateClient(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("Failed to create client: %s", err)
 	}
@@ -149,7 +149,7 @@ func TestGetOrCreateClient(t *testing.T) {
 	}
 
 	// Second call with same config should return cached client
-	client2, err := getOrCreateClient(cfg)
+	client2, err := getOrCreateClient(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("Failed to get cached client: %s", err)
 	}
@@ -171,12 +171,12 @@ func TestGetOrCreateClientDifferentConfigs(t *testing.T) {
 		YAMLFile: []string{"/dev/null"},
 	}
 
-	client1, err := getOrCreateClient(cfg1)
+	client1, err := getOrCreateClient(context.Background(), cfg1)
 	if err != nil {
 		t.Fatalf("Failed to create client1: %s", err)
 	}
 
-	client2, err := getOrCreateClient(cfg2)
+	client2, err := getOrCreateClient(context.Background(), cfg2)
 	if err != nil {
 		t.Fatalf("Failed to create client2: %s", err)
 	}
@@ -204,7 +204,7 @@ func TestGetOrCreateClientConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			client, err := getOrCreateClient(cfg)
+			client, err := getOrCreateClient(context.Background(), cfg)
 			clients[idx] = client
 			errors[idx] = err
 		}(i)
@@ -237,7 +237,7 @@ func TestClearClientCache(t *testing.T) {
 	}
 
 	// Create a client
-	_, err := getOrCreateClient(cfg)
+	_, err := getOrCreateClient(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("Failed to create client: %s", err)
 	}
@@ -264,7 +264,7 @@ func TestClearClientCache(t *testing.T) {
 	}
 
 	// Can still create clients after clear
-	_, err = getOrCreateClient(cfg)
+	_, err = getOrCreateClient(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("Failed to create client after clear: %s", err)
 	}
@@ -278,7 +278,7 @@ func TestGetOrCreateClientInvalidBackend(t *testing.T) {
 		Backend: "nonexistent",
 	}
 
-	_, err := getOrCreateClient(cfg)
+	_, err := getOrCreateClient(context.Background(), cfg)
 	if err == nil {
 		t.Error("Expected error for invalid backend")
 	}

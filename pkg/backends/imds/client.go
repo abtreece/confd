@@ -87,9 +87,10 @@ func (c *metadataCache) size() int {
 	return len(c.entries)
 }
 
-// New creates a new IMDS client
-func New(cacheTTL, dialTimeout time.Duration) (*Client, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
+// New creates a new IMDS client.
+// Setup is bounded by dialTimeout and aborts early if ctx is done.
+func New(ctx context.Context, cacheTTL, dialTimeout time.Duration) (*Client, error) {
+	ctx, cancel := context.WithTimeout(ctx, dialTimeout)
 	defer cancel()
 
 	// Load AWS config

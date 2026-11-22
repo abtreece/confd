@@ -143,7 +143,7 @@ func (e *processorTestEnv) destPath(name string) string {
 
 // createConfig creates a Config for the test environment.
 func (e *processorTestEnv) createConfig(ctx context.Context) Config {
-	storeClient, err := backends.New(backends.Config{
+	storeClient, err := backends.New(ctx, backends.Config{
 		Backend:  "file",
 		YAMLFile: []string{e.dataDir},
 		Filter:   "*.yaml",
