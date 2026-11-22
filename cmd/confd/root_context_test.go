@@ -54,8 +54,11 @@ func TestRootContext_CancelledBySignal(t *testing.T) {
 	if !errors.Is(cause, context.Canceled) {
 		t.Errorf("cause = %v, want it to wrap context.Canceled", cause)
 	}
-	if !strings.Contains(cause.Error(), "startup interrupted") || !strings.Contains(cause.Error(), syscall.SIGTERM.String()) {
-		t.Errorf("cause = %q, want it to say startup was interrupted by %v", cause, syscall.SIGTERM)
+	if !strings.Contains(cause.Error(), syscall.SIGTERM.String()) {
+		t.Errorf("cause = %q, want it to name %v", cause, syscall.SIGTERM)
+	}
+	if err := startupInterruptedError(ctx); !strings.Contains(err.Error(), "startup interrupted") || !errors.Is(err, context.Canceled) {
+		t.Errorf("startupInterruptedError = %q, want a startup interrupted error wrapping context.Canceled", err)
 	}
 }
 

@@ -440,7 +440,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		if err == nil {
 			closeAbandonedStoreClient(storeClient)
 		}
-		return context.Cause(ctx)
+		return startupInterruptedError(ctx)
 	}
 	if err != nil {
 		return fmt.Errorf("create store client: %w", err)
@@ -633,7 +633,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 func newRootContext() (ctx context.Context, cancel context.CancelFunc, endStartup func()) {
 	ctx, cancelCause := context.WithCancelCause(context.Background())
 	interrupt := func(s os.Signal) {
-		cancelCause(fmt.Errorf("startup interrupted by signal %v: %w", s, context.Canceled))
+		cancelCause(fmt.Errorf("received signal %v: %w", s, context.Canceled))
 	}
 
 	startupSignals := make(chan os.Signal, 1)
@@ -666,8 +666,8 @@ func newRootContext() (ctx context.Context, cancel context.CancelFunc, endStartu
 }
 
 // awaitStoreClient runs construct and returns its result, unless ctx is
-// cancelled first, in which case it returns the cancellation cause without
-// waiting. Not every backend constructor honours a context, so the wait is
+// cancelled first, in which case it returns a startup interrupted error
+// without waiting. Not every backend constructor honours a context, so the wait is
 // abandoned here rather than relying on construct to return; a client that an
 // abandoned construct produces later is closed.
 func awaitStoreClient(ctx context.Context, construct func() (backends.StoreClient, error)) (backends.StoreClient, error) {
@@ -690,8 +690,13 @@ func awaitStoreClient(ctx context.Context, construct func() (backends.StoreClien
 				closeAbandonedStoreClient(result.client)
 			}
 		}()
-		return nil, context.Cause(ctx)
+		return nil, startupInterruptedError(ctx)
 	}
+}
+
+// startupInterruptedError reports why ctx was cancelled during startup.
+func startupInterruptedError(ctx context.Context) error {
+	return fmt.Errorf("startup interrupted: %w", context.Cause(ctx))
 }
 
 // closeAbandonedStoreClient closes a store client that was constructed but
