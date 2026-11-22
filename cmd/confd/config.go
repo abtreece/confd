@@ -230,11 +230,9 @@ func shouldApplyTOML(s *configSources, md toml.MetaData, name string, aliases ..
 func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	_, err := os.Stat(cli.ConfigFile)
 	if os.IsNotExist(err) {
-		log.Debug("Skipping confd config file.")
 		return nil
 	}
 
-	log.Debug("Loading %s", cli.ConfigFile)
 	configBytes, err := os.ReadFile(cli.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("read config file %s: %w", cli.ConfigFile, err)
