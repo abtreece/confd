@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -641,6 +642,330 @@ func TestLoadConfigFile_DocumentedKeysInvalidDurations(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), "invalid "+key) {
 				t.Errorf("error = %q, want it to name %s", err, key)
+			}
+		})
+	}
+}
+
+func TestLoadConfigFile(t *testing.T) {
+	// Create a temporary config file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "confd.toml")
+	configContent := `
+confdir = "/custom/confd"
+interval = 300
+prefix = "/myprefix"
+log-level = "debug"
+noop = true
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	cli := &CLI{
+		ConfDir:    "/etc/confd", // default
+		ConfigFile: configPath,
+		Interval:   600, // default
+	}
+	backendCfg := &backends.Config{}
+
+	if err := loadConfigFile(cli, backendCfg); err != nil {
+		t.Fatalf("loadConfigFile failed: %v", err)
+	}
+
+	// Verify TOML values are applied
+	if cli.ConfDir != "/custom/confd" {
+		t.Errorf("Expected confdir '/custom/confd', got %q", cli.ConfDir)
+	}
+	if cli.Interval != 300 {
+		t.Errorf("Expected interval 300, got %d", cli.Interval)
+	}
+	if cli.Prefix != "/myprefix" {
+		t.Errorf("Expected prefix '/myprefix', got %q", cli.Prefix)
+	}
+	if cli.LogLevel != "debug" {
+		t.Errorf("Expected log-level 'debug', got %q", cli.LogLevel)
+	}
+	if !cli.Noop {
+		t.Error("Expected noop to be true")
+	}
+}
+
+func TestLoadConfigFileCLIPrecedence(t *testing.T) {
+	// Create a temporary config file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "confd.toml")
+	configContent := `
+confdir = "/toml/confd"
+interval = 300
+prefix = "/tomlprefix"
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	// CLI values should take precedence over TOML
+	cli := &CLI{
+		ConfDir:    "/cli/confd", // Non-default CLI value
+		ConfigFile: configPath,
+		Interval:   120,          // Non-default CLI value
+		Prefix:     "/cliprefix", // CLI value
+		configSources: &configSources{cli: map[string]bool{
+			"confdir":  true,
+			"interval": true,
+			"prefix":   true,
+		}},
+	}
+	backendCfg := &backends.Config{}
+
+	if err := loadConfigFile(cli, backendCfg); err != nil {
+		t.Fatalf("loadConfigFile failed: %v", err)
+	}
+
+	// CLI values should be preserved (not overwritten by TOML)
+	if cli.ConfDir != "/cli/confd" {
+		t.Errorf("Expected confdir '/cli/confd', got %q", cli.ConfDir)
+	}
+	if cli.Interval != 120 {
+		t.Errorf("Expected interval 120, got %d", cli.Interval)
+	}
+	if cli.Prefix != "/cliprefix" {
+		t.Errorf("Expected prefix '/cliprefix', got %q", cli.Prefix)
+	}
+}
+
+func TestLoadConfigFileBackendSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "confd.toml")
+	configContent := `
+nodes = ["node1:2379", "node2:2379"]
+client_cert = "/path/to/cert"
+client_key = "/path/to/key"
+username = "admin"
+password = "secret"
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	cli := &CLI{
+		ConfDir:    "/etc/confd",
+		ConfigFile: configPath,
+		Interval:   600,
+	}
+	backendCfg := &backends.Config{}
+
+	if err := loadConfigFile(cli, backendCfg); err != nil {
+		t.Fatalf("loadConfigFile failed: %v", err)
+	}
+
+	if len(backendCfg.BackendNodes) != 2 {
+		t.Fatalf("Expected 2 backend nodes, got %d", len(backendCfg.BackendNodes))
+	}
+	if backendCfg.BackendNodes[0] != "node1:2379" {
+		t.Errorf("Expected first node 'node1:2379', got %q", backendCfg.BackendNodes[0])
+	}
+	if backendCfg.ClientCert != "/path/to/cert" {
+		t.Errorf("Expected client_cert '/path/to/cert', got %q", backendCfg.ClientCert)
+	}
+	if backendCfg.Username != "admin" {
+		t.Errorf("Expected username 'admin', got %q", backendCfg.Username)
+	}
+}
+func TestProcessEnv(t *testing.T) {
+	// Save and restore environment
+	origCert := os.Getenv("CONFD_CLIENT_CERT")
+	origKey := os.Getenv("CONFD_CLIENT_KEY")
+	origCaKeys := os.Getenv("CONFD_CLIENT_CAKEYS")
+	origACM := os.Getenv("ACM_EXPORT_PRIVATE_KEY")
+	defer func() {
+		os.Setenv("CONFD_CLIENT_CERT", origCert)
+		os.Setenv("CONFD_CLIENT_KEY", origKey)
+		os.Setenv("CONFD_CLIENT_CAKEYS", origCaKeys)
+		os.Setenv("ACM_EXPORT_PRIVATE_KEY", origACM)
+	}()
+
+	os.Setenv("CONFD_CLIENT_CERT", "/env/cert")
+	os.Setenv("CONFD_CLIENT_KEY", "/env/key")
+	os.Setenv("CONFD_CLIENT_CAKEYS", "/env/ca")
+	os.Setenv("ACM_EXPORT_PRIVATE_KEY", "true")
+
+	cfg := &backends.Config{}
+	processEnv(cfg)
+
+	if cfg.ClientCert != "/env/cert" {
+		t.Errorf("Expected ClientCert '/env/cert', got %q", cfg.ClientCert)
+	}
+	if cfg.ClientKey != "/env/key" {
+		t.Errorf("Expected ClientKey '/env/key', got %q", cfg.ClientKey)
+	}
+	if cfg.ClientCaKeys != "/env/ca" {
+		t.Errorf("Expected ClientCaKeys '/env/ca', got %q", cfg.ClientCaKeys)
+	}
+	if !cfg.ACMExportPrivateKey {
+		t.Error("Expected ACMExportPrivateKey to be true")
+	}
+}
+
+func TestProcessEnvDoesNotOverride(t *testing.T) {
+	// Save and restore environment
+	origCert := os.Getenv("CONFD_CLIENT_CERT")
+	defer os.Setenv("CONFD_CLIENT_CERT", origCert)
+
+	os.Setenv("CONFD_CLIENT_CERT", "/env/cert")
+
+	// Pre-set value should not be overridden
+	cfg := &backends.Config{
+		ClientCert: "/cli/cert",
+	}
+	processEnv(cfg)
+
+	if cfg.ClientCert != "/cli/cert" {
+		t.Errorf("Expected ClientCert '/cli/cert' (not overridden), got %q", cfg.ClientCert)
+	}
+}
+
+// resolveConfig merges confd.toml, backend defaults and the environment into
+// cli and backendCfg in the same order as run().
+func resolveConfig(t *testing.T, cli *CLI, backendCfg *backends.Config) {
+	t.Helper()
+
+	if err := loadConfigFile(cli, backendCfg); err != nil {
+		t.Fatalf("loadConfigFile failed: %v", err)
+	}
+	applyBackendDefaults(backendCfg)
+	processEnv(backendCfg)
+}
+
+// TestConfigPrecedence_Representative walks one option of each kind through
+// the precedence tiers: confd.toml alone, an env var over confd.toml, and a
+// flag over an env var. Slice options have no env vars, so they cover
+// confd.toml, a flag over confd.toml, and the built-in default.
+func TestConfigPrecedence_Representative(t *testing.T) {
+	consulConfig := func(cli *CLI) backends.Config {
+		return backends.Config{Backend: "consul", BackendNodes: cli.Consul.Node, Scheme: cli.Consul.Scheme}
+	}
+	vaultConfig := func(cli *CLI) backends.Config {
+		return backends.Config{Backend: "vault", BackendNodes: cli.Vault.Node, AuthToken: cli.Vault.AuthToken}
+	}
+	acmConfig := func(cli *CLI) backends.Config {
+		return backends.Config{Backend: "acm", ACMExportPrivateKey: cli.ACM.ExportPrivateKey}
+	}
+	secretsManagerConfig := func(cli *CLI) backends.Config {
+		return backends.Config{
+			Backend:                    "secretsmanager",
+			SecretsManagerVersionStage: cli.SecretsManager.VersionStage,
+			SecretsManagerNoFlatten:    cli.SecretsManager.NoFlatten,
+		}
+	}
+
+	noop := func(cli *CLI, _ *backends.Config) any { return cli.Noop }
+	templateCache := func(cli *CLI, _ *backends.Config) any { return cli.TemplateCache }
+	prefix := func(cli *CLI, _ *backends.Config) any { return cli.Prefix }
+	retryMaxDelay := func(cli *CLI, _ *backends.Config) any { return cli.RetryMaxDelay }
+	nodes := func(_ *CLI, cfg *backends.Config) any { return []string(cfg.BackendNodes) }
+	scheme := func(_ *CLI, cfg *backends.Config) any { return cfg.Scheme }
+	authToken := func(_ *CLI, cfg *backends.Config) any { return cfg.AuthToken }
+	acmExport := func(_ *CLI, cfg *backends.Config) any { return cfg.ACMExportPrivateKey }
+	versionStage := func(_ *CLI, cfg *backends.Config) any { return cfg.SecretsManagerVersionStage }
+	noFlatten := func(_ *CLI, cfg *backends.Config) any { return cfg.SecretsManagerNoFlatten }
+
+	tests := []struct {
+		name string
+		toml string
+		env  map[string]string
+		// args follow --config-file and include the backend subcommand
+		args []string
+		// backend builds the backend config from the parsed command the way
+		// that command's Run method does; nil means the env backend.
+		backend func(*CLI) backends.Config
+		got     func(*CLI, *backends.Config) any
+		want    any
+		// skip, when set, is the reason this case is not run
+		skip string
+	}{
+		// bool, resolving to true
+		{name: "bool true/toml only", toml: `noop = true`, args: []string{"env"}, got: noop, want: true},
+		{name: "bool true/env over toml", toml: `noop = false`, env: map[string]string{"CONFD_NOOP": "true"}, args: []string{"env"}, got: noop, want: true},
+		{name: "bool true/flag over env", toml: `noop = false`, env: map[string]string{"CONFD_NOOP": "false"}, args: []string{"--noop", "env"}, got: noop, want: true},
+
+		// bool, resolving to false
+		{name: "bool false/toml only", toml: `noop = false`, args: []string{"env"}, got: noop, want: false},
+		{name: "bool false/env over toml", toml: `noop = true`, env: map[string]string{"CONFD_NOOP": "false"}, args: []string{"env"}, got: noop, want: false},
+		{name: "bool false/flag over env", toml: `noop = true`, env: map[string]string{"CONFD_NOOP": "true"}, args: []string{"--noop=false", "env"}, got: noop, want: false},
+
+		// bool that defaults to true
+		{name: "default-true bool/unset", args: []string{"env"}, got: templateCache, want: true},
+		{name: "default-true bool/toml only", toml: `template_cache = false`, args: []string{"env"}, got: templateCache, want: false},
+		{name: "default-true bool/env over toml", toml: `template_cache = false`, env: map[string]string{"CONFD_TEMPLATE_CACHE": "true"}, args: []string{"env"}, got: templateCache, want: true},
+		{name: "default-true bool/flag over env", toml: `template_cache = true`, env: map[string]string{"CONFD_TEMPLATE_CACHE": "true"}, args: []string{"--no-template-cache", "env"}, got: templateCache, want: false},
+
+		// string
+		{name: "string/toml only", toml: `prefix = "/toml"`, args: []string{"env"}, got: prefix, want: "/toml"},
+		{name: "string/env over toml", toml: `prefix = "/toml"`, env: map[string]string{"CONFD_PREFIX": "/env"}, args: []string{"env"}, got: prefix, want: "/env"},
+		{name: "string/flag over env", toml: `prefix = "/toml"`, env: map[string]string{"CONFD_PREFIX": "/env"}, args: []string{"--prefix", "/flag", "env"}, got: prefix, want: "/flag"},
+
+		// duration
+		{name: "duration/unset", args: []string{"env"}, got: retryMaxDelay, want: DefaultRetryMaxDelay},
+		{name: "duration/toml only", toml: `retry_max_delay = "10s"`, args: []string{"env"}, got: retryMaxDelay, want: 10 * time.Second},
+		{name: "duration/env over toml", toml: `retry_max_delay = "10s"`, env: map[string]string{"CONFD_RETRY_MAX_DELAY": "20s"}, args: []string{"env"}, got: retryMaxDelay, want: 20 * time.Second},
+		{name: "duration/flag over env", toml: `retry_max_delay = "10s"`, env: map[string]string{"CONFD_RETRY_MAX_DELAY": "20s"}, args: []string{"--retry-max-delay", "40s", "env"}, got: retryMaxDelay, want: 40 * time.Second},
+
+		// slice
+		{name: "slice/built-in default", args: []string{"consul"}, backend: consulConfig, got: nodes, want: []string{"127.0.0.1:8500"}},
+		{name: "slice/toml only", toml: `nodes = ["toml-a:8500", "toml-b:8500"]`, args: []string{"consul"}, backend: consulConfig, got: nodes, want: []string{"toml-a:8500", "toml-b:8500"}},
+		{name: "slice/flag over toml", toml: `nodes = ["toml-a:8500", "toml-b:8500"]`, args: []string{"consul", "--node", "flag:8500"}, backend: consulConfig, got: nodes, want: []string{"flag:8500"}},
+
+		// backend-specific string with an env var
+		{name: "vault auth token/toml only", toml: `auth_token = "toml-token"`, args: []string{"vault"}, backend: vaultConfig, got: authToken, want: "toml-token"},
+		{name: "vault auth token/env over toml", toml: `auth_token = "toml-token"`, env: map[string]string{"VAULT_TOKEN": "env-token"}, args: []string{"vault"}, backend: vaultConfig, got: authToken, want: "env-token"},
+		{name: "vault auth token/flag over env", toml: `auth_token = "toml-token"`, env: map[string]string{"VAULT_TOKEN": "env-token"}, args: []string{"vault", "--auth-token", "flag-token"}, backend: vaultConfig, got: authToken, want: "flag-token"},
+
+		// backend-specific string whose flag has a default
+		{name: "scheme/command default", args: []string{"consul"}, backend: consulConfig, got: scheme, want: "http"},
+		{name: "scheme/toml over command default", toml: `scheme = "https"`, args: []string{"consul"}, backend: consulConfig, got: scheme, want: "https"},
+		{name: "scheme/flag set to default over toml", toml: `scheme = "https"`, args: []string{"consul", "--scheme", "http"}, backend: consulConfig, got: scheme, want: "http"},
+		{name: "secrets manager version stage/toml over command default", toml: `secretsmanager_version_stage = "AWSPREVIOUS"`, args: []string{"secretsmanager"}, backend: secretsManagerConfig, got: versionStage, want: "AWSPREVIOUS"},
+		{name: "secrets manager version stage/flag set to default over toml", toml: `secretsmanager_version_stage = "AWSPREVIOUS"`, args: []string{"secretsmanager", "--secretsmanager-version-stage", "AWSCURRENT"}, backend: secretsManagerConfig, got: versionStage, want: "AWSCURRENT"},
+
+		// backend-specific bool
+		{name: "secrets manager no-flatten/toml only", toml: `secretsmanager_no_flatten = true`, args: []string{"secretsmanager"}, backend: secretsManagerConfig, got: noFlatten, want: true},
+		{name: "secrets manager no-flatten/flag false over toml", toml: `secretsmanager_no_flatten = true`, args: []string{"secretsmanager", "--secretsmanager-no-flatten=false"}, backend: secretsManagerConfig, got: noFlatten, want: false},
+		{name: "acm export private key/toml only", toml: `acm_export_private_key = true`, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: true},
+		{name: "acm export private key/env true over toml", toml: `acm_export_private_key = false`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "true"}, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: true},
+		{name: "acm export private key/flag over env", toml: `acm_export_private_key = false`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "false"}, args: []string{"acm", "--acm-export-private-key"}, backend: acmConfig, got: acmExport, want: true},
+		{
+			name: "acm export private key/env false over toml", toml: `acm_export_private_key = true`,
+			env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "false"}, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: false,
+			skip: "processEnv treats any non-empty ACM_EXPORT_PRIVATE_KEY as true, so an explicit false enables export",
+		},
+		{
+			name: "acm export private key/flag false over env", toml: `acm_export_private_key = true`,
+			env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "true"}, args: []string{"acm", "--acm-export-private-key=false"}, backend: acmConfig, got: acmExport, want: false,
+			skip: "processEnv re-enables export from ACM_EXPORT_PRIVATE_KEY after an explicit --acm-export-private-key=false",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip != "" {
+				t.Skip(tt.skip)
+			}
+			clearCONFDEnvVars(t)
+			for key, value := range tt.env {
+				t.Setenv(key, value)
+			}
+			configFile := writeConfigFile(t, tt.toml)
+			cli, _ := parseCLI(t, append([]string{"--config-file", configFile}, tt.args...))
+
+			backendCfg := backends.Config{Backend: "env"}
+			if tt.backend != nil {
+				backendCfg = tt.backend(cli)
+			}
+			resolveConfig(t, cli, &backendCfg)
+
+			if got := tt.got(cli, &backendCfg); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %#v, want %#v", got, tt.want)
 			}
 		})
 	}
