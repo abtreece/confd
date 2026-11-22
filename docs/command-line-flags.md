@@ -516,6 +516,15 @@ Controls how confd handles errors when processing multiple templates:
 | `best-effort` | Continue processing remaining templates when one fails (default) |
 | `fail-fast` | Stop all processing on first template error |
 
+A template resource file that fails to load (invalid TOML, for example) is treated as follows:
+
+| Mode | `best-effort` | `fail-fast` |
+|------|---------------|-------------|
+| `--onetime` | Process the resources that loaded, then exit non-zero with an error naming each file that failed to load | Process nothing and exit non-zero |
+| Interval and watch | Log the load error and keep running with the resources that loaded | Same as `best-effort` |
+
+In interval and watch mode, if resource files exist and none of them load, confd shuts down and exits non-zero under either failure mode, at startup and on a `SIGHUP` reload. An empty or missing `conf.d` is not a load failure.
+
 ```bash
 # Continue processing other templates even if one fails
 confd --failure-mode best-effort etcd --onetime
