@@ -22,7 +22,6 @@ type acmAPI interface {
 }
 
 type Client struct {
-	types.NoopWatcher
 	types.NoopCloser
 	client           acmAPI
 	exportPrivateKey bool

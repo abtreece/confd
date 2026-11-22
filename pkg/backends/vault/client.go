@@ -30,7 +30,6 @@ type vaultLogical interface {
 
 // Client is a wrapper around the vault client
 type Client struct {
-	types.NoopWatcher
 	types.NoopCloser
 	client  *vaultapi.Client
 	logical vaultLogical

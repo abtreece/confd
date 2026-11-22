@@ -367,8 +367,8 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 
 func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string,
     waitIndex uint64, stopChan chan bool) (uint64, error) {
-    // Watch for changes. Polling-only backends embed types.NoopWatcher
-    // (pkg/backends/types) instead of implementing this method.
+    // Optional: block until a key under prefix changes, then return the
+    // index to pass as waitIndex on the next call.
     return waitIndex, nil
 }
 
@@ -382,6 +382,8 @@ func (c *Client) Close() error {
     return nil
 }
 ```
+
+`WatchPrefix` is not part of `StoreClient`. It belongs to the optional `backends.Watcher` interface, which marks a backend as watch-capable. A polling-only backend omits the method: confd then refuses to start in `--watch` mode with that backend, whether it is the global backend or set in a template resource's `[backend]` section. Add the backend to `TestWatcher_ImplementedOnlyByWatchCapableBackends` in `pkg/backends/watcher_test.go` either way.
 
 ### 3. Register in Factory
 

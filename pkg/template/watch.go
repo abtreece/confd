@@ -107,8 +107,16 @@ func (w *watchLoop) monitor(t *TemplateResource, onChange func() bool) {
 	defer w.wg.Done()
 	ctx := w.context()
 
+	// Startup rejects backends that cannot watch (CheckWatchSupport), so this
+	// only fails for a resource that a reload switched to such a backend.
+	watcher, err := t.watcher()
+	if err != nil {
+		trySendErr(w.errChan, err, t.Dest)
+		return
+	}
+
 	for {
-		index, err := t.storeClient.WatchPrefix(ctx, t.Prefix, t.prefixedKeys, t.lastIndex, w.internalStop)
+		index, err := watcher.WatchPrefix(ctx, t.Prefix, t.prefixedKeys, t.lastIndex, w.internalStop)
 		if err != nil {
 			// Check if context was cancelled
 			if ctx.Err() != nil {

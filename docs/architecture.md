@@ -508,15 +508,22 @@ sequenceDiagram
 ```go
 type StoreClient interface {
     GetValues(ctx context.Context, keys []string) (map[string]string, error)
-    WatchPrefix(ctx context.Context, prefix string, keys []string,
-                waitIndex uint64, stopChan chan bool) (uint64, error)
     HealthCheck(ctx context.Context) error
     Close() error
 }
 ```
 
-3. Add the backend to the factory in `pkg/backends/client.go`
-4. Add CLI command in `cmd/confd/cli.go`
+3. If the backend can watch for changes, also implement the optional `Watcher` interface. Polling-only backends leave it out; `--watch` with a backend that does not implement `Watcher` (globally or in a template resource's `[backend]` section) fails at startup.
+
+```go
+type Watcher interface {
+    WatchPrefix(ctx context.Context, prefix string, keys []string,
+                waitIndex uint64, stopChan chan bool) (uint64, error)
+}
+```
+
+4. Add the backend to the factory in `pkg/backends/client.go`
+5. Add CLI command in `cmd/confd/cli.go`
 
 ### Adding Template Functions
 

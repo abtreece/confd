@@ -15,13 +15,26 @@ type InstrumentedClient struct {
 	backend string
 }
 
+// instrumentedWatcher is an InstrumentedClient for a backend that can watch.
+// It is a separate type so that the wrapper implements backends.Watcher
+// exactly when the wrapped client does.
+type instrumentedWatcher struct {
+	*InstrumentedClient
+	watcher backends.Watcher
+}
+
 // WrapStoreClient wraps a StoreClient with metrics instrumentation.
 // If metrics are not enabled (Registry is nil), returns the original client.
+// The returned client implements backends.Watcher only if client does.
 func WrapStoreClient(client backends.StoreClient, backendType string) backends.StoreClient {
 	if !Enabled() {
 		return client
 	}
-	return &InstrumentedClient{client: client, backend: backendType}
+	instrumented := &InstrumentedClient{client: client, backend: backendType}
+	if watcher, ok := client.(backends.Watcher); ok {
+		return &instrumentedWatcher{InstrumentedClient: instrumented, watcher: watcher}
+	}
+	return instrumented
 }
 
 // GetValues retrieves values from the backend and records metrics.
@@ -40,9 +53,9 @@ func (c *InstrumentedClient) GetValues(ctx context.Context, keys []string) (map[
 }
 
 // WatchPrefix watches for changes on a prefix and records metrics.
-func (c *InstrumentedClient) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
+func (c *instrumentedWatcher) WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error) {
 	start := time.Now()
-	result, err := c.client.WatchPrefix(ctx, prefix, keys, waitIndex, stopChan)
+	result, err := c.watcher.WatchPrefix(ctx, prefix, keys, waitIndex, stopChan)
 	duration := time.Since(start).Seconds()
 
 	BackendRequestDuration.WithLabelValues(c.backend, "watch_prefix").Observe(duration)

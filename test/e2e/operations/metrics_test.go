@@ -39,7 +39,7 @@ keys = ["/service/name"]
 
 	confd := NewConfdBinary(t)
 	confd.SetEnv("SERVICE_NAME", "metrics-test")
-	err := confd.Start(ctx, "env", "--watch", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
+	err := confd.Start(ctx, "env", "--interval", "2", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
 	if err != nil {
 		t.Fatalf("Failed to start confd: %v", err)
 	}
@@ -101,7 +101,7 @@ keys = ["/service/name"]
 
 	confd := NewConfdBinary(t)
 	confd.SetEnv("SERVICE_NAME", "confd-metrics-test")
-	err := confd.Start(ctx, "env", "--watch", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
+	err := confd.Start(ctx, "env", "--interval", "2", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
 	if err != nil {
 		t.Fatalf("Failed to start confd: %v", err)
 	}
@@ -174,7 +174,7 @@ keys = ["/service/name"]
 
 	confd := NewConfdBinary(t)
 	confd.SetEnv("SERVICE_NAME", "go-metrics-test")
-	err := confd.Start(ctx, "env", "--watch", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
+	err := confd.Start(ctx, "env", "--interval", "2", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
 	if err != nil {
 		t.Fatalf("Failed to start confd: %v", err)
 	}
@@ -232,7 +232,7 @@ keys = ["/service/name"]
 
 	confd := NewConfdBinary(t)
 	confd.SetEnv("SERVICE_NAME", "health-value-test")
-	err := confd.Start(ctx, "env", "--watch", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
+	err := confd.Start(ctx, "env", "--interval", "2", "--confdir", env.ConfDir, "--metrics-addr", metricsAddr, "--log-level", "error")
 	if err != nil {
 		t.Fatalf("Failed to start confd: %v", err)
 	}

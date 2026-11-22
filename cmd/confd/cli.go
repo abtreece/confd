@@ -275,9 +275,6 @@ type DynamoDBCmd struct {
 }
 
 func (d *DynamoDBCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for dynamodb backend")
-	}
 	cfg := backends.Config{
 		Backend: "dynamodb",
 		Table:   d.Table,
@@ -288,9 +285,6 @@ func (d *DynamoDBCmd) Run(cli *CLI) error {
 type SSMCmd struct{}
 
 func (s *SSMCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for ssm backend")
-	}
 	cfg := backends.Config{
 		Backend: "ssm",
 	}
@@ -302,9 +296,6 @@ type ACMCmd struct {
 }
 
 func (a *ACMCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for acm backend")
-	}
 	cfg := backends.Config{
 		Backend:             "acm",
 		ACMExportPrivateKey: a.ExportPrivateKey,
@@ -318,9 +309,6 @@ type SecretsManagerCmd struct {
 }
 
 func (s *SecretsManagerCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for secretsmanager backend")
-	}
 	cfg := backends.Config{
 		Backend:                    "secretsmanager",
 		SecretsManagerVersionStage: s.VersionStage,
@@ -358,10 +346,6 @@ type IMDSCmd struct {
 }
 
 func (i *IMDSCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for imds backend")
-	}
-
 	cacheTTL, err := time.ParseDuration(i.CacheTTL)
 	if err != nil {
 		return fmt.Errorf("invalid imds-cache-ttl: %w", err)
@@ -486,6 +470,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		ConfigDir:         filepath.Join(cli.ConfDir, "conf.d"),
 		TemplateDir:       filepath.Join(cli.ConfDir, "templates"),
 		StoreClient:       storeClient,
+		Backend:           backendCfg.Backend,
 		Noop:              cli.Noop,
 		Prefix:            cli.Prefix,
 		SyncOnly:          cli.SyncOnly,
@@ -516,6 +501,16 @@ func run(cli *CLI, backendCfg backends.Config) error {
 			return fmt.Errorf("invalid batch-interval duration %q: %w", cli.BatchIntervalStr, err)
 		}
 		tmplCfg.BatchInterval = d
+	}
+
+	// Watch mode needs every backend in use to support watching. This is
+	// checked whenever watch is enabled, including with --preflight and
+	// --onetime, so a configuration that cannot run in watch mode is never
+	// reported as working.
+	if cli.Watch {
+		if err := template.CheckWatchSupport(tmplCfg); err != nil {
+			return fmt.Errorf("check watch support: %w", err)
+		}
 	}
 
 	// Preflight mode: run connectivity checks and exit

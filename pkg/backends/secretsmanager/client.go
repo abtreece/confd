@@ -27,7 +27,6 @@ type secretsManagerAPI interface {
 
 // Client is a wrapper around the AWS Secrets Manager client.
 type Client struct {
-	types.NoopWatcher
 	types.NoopCloser
 	client       secretsManagerAPI
 	versionStage string

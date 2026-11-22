@@ -363,54 +363,6 @@ func TestFileRequiredFile(t *testing.T) {
 	}
 }
 
-func TestDynamoDBWatchModeError(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"--watch", "dynamodb", "--table", "test"})
-	cmd := &cli.DynamoDB
-	err := cmd.Run(cli)
-	if err == nil {
-		t.Error("Expected error for watch mode with dynamodb")
-	}
-	if err.Error() != "watch mode not supported for dynamodb backend" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
-
-func TestSSMWatchModeError(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"--watch", "ssm"})
-	cmd := &cli.SSM
-	err := cmd.Run(cli)
-	if err == nil {
-		t.Error("Expected error for watch mode with ssm")
-	}
-	if err.Error() != "watch mode not supported for ssm backend" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
-
-func TestACMWatchModeError(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"--watch", "acm"})
-	cmd := &cli.ACM
-	err := cmd.Run(cli)
-	if err == nil {
-		t.Error("Expected error for watch mode with acm")
-	}
-	if err.Error() != "watch mode not supported for acm backend" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
-
-func TestSecretsManagerWatchModeError(t *testing.T) {
-	cli, _ := parseCLI(t, []string{"--watch", "secretsmanager"})
-	cmd := &cli.SecretsManager
-	err := cmd.Run(cli)
-	if err == nil {
-		t.Error("Expected error for watch mode with secretsmanager")
-	}
-	if err.Error() != "watch mode not supported for secretsmanager backend" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
-
 func TestSecretsManagerFlags(t *testing.T) {
 	cli, _ := parseCLI(t, []string{
 		"secretsmanager",
@@ -1022,16 +974,6 @@ func TestAdditionalRunMethods_WithValidateMode(t *testing.T) {
 }
 
 func TestIMDSCmdRun(t *testing.T) {
-	t.Run("watch mode unsupported", func(t *testing.T) {
-		cli := makeCheckConfigCLI(t)
-		cli.Watch = true
-		cmd := &IMDSCmd{CacheTTL: "60s"}
-		err := cmd.Run(cli)
-		if err == nil || err.Error() != "watch mode not supported for imds backend" {
-			t.Fatalf("expected watch mode error, got %v", err)
-		}
-	})
-
 	t.Run("invalid cache ttl", func(t *testing.T) {
 		cli := makeCheckConfigCLI(t)
 		cmd := &IMDSCmd{CacheTTL: "bad-duration"}
