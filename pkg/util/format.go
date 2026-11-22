@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/BurntSushi/toml"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // ValidateFormat validates that the content is valid for the specified format.

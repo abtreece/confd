@@ -15,7 +15,7 @@ import (
 	"github.com/abtreece/confd/pkg/log"
 	util "github.com/abtreece/confd/pkg/util"
 	"github.com/fsnotify/fsnotify"
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 )
 
 // Client provides a shell for the yaml client
