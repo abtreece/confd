@@ -2,8 +2,10 @@ package template
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/abtreece/confd/pkg/log"
@@ -27,13 +29,40 @@ type Processor interface {
 	Process()
 }
 
-// Process loads and processes all template resources once.
+// ErrNoTemplateResources is reported on a processor's error channel, wrapping
+// the load errors, when the processor stops because template resource files
+// were found but none of them could be loaded.
+var ErrNoTemplateResources = errors.New("no template resources could be loaded")
+
+// Process loads and processes all template resources once. A resource that
+// fails to load is handled according to config.FailureMode, like a resource
+// that fails during processing: fail-fast processes nothing, best-effort
+// processes the resources that did load. Either way the load errors are part
+// of the returned error.
 func Process(config Config) error {
-	ts, err := getTemplateResources(config)
-	if err != nil {
-		return err
+	ts, loadErr := getTemplateResources(config)
+	if loadErr != nil && config.FailureMode == FailModeFast {
+		log.Warning("Fail-fast mode: not processing any template resource after a load error")
+		return loadErr
 	}
-	return process(ts, config.FailureMode)
+	return errors.Join(loadErr, process(ts, config.FailureMode))
+}
+
+// loadTemplateResources loads the template resources for a long-running
+// processor. Resources that fail to load are logged and left out. If files
+// were found and none loaded, it returns an error wrapping
+// ErrNoTemplateResources and the processor must stop.
+func loadTemplateResources(config Config) ([]*TemplateResource, error) {
+	ts, err := getTemplateResources(config)
+	if err == nil {
+		return ts, nil
+	}
+	if len(ts) == 0 {
+		log.Error("Failed to load any template resources: %s", err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrNoTemplateResources, err)
+	}
+	log.Warning("Some template resources failed to load: %s", err.Error())
+	return ts, nil
 }
 
 func process(ts []*TemplateResource, failureMode FailureMode) error {
@@ -97,14 +126,10 @@ func (p *intervalProcessor) Process() {
 	}
 
 	// Load template resources once at startup. Only reload on SIGHUP (reloadChan).
-	ts, err := getTemplateResources(p.config)
+	ts, err := loadTemplateResources(p.config)
 	if err != nil {
-		if len(ts) == 0 {
-			log.Error("Failed to load any template resources: %s", err.Error())
-			p.errChan <- err
-			return
-		}
-		log.Warning("Some template resources failed to load: %s", err.Error())
+		p.errChan <- err
+		return
 	}
 
 	ticker := time.NewTicker(time.Duration(p.interval) * time.Second)
@@ -120,14 +145,10 @@ func (p *intervalProcessor) Process() {
 			return
 		case <-p.reloadChan:
 			log.Info("Reloading template resources (interval processor)")
-			ts, err = getTemplateResources(p.config)
+			ts, err = loadTemplateResources(p.config)
 			if err != nil {
-				if len(ts) == 0 {
-					log.Error("Failed to load any template resources: %s", err.Error())
-					p.errChan <- err
-					return
-				}
-				log.Warning("Some template resources failed to load: %s", err.Error())
+				p.errChan <- err
+				return
 			}
 		case <-ticker.C:
 		}
@@ -341,8 +362,11 @@ func (p *batchWatchProcessor) flush(pending map[string]*TemplateResource) {
 	clear(pending)
 }
 
+// getTemplateResources returns the template resources that loaded, and an
+// error joining one error per resource file that did not. Each of those
+// errors names its file. A missing or empty config dir is not an error.
 func getTemplateResources(config Config) ([]*TemplateResource, error) {
-	var lastError error
+	var loadErrs []error
 	log.Debug("Loading template resources from config dir %s", config.ConfigDir)
 	if _, err := os.Stat(config.ConfigDir); err != nil {
 		log.Warning("Cannot load template resources: config dir '%s': %v", config.ConfigDir, err)
@@ -365,7 +389,11 @@ func getTemplateResources(config Config) ([]*TemplateResource, error) {
 		t, err := NewTemplateResource(p, config)
 		if err != nil {
 			log.Error("Failed to load template resource %s: %s", p, err.Error())
-			lastError = err
+			// Not every load error names the file it came from.
+			if !strings.Contains(err.Error(), p) {
+				err = fmt.Errorf("template resource %s: %w", p, err)
+			}
+			loadErrs = append(loadErrs, err)
 			continue
 		}
 		templates = append(templates, t)
@@ -376,5 +404,5 @@ func getTemplateResources(config Config) ([]*TemplateResource, error) {
 		metrics.TemplatesLoaded.Set(float64(len(templates)))
 	}
 
-	return templates, lastError
+	return templates, errors.Join(loadErrs...)
 }
