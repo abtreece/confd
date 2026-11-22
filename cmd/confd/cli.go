@@ -275,9 +275,6 @@ type DynamoDBCmd struct {
 }
 
 func (d *DynamoDBCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for dynamodb backend")
-	}
 	cfg := backends.Config{
 		Backend: "dynamodb",
 		Table:   d.Table,
@@ -288,9 +285,6 @@ func (d *DynamoDBCmd) Run(cli *CLI) error {
 type SSMCmd struct{}
 
 func (s *SSMCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for ssm backend")
-	}
 	cfg := backends.Config{
 		Backend: "ssm",
 	}
@@ -302,9 +296,6 @@ type ACMCmd struct {
 }
 
 func (a *ACMCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for acm backend")
-	}
 	cfg := backends.Config{
 		Backend:             "acm",
 		ACMExportPrivateKey: a.ExportPrivateKey,
@@ -318,9 +309,6 @@ type SecretsManagerCmd struct {
 }
 
 func (s *SecretsManagerCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for secretsmanager backend")
-	}
 	cfg := backends.Config{
 		Backend:                    "secretsmanager",
 		SecretsManagerVersionStage: s.VersionStage,
@@ -358,10 +346,6 @@ type IMDSCmd struct {
 }
 
 func (i *IMDSCmd) Run(cli *CLI) error {
-	if cli.Watch {
-		return fmt.Errorf("watch mode not supported for imds backend")
-	}
-
 	cacheTTL, err := time.ParseDuration(i.CacheTTL)
 	if err != nil {
 		return fmt.Errorf("invalid imds-cache-ttl: %w", err)
@@ -486,6 +470,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		ConfigDir:         filepath.Join(cli.ConfDir, "conf.d"),
 		TemplateDir:       filepath.Join(cli.ConfDir, "templates"),
 		StoreClient:       storeClient,
+		Backend:           backendCfg.Backend,
 		Noop:              cli.Noop,
 		Prefix:            cli.Prefix,
 		SyncOnly:          cli.SyncOnly,
@@ -545,6 +530,9 @@ func run(cli *CLI, backendCfg backends.Config) error {
 
 	var processor template.Processor
 	if cli.Watch {
+		if err := template.CheckWatchSupport(tmplCfg); err != nil {
+			return fmt.Errorf("start watch mode: %w", err)
+		}
 		if tmplCfg.BatchInterval > 0 {
 			// Use batch processor when --batch-interval is specified
 			log.Info("Batch processing enabled with interval %v", tmplCfg.BatchInterval)

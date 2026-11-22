@@ -23,16 +23,25 @@ import (
 )
 
 // The StoreClient interface is implemented by objects that can retrieve
-// key/value pairs from a backend store.
+// key/value pairs from a backend store. Backends that can also watch for
+// changes implement Watcher.
 type StoreClient interface {
 	GetValues(ctx context.Context, keys []string) (map[string]string, error)
-	WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error)
 	// HealthCheck verifies the backend connection is healthy.
 	// Returns nil if the connection is healthy, otherwise returns an error.
 	HealthCheck(ctx context.Context) error
 	// Close releases any resources held by the client.
 	// It should be called when the client is no longer needed.
 	Close() error
+}
+
+// The Watcher interface is implemented by store clients whose backend can
+// watch for changes. Watch mode requires it; polling-only backends do not
+// implement it.
+type Watcher interface {
+	// WatchPrefix blocks until a key under prefix changes, stopChan fires or
+	// ctx is done, and returns the index to pass as waitIndex on the next call.
+	WatchPrefix(ctx context.Context, prefix string, keys []string, waitIndex uint64, stopChan chan bool) (uint64, error)
 }
 
 // Re-export types for convenience

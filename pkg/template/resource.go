@@ -25,6 +25,9 @@ type Config struct {
 	Noop          bool   `toml:"noop"`
 	Prefix        string `toml:"prefix"`
 	StoreClient   backends.StoreClient
+	// Backend is the type of the global backend behind StoreClient (e.g.
+	// "etcd"). It is used to name the backend in error messages.
+	Backend  string
 	SyncOnly      bool `toml:"sync-only"`
 	TemplateDir   string
 	// Diff settings for noop mode
@@ -79,6 +82,10 @@ type TemplateResource struct {
 	noop              bool
 	store             *memkv.Store
 	storeClient       backends.StoreClient
+	// backendName is the type of the backend behind storeClient and path is
+	// the template resource file; both identify the resource in errors.
+	backendName string
+	path        string
 	syncOnly          bool
 	templateDir       string
 	// Parsed duration values
@@ -204,6 +211,7 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tr.colorDiff = config.ColorDiff
 	tr.ctx = config.Ctx
 	tr.backendTimeout = config.BackendTimeout
+	tr.path = path
 	addFuncs(tr.funcMap, tr.store.FuncMap)
 
 	// Determine which backend client to use:
@@ -217,8 +225,10 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 			return nil, fmt.Errorf("cannot create backend client for %s: %w", path, err)
 		}
 		tr.storeClient = client
+		tr.backendName = tc.BackendConfig.Backend
 	} else if config.StoreClient != nil {
 		tr.storeClient = config.StoreClient
+		tr.backendName = config.Backend
 	} else {
 		return nil, errors.New("A valid StoreClient is required. Either configure a global backend or specify a [backend] section in the template resource.")
 	}

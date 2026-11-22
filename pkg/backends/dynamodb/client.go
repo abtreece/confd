@@ -25,7 +25,6 @@ type dynamoDBAPI interface {
 // Client is a wrapper around the DynamoDB client
 // and also holds the table to lookup key value pairs from
 type Client struct {
-	types.NoopWatcher
 	types.NoopCloser
 	client dynamoDBAPI
 	table  string

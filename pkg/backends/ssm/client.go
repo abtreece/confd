@@ -24,7 +24,6 @@ type ssmAPI interface {
 
 // Client is a wrapper around the AWS SSM client.
 type Client struct {
-	types.NoopWatcher
 	types.NoopCloser
 	client ssmAPI
 }

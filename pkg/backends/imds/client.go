@@ -25,7 +25,6 @@ type imdsAPI interface {
 
 // Client provides access to AWS EC2 Instance Metadata Service
 type Client struct {
-	types.NoopWatcher
 	types.NoopCloser
 	client   imdsAPI
 	cache    *metadataCache
