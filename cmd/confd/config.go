@@ -455,8 +455,4 @@ func processEnv(cfg *backends.Config) {
 	if len(key) > 0 && cfg.ClientKey == "" {
 		cfg.ClientKey = key
 	}
-
-	if os.Getenv("ACM_EXPORT_PRIVATE_KEY") != "" && !cfg.ACMExportPrivateKey {
-		cfg.ACMExportPrivateKey = true
-	}
 }
