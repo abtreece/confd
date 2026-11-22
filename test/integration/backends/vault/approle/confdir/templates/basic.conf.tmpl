@@ -5,4 +5,4 @@ password={{ getv "/kv-v1/database/password" }}
 port={{ getv "/kv-v1/database/port" }}
 username={{ getv "/kv-v1/database/username" }}
 
-AccessAddress: {{ lookupIfaceIPV4 "lo" }}
+AccessAddress: {{ lookupIfaceIPV4 (getenv "CONFD_TEST_LOOPBACK_IFACE" "lo") }}
