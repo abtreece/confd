@@ -1,6 +1,7 @@
 package template
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -398,5 +399,8 @@ func BenchmarkInclude_DeepNested(b *testing.B) {
 
 // writeFile is a helper for creating test template files
 func writeFile(dir, name, content string) error {
-	return os.WriteFile(dir+"/"+name, []byte(content), 0644)
+	if err := os.WriteFile(dir+"/"+name, []byte(content), 0644); err != nil {
+		return fmt.Errorf("write test file %q: %w", name, err)
+	}
+	return nil
 }

@@ -268,11 +268,11 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		switch t {
 		case "string":
 			value, err := rClient.Get(ctx, k).Result()
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				continue
 			}
 			if err != nil {
-				return vars, err
+				return vars, fmt.Errorf("get redis key %q: %w", k, err)
 			}
 			vars[key] = value
 
@@ -281,7 +281,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 			for {
 				keys, nextCursor, err := rClient.HScan(ctx, k, cursor, "*", 1000).Result()
 				if err != nil {
-					return vars, err
+					return vars, fmt.Errorf("scan redis hash %q: %w", k, err)
 				}
 
 				// keys is alternating field, value pairs
@@ -310,16 +310,16 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 			for {
 				scanKeys, nextCursor, err := rClient.Scan(ctx, cursor, pattern, 1000).Result()
 				if err != nil {
-					return vars, err
+					return vars, fmt.Errorf("scan redis keys matching %q: %w", pattern, err)
 				}
 
 				for _, scanKey := range scanKeys {
 					value, err := rClient.Get(ctx, scanKey).Result()
-					if err == redis.Nil {
+					if errors.Is(err, redis.Nil) {
 						continue
 					}
 					if err != nil {
-						return vars, err
+						return vars, fmt.Errorf("get redis key %q: %w", scanKey, err)
 					}
 					vars[c.clean(scanKey)] = value
 				}
@@ -382,7 +382,7 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	case <-ctx.Done():
 		// Parent context cancelled - shut down the watcher
 		c.stopWatch()
-		return waitIndex, ctx.Err()
+		return waitIndex, fmt.Errorf("redis watch cancelled: %w", ctx.Err())
 	case <-stopChan:
 		// Stop signal received - shut down the watcher
 		c.stopWatch()

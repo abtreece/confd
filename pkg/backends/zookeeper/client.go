@@ -32,7 +32,7 @@ func NewZookeeperClient(machines []string, dialTimeout time.Duration) (*Client, 
 	// Defaults already applied via ApplyTimeoutDefaults in the factory
 	c, _, err := zk.Connect(machines, dialTimeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("connect to zookeeper: %w", err)
 	}
 	return &Client{
 		client: c,
@@ -56,7 +56,7 @@ func zkCall[T any](ctx context.Context, fn func() (T, *zk.Stat, error)) (T, *zk.
 	select {
 	case <-ctx.Done():
 		var zero T
-		return zero, nil, ctx.Err()
+		return zero, nil, fmt.Errorf("zookeeper operation cancelled: %w", ctx.Err())
 	case r := <-ch:
 		return r.val, r.stat, r.err
 	}
@@ -228,7 +228,7 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	for {
 		select {
 		case <-ctx.Done():
-			return waitIndex, ctx.Err()
+			return waitIndex, fmt.Errorf("zookeeper watch cancelled: %w", ctx.Err())
 		case <-stopChan:
 			return waitIndex, nil
 		case r := <-respChan:
@@ -250,7 +250,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		logger.ErrorContext(ctx, "Backend health check failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err.Error())
-		return err
+		return fmt.Errorf("zookeeper health check: %w", err)
 	}
 
 	logger.InfoContext(ctx, "Backend health check passed",
@@ -274,7 +274,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			Details: map[string]string{
 				"error": err.Error(),
 			},
-		}, err
+		}, fmt.Errorf("zookeeper health check: %w", err)
 	}
 
 	// Get session info

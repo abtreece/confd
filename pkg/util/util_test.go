@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -39,105 +40,105 @@ func createDirStructure() (string, error) {
 	flag := os.O_RDWR | os.O_CREATE | os.O_EXCL
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create temp dir: %w", err)
 	}
 
 	otherDir := filepath.Join(tmpDir, "other")
 	err = os.Mkdir(otherDir, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(otherDir+"/sym1.toml", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(otherDir+"/sym2.toml", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 
 	rootDir := filepath.Join(tmpDir, "root")
 	err = os.Mkdir(rootDir, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(rootDir+"/root.toml", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(rootDir+"/root.other1", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	err = os.Symlink(otherDir+"/sym1.toml", rootDir+"/sym1.toml")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	err = os.Symlink(otherDir, rootDir+"/other")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 
 	subDir := filepath.Join(rootDir, "subDir1")
 	err = os.Mkdir(subDir, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(subDir+"/sub1.toml", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(subDir+"/sub12.toml", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(subDir+"/sub1.other", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	subDir2 := filepath.Join(rootDir, "subDir2")
 	err = os.Mkdir(subDir2, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(subDir2+"/sub2.toml", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(subDir2+"/sub22.toml", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(subDir2+"/sub2.other", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	subSubDir := filepath.Join(subDir2, "subSubDir")
 	err = os.Mkdir(subSubDir, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(subSubDir+"/subsub.toml", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(subSubDir+"/subsub2.toml", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	_, err = os.OpenFile(subSubDir+"/subsub.other", flag, mod)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 	err = os.Symlink(otherDir+"/sym2.toml", subSubDir+"/sym2.toml")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create test fixture: %w", err)
 	}
 
 	// tmpDir may contain symlinks itself
 	actualTmpDir, err := filepath.EvalSymlinks(tmpDir)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("resolve temp dir symlinks: %w", err)
 	}
 	return actualTmpDir, nil
 }

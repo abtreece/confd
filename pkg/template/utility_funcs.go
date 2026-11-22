@@ -99,7 +99,7 @@ func ternary(trueVal, falseVal interface{}, condition bool) interface{} {
 func toJson(val interface{}) (string, error) {
 	b, err := json.Marshal(val)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal JSON: %w", err)
 	}
 	return string(b), nil
 }
@@ -107,15 +107,17 @@ func toJson(val interface{}) (string, error) {
 // fromJson unmarshals a JSON string into an interface{}.
 func fromJson(s string) (interface{}, error) {
 	var result interface{}
-	err := json.Unmarshal([]byte(s), &result)
-	return result, err
+	if err := json.Unmarshal([]byte(s), &result); err != nil {
+		return result, fmt.Errorf("unmarshal JSON: %w", err)
+	}
+	return result, nil
 }
 
 // toPrettyJson marshals val to a pretty-printed JSON string with 2-space indent.
 func toPrettyJson(val interface{}) (string, error) {
 	b, err := json.MarshalIndent(val, "", "  ")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal JSON: %w", err)
 	}
 	return string(b), nil
 }
@@ -149,14 +151,18 @@ func squote(s string) string {
 
 // regexMatch returns true if s matches the given regular expression pattern.
 func regexMatch(pattern, s string) (bool, error) {
-	return regexp.MatchString(pattern, s)
+	matched, err := regexp.MatchString(pattern, s)
+	if err != nil {
+		return false, fmt.Errorf("match regex %q: %w", pattern, err)
+	}
+	return matched, nil
 }
 
 // regexFind returns the first match of pattern in s, or empty string if no match.
 func regexFind(pattern, s string) (string, error) {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("compile regex %q: %w", pattern, err)
 	}
 	return re.FindString(s), nil
 }
@@ -165,7 +171,7 @@ func regexFind(pattern, s string) (string, error) {
 func regexReplaceAll(pattern, s, repl string) (string, error) {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("compile regex %q: %w", pattern, err)
 	}
 	return re.ReplaceAllString(s, repl), nil
 }

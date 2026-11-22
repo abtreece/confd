@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -11,7 +12,11 @@ type DurationMillis time.Duration
 
 // MarshalJSON implements json.Marshaler for DurationMillis.
 func (d DurationMillis) MarshalJSON() ([]byte, error) {
-	return json.Marshal(time.Duration(d).Milliseconds())
+	b, err := json.Marshal(time.Duration(d).Milliseconds())
+	if err != nil {
+		return nil, fmt.Errorf("marshal duration: %w", err)
+	}
+	return b, nil
 }
 
 // HealthResult contains detailed health check information.

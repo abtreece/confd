@@ -170,13 +170,13 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	log.Debug("Loading %s", cli.ConfigFile)
 	configBytes, err := os.ReadFile(cli.ConfigFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("read config file %s: %w", cli.ConfigFile, err)
 	}
 
 	var tomlCfg TOMLConfig
 	md, err := toml.Decode(string(configBytes), &tomlCfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("decode config file %s: %w", cli.ConfigFile, err)
 	}
 
 	sources := cli.configSources
@@ -430,7 +430,7 @@ func getBackendNodesFromSRV(record string) ([]string, error) {
 	// Ignore the CNAME as we don't need it.
 	_, addrs, err := net.LookupSRV("", "", record)
 	if err != nil {
-		return nodes, err
+		return nodes, fmt.Errorf("look up SRV record %s: %w", record, err)
 	}
 	for _, srv := range addrs {
 		host := strings.TrimRight(srv.Target, ".")

@@ -1,6 +1,7 @@
 package template
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -627,7 +628,7 @@ func templateResource() (*TemplateResource, error) {
 		Backend: "env"}
 	client, err := backends.New(backendConf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create env backend: %w", err)
 	}
 
 	config := Config{

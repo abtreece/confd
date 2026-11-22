@@ -2,6 +2,7 @@ package template
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -533,7 +534,7 @@ func getTemplateResources(config Config) ([]*TemplateResource, error) {
 	}
 	paths, err := util.RecursiveFilesLookup(config.ConfigDir, "*toml")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("look up template resources in %q: %w", config.ConfigDir, err)
 	}
 
 	if len(paths) < 1 {

@@ -235,7 +235,7 @@ func TestInstrumentedClient_HealthCheckDetailed_SupportedError(t *testing.T) {
 	wrapped := WrapStoreClient(mock, "mock").(*InstrumentedClient)
 
 	result, err := wrapped.HealthCheckDetailed(context.Background())
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Fatalf("HealthCheckDetailed error = %v, want %v", err, expectedErr)
 	}
 	if result == nil || result.Healthy {
@@ -273,7 +273,7 @@ func TestInstrumentedClient_HealthCheckDetailed_FallbackError(t *testing.T) {
 	wrapped := WrapStoreClient(mock, "mock").(*InstrumentedClient)
 
 	result, err := wrapped.HealthCheckDetailed(context.Background())
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Fatalf("HealthCheckDetailed error = %v, want %v", err, expectedErr)
 	}
 	if result.Healthy {
@@ -290,7 +290,7 @@ func TestInstrumentedClient_Close(t *testing.T) {
 	client := &InstrumentedClient{client: mock, backend: "mock"}
 
 	err := client.Close()
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Fatalf("Close error = %v, want %v", err, expectedErr)
 	}
 	if !mock.closeCalled {

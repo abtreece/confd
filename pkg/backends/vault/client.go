@@ -75,7 +75,7 @@ func authenticate(c *vaultapi.Client, authType string, params map[string]string)
 			"secret_id": secretID,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("vault %s login: %w", authType, err)
 		}
 	case "app-id":
 		appID, err := getRequiredParameter("app-id", params)
@@ -91,7 +91,7 @@ func authenticate(c *vaultapi.Client, authType string, params map[string]string)
 			"user_id": userID,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("vault %s login: %w", authType, err)
 		}
 	case "github":
 		token, err := getRequiredParameter("token", params)
@@ -102,7 +102,7 @@ func authenticate(c *vaultapi.Client, authType string, params map[string]string)
 			"token": token,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("vault %s login: %w", authType, err)
 		}
 	case "token":
 		token, err := getRequiredParameter("token", params)
@@ -112,7 +112,7 @@ func authenticate(c *vaultapi.Client, authType string, params map[string]string)
 		c.SetToken(token)
 		secret, err = c.Logical().Read("/auth/token/lookup-self")
 		if err != nil {
-			return err
+			return fmt.Errorf("look up vault token: %w", err)
 		}
 	case "userpass":
 		username, err := getRequiredParameter("username", params)
@@ -127,7 +127,7 @@ func authenticate(c *vaultapi.Client, authType string, params map[string]string)
 			"password": password,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("vault %s login: %w", authType, err)
 		}
 	case "kubernetes":
 		jwt, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
@@ -143,12 +143,12 @@ func authenticate(c *vaultapi.Client, authType string, params map[string]string)
 			"role": roleID,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("vault %s login: %w", authType, err)
 		}
 	case "cert":
 		secret, err = c.Logical().Write(url, map[string]interface{}{})
 		if err != nil {
-			return err
+			return fmt.Errorf("vault %s login: %w", authType, err)
 		}
 	}
 
@@ -176,7 +176,7 @@ func getConfig(address, cert, key, caCert string) (*vaultapi.Config, error) {
 	if cert != "" && key != "" {
 		clientCert, err := tls.LoadX509KeyPair(cert, key)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("load vault client certificate: %w", err)
 		}
 		tlsConfig.Certificates = []tls.Certificate{clientCert}
 	}
@@ -184,7 +184,7 @@ func getConfig(address, cert, key, caCert string) (*vaultapi.Config, error) {
 	if caCert != "" {
 		ca, err := os.ReadFile(caCert)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read vault CA certificate: %w", err)
 		}
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(ca)
@@ -213,7 +213,7 @@ func New(address, authType string, params map[string]string) (*Client, error) {
 
 	c, err := vaultapi.NewClient(conf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create vault client: %w", err)
 	}
 
 	if err := authenticate(c, authType, params); err != nil {
@@ -408,8 +408,9 @@ func listSecretWithLogical(ctx context.Context, logical vaultLogical, path strin
 	secret, err := logical.ListWithContext(ctx, listPath)
 	if err != nil {
 		log.Warning("Couldn't list from the Vault: %v", err)
+		return secret, fmt.Errorf("list vault path %q: %w", listPath, err)
 	}
-	return secret, err
+	return secret, nil
 }
 
 // recursiveListSecretWithLogical returns a list of secrets paths from Vault using the vaultLogical interface
@@ -480,7 +481,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		logger.ErrorContext(ctx, "Backend health check failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err.Error())
-		return err
+		return fmt.Errorf("vault health check: %w", err)
 	}
 
 	logger.InfoContext(ctx, "Backend health check passed",
@@ -504,7 +505,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 			Details: map[string]string{
 				"error": err.Error(),
 			},
-		}, err
+		}, fmt.Errorf("vault health check: %w", err)
 	}
 
 	return &types.HealthResult{

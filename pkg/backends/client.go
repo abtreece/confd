@@ -3,6 +3,7 @@ package backends
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/abtreece/confd/pkg/backends/acm"
@@ -50,13 +51,15 @@ func New(config Config) (StoreClient, error) {
 
 	backendNodes := config.BackendNodes
 
+	var client StoreClient
+	var err error
 	switch config.Backend {
 	case "acm":
 		log.Info("Backend source(s) set to AWS ACM")
-		return acm.New(config.ACMExportPrivateKey, config.DialTimeout)
+		client, err = acm.New(config.ACMExportPrivateKey, config.DialTimeout)
 	case "consul":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return consul.New(config.BackendNodes, config.Scheme,
+		client, err = consul.New(config.BackendNodes, config.Scheme,
 			config.ClientCert, config.ClientKey,
 			config.ClientCaKeys,
 			config.BasicAuth,
@@ -65,20 +68,20 @@ func New(config Config) (StoreClient, error) {
 		)
 	case "etcd":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return etcd.NewEtcdClient(backendNodes, config.ClientCert, config.ClientKey, config.ClientCaKeys, config.ClientInsecure, config.BasicAuth, config.Username, config.Password, config.DialTimeout)
+		client, err = etcd.NewEtcdClient(backendNodes, config.ClientCert, config.ClientKey, config.ClientCaKeys, config.ClientInsecure, config.BasicAuth, config.Username, config.Password, config.DialTimeout)
 	case "zookeeper":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return zookeeper.NewZookeeperClient(backendNodes, config.DialTimeout)
+		client, err = zookeeper.NewZookeeperClient(backendNodes, config.DialTimeout)
 	case "redis":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		return redis.NewRedisClient(backendNodes, config.ClientKey, config.Separator,
+		client, err = redis.NewRedisClient(backendNodes, config.ClientKey, config.Separator,
 			config.DialTimeout, config.ReadTimeout, config.WriteTimeout,
 			config.RetryMaxAttempts, config.RetryBaseDelay, config.RetryMaxDelay)
 	case "env":
-		return env.NewEnvClient()
+		client, err = env.NewEnvClient()
 	case "file":
 		log.Info("Backend source(s) set to %s", strings.Join(config.YAMLFile, ", "))
-		return file.NewFileClient(config.YAMLFile, config.Filter)
+		client, err = file.NewFileClient(config.YAMLFile, config.Filter)
 	case "vault":
 		if len(backendNodes) == 0 {
 			return nil, errors.New("vault backend requires at least one node address")
@@ -97,19 +100,24 @@ func New(config Config) (StoreClient, error) {
 			"caCert":    config.ClientCaKeys,
 			"path":      config.Path,
 		}
-		return vault.New(backendNodes[0], config.AuthType, vaultConfig)
+		client, err = vault.New(backendNodes[0], config.AuthType, vaultConfig)
 	case "dynamodb":
 		table := config.Table
 		log.Info("DynamoDB table set to %s", table)
-		return dynamodb.NewDynamoDBClient(table, config.DialTimeout)
+		client, err = dynamodb.NewDynamoDBClient(table, config.DialTimeout)
 	case "ssm":
-		return ssm.New(config.DialTimeout)
+		client, err = ssm.New(config.DialTimeout)
 	case "imds":
 		log.Info("Backend source(s) set to AWS EC2 IMDS")
-		return imds.New(config.IMDSCacheTTL, config.DialTimeout)
+		client, err = imds.New(config.IMDSCacheTTL, config.DialTimeout)
 	case "secretsmanager":
 		log.Info("Backend source(s) set to AWS Secrets Manager")
-		return secretsmanager.New(config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten, config.DialTimeout)
+		client, err = secretsmanager.New(config.SecretsManagerVersionStage, config.SecretsManagerNoFlatten, config.DialTimeout)
+	default:
+		return nil, errors.New("invalid backend")
 	}
-	return nil, errors.New("invalid backend")
+	if err != nil {
+		return nil, fmt.Errorf("initialize %s backend: %w", config.Backend, err)
+	}
+	return client, nil
 }

@@ -44,7 +44,7 @@ func New(versionStage string, noFlatten bool, dialTimeout time.Duration) (*Clien
 
 	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load AWS config: %w", err)
 	}
 
 	if cfg.Region == "" {
@@ -159,7 +159,7 @@ func (c *Client) getSecretCached(ctx context.Context, secretName string, cache m
 		}
 		// Cache other errors to propagate them
 		errorCache[secretName] = err
-		return nil, err
+		return nil, fmt.Errorf("get secret value %q: %w", secretName, err)
 	}
 
 	cache[secretName] = resp
@@ -218,7 +218,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		logger.ErrorContext(ctx, "Backend health check failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err.Error())
-		return err
+		return fmt.Errorf("secretsmanager health check: %w", err)
 	}
 
 	logger.InfoContext(ctx, "Backend health check passed",
@@ -254,7 +254,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 				Details: map[string]string{
 					"error": err.Error(),
 				},
-			}, err
+			}, fmt.Errorf("secretsmanager health check: %w", err)
 		}
 
 		secretCount += len(result.SecretList)

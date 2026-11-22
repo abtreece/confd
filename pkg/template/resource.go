@@ -530,14 +530,14 @@ func (t *TemplateResource) setFileMode() error {
 		} else {
 			fi, err := os.Stat(t.Dest)
 			if err != nil {
-				return err
+				return fmt.Errorf("stat destination file: %w", err)
 			}
 			t.FileMode = fi.Mode()
 		}
 	} else {
 		mode, err := strconv.ParseUint(t.Mode, 0, 32)
 		if err != nil {
-			return err
+			return fmt.Errorf("parse file mode %q: %w", t.Mode, err)
 		}
 		t.FileMode = os.FileMode(mode)
 	}

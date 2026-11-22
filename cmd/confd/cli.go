@@ -403,12 +403,18 @@ func run(cli *CLI, backendCfg backends.Config) error {
 
 	// Check-config mode: validate configuration and exit (no backend needed)
 	if cli.CheckConfig {
-		return template.ValidateConfig(cli.ConfDir, cli.Resource)
+		if err := template.ValidateConfig(cli.ConfDir, cli.Resource); err != nil {
+			return fmt.Errorf("validate config: %w", err)
+		}
+		return nil
 	}
 
 	// Validate mode: validate templates and exit (no backend needed)
 	if cli.Validate {
-		return template.ValidateTemplates(cli.ConfDir, cli.Resource, cli.MockData)
+		if err := template.ValidateTemplates(cli.ConfDir, cli.Resource, cli.MockData); err != nil {
+			return fmt.Errorf("validate templates: %w", err)
+		}
+		return nil
 	}
 
 	// Handle SRV record discovery
@@ -438,7 +444,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	// Create store client
 	storeClient, err := backends.New(backendCfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("create store client: %w", err)
 	}
 
 	// Start metrics server if configured
@@ -471,7 +477,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	// Parse failure mode
 	failureMode, err := template.ParseFailureMode(cli.FailureMode)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse failure mode: %w", err)
 	}
 
 	// Build template config
@@ -514,13 +520,16 @@ func run(cli *CLI, backendCfg backends.Config) error {
 
 	// Preflight mode: run connectivity checks and exit
 	if cli.Preflight {
-		return template.Preflight(tmplCfg)
+		if err := template.Preflight(tmplCfg); err != nil {
+			return fmt.Errorf("preflight checks: %w", err)
+		}
+		return nil
 	}
 
 	// One-time mode
 	if cli.Onetime {
 		if err := template.Process(tmplCfg); err != nil {
-			return err
+			return fmt.Errorf("process templates: %w", err)
 		}
 		return nil
 	}
@@ -564,7 +573,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	shutdown := func() error {
 		if err := shutdownMgr.Shutdown(context.Background()); err != nil {
 			log.Error("Shutdown error: %v", err)
-			return err
+			return fmt.Errorf("shutdown: %w", err)
 		}
 		if err := template.CloseAllCachedClients(); err != nil {
 			log.Warning("Error closing per-resource backend clients: %v", err)

@@ -70,8 +70,10 @@ func (h *ConfdHandler) Handle(_ context.Context, r slog.Record) error {
 	}
 	
 	buf += "\n"
-	_, err := h.w.Write([]byte(buf))
-	return err
+	if _, err := h.w.Write([]byte(buf)); err != nil {
+		return fmt.Errorf("write log record: %w", err)
+	}
+	return nil
 }
 
 func (h *ConfdHandler) WithAttrs(attrs []slog.Attr) slog.Handler {

@@ -165,8 +165,11 @@ func Getenv(key string, v ...string) string {
 }
 
 func GetHostname() (string, error) {
-	value, error := os.Hostname()
-	return value, error
+	value, err := os.Hostname()
+	if err != nil {
+		return value, fmt.Errorf("get hostname: %w", err)
+	}
+	return value, nil
 }
 
 // CreateMap creates a key-value map of string -> interface{}
@@ -188,14 +191,18 @@ func CreateMap(values ...interface{}) (map[string]interface{}, error) {
 
 func UnmarshalJsonObject(data string) (map[string]interface{}, error) {
 	var ret map[string]interface{}
-	err := json.Unmarshal([]byte(data), &ret)
-	return ret, err
+	if err := json.Unmarshal([]byte(data), &ret); err != nil {
+		return ret, fmt.Errorf("unmarshal JSON object: %w", err)
+	}
+	return ret, nil
 }
 
 func UnmarshalJsonArray(data string) ([]interface{}, error) {
 	var ret []interface{}
-	err := json.Unmarshal([]byte(data), &ret)
-	return ret, err
+	if err := json.Unmarshal([]byte(data), &ret); err != nil {
+		return ret, fmt.Errorf("unmarshal JSON array: %w", err)
+	}
+	return ret, nil
 }
 
 func LookupIP(data string) []string {

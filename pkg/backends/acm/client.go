@@ -35,7 +35,7 @@ func New(exportPrivateKey bool, dialTimeout time.Duration) (*Client, error) {
 
 	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load AWS config: %w", err)
 	}
 
 	var acmOpts []func(*acm.Options)
@@ -160,7 +160,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		logger.ErrorContext(ctx, "Backend health check failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err.Error())
-		return err
+		return fmt.Errorf("acm health check: %w", err)
 	}
 
 	logger.InfoContext(ctx, "Backend health check passed",
@@ -187,7 +187,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 				Details: map[string]string{
 					"error": err.Error(),
 				},
-			}, err
+			}, fmt.Errorf("acm health check: %w", err)
 		}
 		certCount += len(page.CertificateSummaryList)
 	}
