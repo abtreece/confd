@@ -82,7 +82,7 @@ func (r *templateRenderer) render(srcPath string) ([]byte, error) {
 	// Execute template to buffer
 	var buf bytes.Buffer
 	if err = tmpl.Execute(&buf, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("execute template: %w", err)
 	}
 
 	return buf.Bytes(), nil

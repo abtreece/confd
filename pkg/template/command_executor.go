@@ -3,6 +3,7 @@ package template
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -98,7 +99,7 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 	var cmdBuffer bytes.Buffer
 	data := map[string]string{"src": stagePath}
 	if err := e.checkCmdTmpl.Execute(&cmdBuffer, data); err != nil {
-		return err
+		return fmt.Errorf("render check command: %w", err)
 	}
 
 	cmdErr := e.runCommandWithTimeout(cmdBuffer.String(), e.checkCmdTimeout)
@@ -144,7 +145,7 @@ func (e *commandExecutor) executeReload(stagePath, destPath string) error {
 	var cmdBuffer bytes.Buffer
 	data := map[string]string{"src": stagePath, "dest": destPath}
 	if err := e.reloadCmdTmpl.Execute(&cmdBuffer, data); err != nil {
-		return err
+		return fmt.Errorf("render reload command: %w", err)
 	}
 
 	cmdErr := e.runCommandWithTimeout(cmdBuffer.String(), e.reloadCmdTimeout)
@@ -207,7 +208,8 @@ func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duratio
 	// Extract exit code
 	exitCode := 0
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		}
 	}
@@ -242,7 +244,7 @@ func (e *commandExecutor) runCommandWithTimeout(cmd string, timeout time.Duratio
 			"output_size_bytes", outputSize,
 			"output", outputStr,
 			"error", err.Error())
-		return err
+		return fmt.Errorf("run command: %w", err)
 	}
 
 	logger.InfoContext(e.ctx, "Command completed successfully",
@@ -269,7 +271,7 @@ func runCommand(cmd string) error {
 	output, err := c.CombinedOutput()
 	if err != nil {
 		log.Error("%q", string(output))
-		return err
+		return fmt.Errorf("run command: %w", err)
 	}
 	log.Debug("%q", string(output))
 	return nil

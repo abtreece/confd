@@ -1,3 +1,13 @@
+### [Unreleased]
+
+* fix: read `backend_timeout`, `check_cmd_timeout`, `reload_cmd_timeout`, `shutdown_timeout`, `debounce`, `systemd_notify` and `watchdog_interval` from confd.toml, and accept `log_level`/`log_format` alongside `log-level`/`log-format`; these keys were documented but ignored
+* fix: wrap returned errors with context and compare errors with `errors.Is`/`errors.As` across `pkg/` and `cmd/confd` (clears all wrapcheck and errorlint findings); error messages gain context prefixes such as `create store client: initialize etcd backend: ...`
+* fix: `make integration` now runs the file backend scripts (`test_yaml.sh`, `test_json.sh`)
+* fix(test): integration templates resolve the loopback interface name per host (`CONFD_TEST_LOOPBACK_IFACE`, default `lo`) so the standalone integration checks pass on macOS
+* ci: add golangci-lint workflow and drop the invalid `linters-settings` block from `.golangci.yml`
+* chore(deps): move from go.yaml.in/yaml/v3 to go.yaml.in/yaml/v4 v4.0.0
+* docs: remove the unsupported `backend` key and hyphenated keys from confd.toml examples; correct watch-mode support (env is polling only), the integration/e2e test layout, and `--watch` examples for the env and Vault backends
+
 ### v0.41.4 (2026-11-22)
 
 * chore: bump Go toolchain to 1.26.11 (go.mod, .tool-versions, Docker build image, CI workflows, docs) and raise the go.mod `go` directive from 1.26.0 to 1.26.9, required by github.com/hashicorp/consul/api v1.35.0

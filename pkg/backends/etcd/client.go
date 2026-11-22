@@ -212,7 +212,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 
 		result, err := c.kvClient.Txn(txnCtx).Then(txnOps...).Commit()
 		if err != nil {
-			return err
+			return fmt.Errorf("commit etcd transaction: %w", err)
 		}
 		for i, r := range result.Responses {
 			originKey := ops[i]
@@ -273,7 +273,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 			"duration_ms", duration.Milliseconds(),
 			"endpoint", endpoints[0],
 			"error", err.Error())
-		return err
+		return fmt.Errorf("etcd health check: %w", err)
 	}
 
 	logger.InfoContext(ctx, "Backend health check passed",
@@ -313,7 +313,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 				"endpoint": endpoints[0],
 				"error":    err.Error(),
 			},
-		}, err
+		}, fmt.Errorf("etcd health check: %w", err)
 	}
 
 	return &types.HealthResult{
@@ -374,7 +374,7 @@ func (c *Client) WatchPrefix(ctx context.Context, prefix string, keys []string, 
 	case nextRevision := <-notify:
 		return uint64(nextRevision), err
 	case <-watchCtx.Done():
-		return 0, watchCtx.Err()
+		return 0, fmt.Errorf("etcd watch cancelled: %w", watchCtx.Err())
 	}
 
 }

@@ -74,12 +74,12 @@ func md5Bytes(b []byte) string { // #nosec G401 -- MD5 used for change detection
 func computeDestMD5(path string) (string, error) {
 	f, err := os.Open(path) // #nosec G304 -- path is an operator-configured dest file
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("open destination file: %w", err)
 	}
 	defer f.Close()
 	h := md5.New() // #nosec G401 -- MD5 used for change detection, not security
 	if _, err := io.Copy(h, f); err != nil {
-		return "", err
+		return "", fmt.Errorf("hash destination file: %w", err)
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
@@ -92,7 +92,7 @@ func (s *fileStager) contentUnchanged(rendered []byte, destPath string) (bool, e
 		return false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("stat destination file: %w", err)
 	}
 
 	// Mode mismatch — permissions or special mode bits need updating.
@@ -133,7 +133,7 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 		logger.ErrorContext(context.Background(), "Failed to create temp file",
 			"duration_ms", time.Since(start).Milliseconds(),
 			"error", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("create stage file: %w", err)
 	}
 
 	// Write content to temp file
@@ -147,7 +147,7 @@ func (s *fileStager) createStageFile(destPath string, content []byte) (*os.File,
 			"duration_ms", time.Since(start).Milliseconds(),
 			"write_duration_ms", time.Since(writeStart).Milliseconds(),
 			"error", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("write stage file: %w", err)
 	}
 	writeDuration := time.Since(writeStart)
 
@@ -195,7 +195,11 @@ func (s *fileStager) applyPermissions(filePath string) error {
 // isConfigChanged compares the staged file with the destination file
 // to determine if they differ.
 func (s *fileStager) isConfigChanged(stagePath, destPath string) (bool, error) {
-	return util.IsConfigChanged(stagePath, destPath)
+	changed, err := util.IsConfigChanged(stagePath, destPath)
+	if err != nil {
+		return false, fmt.Errorf("compare staged file with destination: %w", err)
+	}
+	return changed, nil
 }
 
 // syncFiles atomically replaces the destination file with the staged file.
@@ -256,7 +260,7 @@ func (s *fileStager) syncFiles(stagePath, destPath string) error {
 			logger.ErrorContext(context.Background(), "File sync failed",
 				"duration_ms", time.Since(start).Milliseconds(),
 				"error", err.Error())
-			return err
+			return fmt.Errorf("rename stage file to destination: %w", err)
 		}
 	} else {
 		logger.InfoContext(context.Background(), "File sync completed (atomic rename)",
@@ -281,7 +285,7 @@ func (s *fileStager) writeToDestination(stagePath, destPath string) error {
 		logger.ErrorContext(context.Background(), "Failed to read stage file",
 			"duration_ms", time.Since(start).Milliseconds(),
 			"error", err.Error())
-		return err
+		return fmt.Errorf("read stage file: %w", err)
 	}
 
 	writeStart := time.Now()
@@ -329,7 +333,7 @@ func removeStageFile(path string) {
 func (s *fileStager) showDiffOutput(stagePath, destPath string) error {
 	diff, err := util.GenerateDiff(stagePath, destPath, s.diffContext)
 	if err != nil {
-		return err
+		return fmt.Errorf("generate diff: %w", err)
 	}
 
 	if diff == "" {

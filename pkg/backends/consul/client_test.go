@@ -150,7 +150,7 @@ func TestGetValues_Error(t *testing.T) {
 	if err == nil {
 		t.Error("GetValues() expected error, got nil")
 	}
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
 }
@@ -335,7 +335,7 @@ func TestHealthCheck_Error(t *testing.T) {
 	if err == nil {
 		t.Error("HealthCheck() expected error, got nil")
 	}
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
 	}
 }

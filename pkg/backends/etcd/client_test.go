@@ -354,7 +354,7 @@ func TestGetValues_TransactionError(t *testing.T) {
 	}
 
 	_, err := client.GetValues(context.Background(), []string{"/app/key"})
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("GetValues() error = %v, want %v", err, expectedErr)
 	}
 }

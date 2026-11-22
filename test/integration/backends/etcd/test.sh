@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+source ./test/integration/shared/loopback.sh
 
 export HOSTNAME="localhost"
 export ETCDCTL_API="3"

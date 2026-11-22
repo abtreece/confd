@@ -313,7 +313,7 @@ func TestWatchPrefix_ContextCancellation(t *testing.T) {
 	waitIndex := uint64(42)
 
 	index, err := client.WatchPrefix(ctx, "/test", []string{"/test/key"}, waitIndex, stopChan)
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("WatchPrefix() error = %v, want context.Canceled", err)
 	}
 	if index != waitIndex {
@@ -370,7 +370,7 @@ func TestHealthCheck_Error(t *testing.T) {
 	if err == nil {
 		t.Error("HealthCheck() expected error, got nil")
 	}
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("HealthCheck() error = %v, want %v", err, expectedErr)
 	}
 }
@@ -430,7 +430,7 @@ func TestHealthCheckDetailed_Error(t *testing.T) {
 	client := newTestClient(mock)
 
 	result, err := client.HealthCheckDetailed(context.Background())
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Fatalf("HealthCheckDetailed() error = %v, want %v", err, expectedErr)
 	}
 	if result.Healthy {

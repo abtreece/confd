@@ -127,7 +127,7 @@ func TestFetchValues_BackendError(t *testing.T) {
 	if err == nil {
 		t.Error("fetchValues() expected error, got nil")
 	}
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("fetchValues() error = %v, want %v", err, expectedErr)
 	}
 }

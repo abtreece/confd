@@ -38,7 +38,7 @@ func NewDynamoDBClient(table string, dialTimeout time.Duration) (*Client, error)
 
 	cfg, err := awsutil.LoadAWSConfig(ctx, dialTimeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load AWS config: %w", err)
 	}
 
 	var ddbOpts []func(*dynamodb.Options)
@@ -70,7 +70,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		}
 		g, err := c.client.GetItem(ctx, &dynamodb.GetItemInput{Key: m, TableName: &c.table})
 		if err != nil {
-			return vars, err
+			return vars, fmt.Errorf("get dynamodb item %q: %w", key, err)
 		}
 
 		if g.Item != nil {
@@ -99,7 +99,7 @@ func (c *Client) GetValues(ctx context.Context, keys []string) (map[string]strin
 		})
 
 		if err != nil {
-			return vars, err
+			return vars, fmt.Errorf("scan dynamodb table %q: %w", c.table, err)
 		}
 
 		for _, item := range q.Items {
@@ -135,7 +135,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		logger.ErrorContext(ctx, "Backend health check failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err.Error())
-		return err
+		return fmt.Errorf("dynamodb health check: %w", err)
 	}
 
 	logger.InfoContext(ctx, "Backend health check passed",
@@ -160,7 +160,7 @@ func (c *Client) HealthCheckDetailed(ctx context.Context) (*types.HealthResult, 
 				"table": c.table,
 				"error": err.Error(),
 			},
-		}, err
+		}, fmt.Errorf("dynamodb health check: %w", err)
 	}
 
 	tableStatus := "unknown"

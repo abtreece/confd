@@ -2,6 +2,7 @@ package template
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"strings"
 	"time"
@@ -74,7 +75,7 @@ func (b *backendFetcher) fetchValues() error {
 			"fetch_duration_ms", fetchDuration.Milliseconds(),
 			"total_duration_ms", time.Since(start).Milliseconds(),
 			"error", err.Error())
-		return err
+		return fmt.Errorf("fetch values from backend: %w", err)
 	}
 
 	logger.DebugContext(ctx, "Backend fetch completed",

@@ -102,7 +102,7 @@ func (c *ConsulClient) GetValues(ctx context.Context, keys []string) (map[string
 				"duration_ms", time.Since(start).Milliseconds(),
 				"key", key,
 				"error", err.Error())
-			return vars, err
+			return vars, fmt.Errorf("list consul keys under %q: %w", key, err)
 		}
 
 		logger.DebugContext(ctx, "Retrieved key pairs", "key", key, "pair_count", len(pairs))
@@ -161,7 +161,7 @@ func (c *ConsulClient) WatchPrefix(ctx context.Context, prefix string, keys []st
 	select {
 	case <-ctx.Done():
 		logger.DebugContext(ctx, "Watch cancelled by context")
-		return waitIndex, ctx.Err()
+		return waitIndex, fmt.Errorf("consul watch cancelled: %w", ctx.Err())
 	case <-stopChan:
 		logger.DebugContext(ctx, "Watch stopped by stop channel")
 		return waitIndex, nil
@@ -185,7 +185,7 @@ func (c *ConsulClient) HealthCheck(ctx context.Context) error {
 		logger.ErrorContext(ctx, "Backend health check failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err.Error())
-		return err
+		return fmt.Errorf("consul health check: %w", err)
 	}
 
 	logger.InfoContext(ctx, "Backend health check passed",
@@ -211,7 +211,7 @@ func (c *ConsulClient) HealthCheckDetailed(ctx context.Context) (*types.HealthRe
 			Details: map[string]string{
 				"error": err.Error(),
 			},
-		}, err
+		}, fmt.Errorf("consul health check: %w", err)
 	}
 
 	// Get agent info

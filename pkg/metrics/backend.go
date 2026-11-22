@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
@@ -33,8 +34,9 @@ func (c *InstrumentedClient) GetValues(ctx context.Context, keys []string) (map[
 	BackendRequestTotal.WithLabelValues(c.backend, "get_values").Inc()
 	if err != nil {
 		BackendErrorsTotal.WithLabelValues(c.backend, "get_values").Inc()
+		return result, fmt.Errorf("get values from %s backend: %w", c.backend, err)
 	}
-	return result, err
+	return result, nil
 }
 
 // WatchPrefix watches for changes on a prefix and records metrics.
@@ -47,8 +49,9 @@ func (c *InstrumentedClient) WatchPrefix(ctx context.Context, prefix string, key
 	BackendRequestTotal.WithLabelValues(c.backend, "watch_prefix").Inc()
 	if err != nil {
 		BackendErrorsTotal.WithLabelValues(c.backend, "watch_prefix").Inc()
+		return result, fmt.Errorf("watch prefix on %s backend: %w", c.backend, err)
 	}
-	return result, err
+	return result, nil
 }
 
 // HealthCheck verifies backend health and records metrics.
@@ -62,10 +65,10 @@ func (c *InstrumentedClient) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		BackendErrorsTotal.WithLabelValues(c.backend, "health_check").Inc()
 		BackendHealthy.WithLabelValues(c.backend).Set(0)
-	} else {
-		BackendHealthy.WithLabelValues(c.backend).Set(1)
+		return fmt.Errorf("%s backend health check: %w", c.backend, err)
 	}
-	return err
+	BackendHealthy.WithLabelValues(c.backend).Set(1)
+	return nil
 }
 
 // HealthCheckDetailed provides detailed health information if the backend supports it.
@@ -80,8 +83,9 @@ func (c *InstrumentedClient) HealthCheckDetailed(ctx context.Context) (*types.He
 		BackendRequestTotal.WithLabelValues(c.backend, "health_check_detailed").Inc()
 		if err != nil {
 			BackendErrorsTotal.WithLabelValues(c.backend, "health_check_detailed").Inc()
+			return result, fmt.Errorf("%s backend detailed health check: %w", c.backend, err)
 		}
-		return result, err
+		return result, nil
 	}
 
 	// Fallback: backend doesn't support detailed health checks
@@ -101,12 +105,16 @@ func (c *InstrumentedClient) HealthCheckDetailed(ctx context.Context) (*types.He
 	if err != nil {
 		result.Message = err.Error()
 		result.Details["error"] = err.Error()
+		return result, fmt.Errorf("%s backend health check: %w", c.backend, err)
 	}
 
-	return result, err
+	return result, nil
 }
 
 // Close closes the wrapped backend client.
 func (c *InstrumentedClient) Close() error {
-	return c.client.Close()
+	if err := c.client.Close(); err != nil {
+		return fmt.Errorf("close %s backend client: %w", c.backend, err)
+	}
+	return nil
 }

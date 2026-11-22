@@ -121,15 +121,15 @@ func TestNewTemplateResourcePrefixConcatenation(t *testing.T) {
 func createTempDirs() (string, error) {
 	confDir, err := os.MkdirTemp("", "")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create temp dir: %w", err)
 	}
 	err = os.Mkdir(filepath.Join(confDir, "templates"), 0755)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create templates dir: %w", err)
 	}
 	err = os.Mkdir(filepath.Join(confDir, "conf.d"), 0755)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create conf.d dir: %w", err)
 	}
 	return confDir, nil
 }

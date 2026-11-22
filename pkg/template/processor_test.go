@@ -3,6 +3,7 @@ package template
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func (c *erroringStoreClient) WatchPrefix(ctx context.Context, _ string, _ []str
 	case <-stopChan:
 		return 0, errors.New("watch stopped")
 	case <-ctx.Done():
-		return 0, ctx.Err()
+		return 0, fmt.Errorf("watch cancelled: %w", ctx.Err())
 	default:
 		return 0, errors.New("simulated backend error")
 	}

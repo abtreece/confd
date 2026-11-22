@@ -129,7 +129,7 @@ func (e *processorTestEnv) readDest(name string) (string, error) {
 	path := filepath.Join(e.destDir, name)
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read dest file: %w", err)
 	}
 	return string(content), nil
 }
