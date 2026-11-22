@@ -570,4 +570,4 @@ Writing to a temporary file and using atomic rename ensures that:
 
 ### Why Debouncing in Watch Mode?
 
-Backend changes often come in bursts (e.g., multiple keys updated together). Debouncing prevents unnecessary template re-renders and reload command executions.
+Backend changes often come in bursts (e.g., multiple keys updated together). Debouncing prevents unnecessary template re-renders and reload command executions: confd waits a fixed delay after a change and then processes once, so a burst is processed about once per debounce period instead of once per change.

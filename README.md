@@ -89,7 +89,7 @@ confd file --file /path/to/config.yaml --onetime
 # Watch etcd for changes
 confd etcd --node http://127.0.0.1:2379 --watch
 
-# Watch with debouncing (wait 2s after changes settle)
+# Watch with debouncing (wait 2s after a change before processing)
 confd etcd --watch --debounce 2s
 
 # Batch processing (collect changes every 5s)
