@@ -1,5 +1,6 @@
 ### [Unreleased]
 
+* fix: read `batch_interval` and `imds_cache_ttl` from confd.toml; both were documented but ignored. `--batch-interval` / `CONFD_BATCH_INTERVAL` and `--imds-cache-ttl` still win over the file, and an invalid duration in either key is a startup error (#680)
 * refactor: remove `processEnv()`; `CONFD_CLIENT_CERT`, `CONFD_CLIENT_KEY` and `CONFD_CLIENT_CAKEYS` reach consul, etcd, vault and redis only through their flags, with the same precedence as every other setting. An empty `--client-cert=`, `--client-key=` or `--client-ca-keys=` is now an explicit value and wins over the environment variable; it used to fall back to the variable (#682)
 * docs: say that `{{.src}}` in `check_cmd` is the staged file and that `{{.dest}}` is not available there (#676)
 * fix: for string settings, an environment variable set to an empty value is treated as unset, so the value from confd.toml or the built-in default applies; previously it suppressed the file's value, `CONFD_CONFDIR=` made confd look for `conf.d` in the current directory, and `CONFD_FAILURE_MODE=` was a startup error (#675)

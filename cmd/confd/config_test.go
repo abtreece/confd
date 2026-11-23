@@ -358,6 +358,7 @@ check_cmd_timeout = "15s"
 reload_cmd_timeout = "90s"
 shutdown_timeout = "20s"
 debounce = "2s"
+batch_interval = "5s"
 systemd_notify = true
 watchdog_interval = "25s"
 log_level = "debug"
@@ -389,6 +390,9 @@ log_format = "json"
 				}
 				if cli.DebounceStr != "2s" {
 					t.Errorf("DebounceStr = %q, want 2s", cli.DebounceStr)
+				}
+				if cli.BatchIntervalStr != "5s" {
+					t.Errorf("BatchIntervalStr = %q, want 5s", cli.BatchIntervalStr)
 				}
 				if !cli.SystemdNotify {
 					t.Error("SystemdNotify = false, want true")
@@ -501,6 +505,26 @@ log_format = "json"
 				t.Helper()
 				if cli.DebounceStr != "500ms" {
 					t.Errorf("DebounceStr = %q, want 500ms", cli.DebounceStr)
+				}
+			},
+		},
+		{
+			name: "cli batch_interval beats toml",
+			args: []string{"--batch-interval", "10s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.BatchIntervalStr != "10s" {
+					t.Errorf("BatchIntervalStr = %q, want 10s", cli.BatchIntervalStr)
+				}
+			},
+		},
+		{
+			name: "env batch_interval beats toml",
+			env:  map[string]string{"CONFD_BATCH_INTERVAL": "10s"},
+			check: func(t *testing.T, cli *CLI) {
+				t.Helper()
+				if cli.BatchIntervalStr != "10s" {
+					t.Errorf("BatchIntervalStr = %q, want 10s", cli.BatchIntervalStr)
 				}
 			},
 		},
@@ -744,7 +768,8 @@ func TestLoadConfigFile_HyphenatedLogKeysOverridden(t *testing.T) {
 func TestLoadConfigFile_DocumentedKeysInvalidDurations(t *testing.T) {
 	keys := []string{
 		"backend_timeout", "check_cmd_timeout", "reload_cmd_timeout",
-		"shutdown_timeout", "debounce", "watchdog_interval",
+		"shutdown_timeout", "debounce", "batch_interval", "watchdog_interval",
+		"imds_cache_ttl",
 	}
 
 	for _, key := range keys {
@@ -980,6 +1005,13 @@ func TestConfigPrecedence_Representative(t *testing.T) {
 			SecretsManagerNoFlatten:    cli.SecretsManager.NoFlatten,
 		}
 	}
+	imdsConfig := func(cli *CLI) backends.Config {
+		cacheTTL, err := time.ParseDuration(cli.IMDS.CacheTTL)
+		if err != nil {
+			t.Fatalf("parse imds-cache-ttl %q: %v", cli.IMDS.CacheTTL, err)
+		}
+		return backends.Config{Backend: "imds", IMDSCacheTTL: cacheTTL}
+	}
 
 	noop := func(cli *CLI, _ *backends.Config) any { return cli.Noop }
 	templateCache := func(cli *CLI, _ *backends.Config) any { return cli.TemplateCache }
@@ -991,6 +1023,7 @@ func TestConfigPrecedence_Representative(t *testing.T) {
 	acmExport := func(_ *CLI, cfg *backends.Config) any { return cfg.ACMExportPrivateKey }
 	versionStage := func(_ *CLI, cfg *backends.Config) any { return cfg.SecretsManagerVersionStage }
 	noFlatten := func(_ *CLI, cfg *backends.Config) any { return cfg.SecretsManagerNoFlatten }
+	imdsCacheTTL := func(_ *CLI, cfg *backends.Config) any { return cfg.IMDSCacheTTL }
 
 	tests := []struct {
 		name string
@@ -1047,6 +1080,11 @@ func TestConfigPrecedence_Representative(t *testing.T) {
 		{name: "scheme/flag set to default over toml", toml: `scheme = "https"`, args: []string{"consul", "--scheme", "http"}, backend: consulConfig, got: scheme, want: "http"},
 		{name: "secrets manager version stage/toml over command default", toml: `secretsmanager_version_stage = "AWSPREVIOUS"`, args: []string{"secretsmanager"}, backend: secretsManagerConfig, got: versionStage, want: "AWSPREVIOUS"},
 		{name: "secrets manager version stage/flag set to default over toml", toml: `secretsmanager_version_stage = "AWSPREVIOUS"`, args: []string{"secretsmanager", "--secretsmanager-version-stage", "AWSCURRENT"}, backend: secretsManagerConfig, got: versionStage, want: "AWSCURRENT"},
+
+		// backend-specific duration whose flag has a default
+		{name: "imds cache ttl/command default", args: []string{"imds"}, backend: imdsConfig, got: imdsCacheTTL, want: 60 * time.Second},
+		{name: "imds cache ttl/toml over command default", toml: `imds_cache_ttl = "5m"`, args: []string{"imds"}, backend: imdsConfig, got: imdsCacheTTL, want: 5 * time.Minute},
+		{name: "imds cache ttl/flag set to default over toml", toml: `imds_cache_ttl = "5m"`, args: []string{"imds", "--imds-cache-ttl", "60s"}, backend: imdsConfig, got: imdsCacheTTL, want: 60 * time.Second},
 
 		// backend-specific bool
 		{name: "secrets manager no-flatten/toml only", toml: `secretsmanager_no_flatten = true`, args: []string{"secretsmanager"}, backend: secretsManagerConfig, got: noFlatten, want: true},

@@ -59,6 +59,7 @@ type TOMLConfig struct {
 	ACMExportPrivateKey        bool   `toml:"acm_export_private_key"`
 	SecretsManagerVersionStage string `toml:"secretsmanager_version_stage"`
 	SecretsManagerNoFlatten    bool   `toml:"secretsmanager_no_flatten"`
+	IMDSCacheTTL               string `toml:"imds_cache_ttl"`
 
 	// Performance settings
 	TemplateCache *bool  `toml:"template_cache"` // Pointer to distinguish unset from false
@@ -83,8 +84,9 @@ type TOMLConfig struct {
 	// Watch mode timeouts
 	WatchErrorBackoff string `toml:"watch_error_backoff"`
 
-	// Watch mode debounce
-	Debounce string `toml:"debounce"`
+	// Watch mode debounce and batching
+	Debounce      string `toml:"debounce"`
+	BatchInterval string `toml:"batch_interval"`
 
 	// Preflight timeout
 	PreflightTimeout string `toml:"preflight_timeout"`
@@ -380,6 +382,13 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 	if shouldApplyTOML(sources, md, "secretsmanager_no_flatten") {
 		backendCfg.SecretsManagerNoFlatten = tomlCfg.SecretsManagerNoFlatten
 	}
+	if shouldApplyTOML(sources, md, "imds_cache_ttl") && tomlCfg.IMDSCacheTTL != "" {
+		d, err := time.ParseDuration(tomlCfg.IMDSCacheTTL)
+		if err != nil {
+			return fmt.Errorf("invalid imds_cache_ttl %q: %w (use Go duration format, e.g., \"60s\", \"5m\")", tomlCfg.IMDSCacheTTL, err)
+		}
+		backendCfg.IMDSCacheTTL = d
+	}
 
 	// Operation timeout settings
 	if shouldApplyTOML(sources, md, "backend_timeout") && tomlCfg.BackendTimeout != "" {
@@ -466,6 +475,12 @@ func loadConfigFile(cli *CLI, backendCfg *backends.Config) error {
 			return fmt.Errorf("invalid debounce %q: %w (use Go duration format, e.g., \"500ms\", \"2s\")", tomlCfg.Debounce, err)
 		}
 		cli.DebounceStr = tomlCfg.Debounce
+	}
+	if shouldApplyTOML(sources, md, "batch_interval") && tomlCfg.BatchInterval != "" {
+		if _, err := time.ParseDuration(tomlCfg.BatchInterval); err != nil {
+			return fmt.Errorf("invalid batch_interval %q: %w (use Go duration format, e.g., \"5s\", \"30s\")", tomlCfg.BatchInterval, err)
+		}
+		cli.BatchIntervalStr = tomlCfg.BatchInterval
 	}
 
 	// Systemd integration
