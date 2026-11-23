@@ -27,3 +27,11 @@ jobs:
         with:
           version: v2.15.0
           args: ./...
+
+      - name: Run golangci-lint (windows)
+        uses: golangci/golangci-lint-action@v9
+        env:
+          GOOS: windows
+        with:
+          version: v2.15.0
+          args: ./...

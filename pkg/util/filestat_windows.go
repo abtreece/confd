@@ -20,7 +20,7 @@ func FileStat(name string) (fi FileInfo, err error) {
 	if IsFileExist(name) {
 		f, err := os.Open(name)
 		if err != nil {
-			return fi, err
+			return fi, fmt.Errorf("open %q: %w", name, err)
 		}
 		defer f.Close()
 		stats, _ := f.Stat()
