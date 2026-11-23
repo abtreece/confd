@@ -98,7 +98,7 @@ file = ["/etc/myapp/local-config.yaml"]
 
 ## Available Backend Options
 
-The `[backend]` section accepts all backend configuration options. See [configuration-guide.md](configuration-guide.md) for the full list.
+The `[backend]` section accepts the backend configuration options. See [configuration-guide.md](configuration-guide.md) for the full list. Two spellings that `confd.toml` accepts are not recognised here: use `client_cakeys` instead of `client_ca_keys`, and `nodes` instead of `node`. confd logs a warning naming the resource file for any key the section does not recognise, and for any setting its backend does not use (see [Which backends use the connection timeout, retry, auth and TLS flags](command-line-flags.md#which-backends-use-the-connection-timeout-retry-auth-and-tls-flags)).
 
 Common options:
 

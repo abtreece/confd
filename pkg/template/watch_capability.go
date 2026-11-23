@@ -23,7 +23,9 @@ func CheckWatchSupport(config Config) error {
 
 	// The global backend can watch, so any resource that cannot is using its
 	// own [backend] section. Per-resource clients come from the client cache,
-	// so loading the resources here does not open extra connections.
+	// so loading the resources here does not open extra connections. The
+	// processor loads them again and logs the [backend] warnings then.
+	config.quietBackendWarnings = true
 	ts, _ := getTemplateResources(config)
 
 	var errs []error

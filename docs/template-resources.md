@@ -45,6 +45,8 @@ Template resources can optionally specify their own backend configuration using 
 
 When a `[backend]` section is present, it overrides the global backend configured via the command line. If no `[backend]` section is present, the global backend is used.
 
+confd logs a warning, naming the resource file, for a key in the section that it does not recognise and for a setting the section's backend does not use. Both are otherwise ignored.
+
 **Backend Options:**
 
 * `backend` (string) - The backend type: `consul`, `etcd`, `vault`, `redis`, `zookeeper`, `dynamodb`, `ssm`, `secretsmanager`, `acm`, `env`, or `file`.

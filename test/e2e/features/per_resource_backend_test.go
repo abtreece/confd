@@ -6,7 +6,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -264,5 +266,61 @@ file = ["%s"]
 	expected := "source = file-backend\n"
 	if string(content) != expected {
 		t.Errorf("Per-resource backend should take precedence.\nExpected: %q\nGot: %q", expected, string(content))
+	}
+}
+
+// TestPerResourceBackend_Warnings verifies that a [backend] section with a key
+// the decoder does not recognise, and with a setting its backend does not use,
+// logs a warning naming the resource file, both when processing and with
+// --check-config.
+func TestPerResourceBackend_Warnings(t *testing.T) {
+	t.Parallel()
+
+	env := operations.NewTestEnv(t)
+	destPath := env.DestPath("app.conf")
+
+	yamlPath := filepath.Join(env.BaseDir, "data.yaml")
+	if err := os.WriteFile(yamlPath, []byte("app:\n  name: demo\n"), 0644); err != nil {
+		t.Fatalf("Failed to write YAML file: %v", err)
+	}
+
+	env.WriteTemplate("app.tmpl", `name = {{ getv "/app/name" }}`+"\n")
+	resourcePath := env.WriteConfig("app.toml", fmt.Sprintf(`[template]
+src = "app.tmpl"
+dest = "%s"
+keys = ["/app"]
+
+[backend]
+backend = "file"
+file = ["%s"]
+basic_auth = true
+client_ca_keys = "/ca"
+`, destPath, yamlPath))
+
+	wantWarnings := []string{
+		resourcePath + `: unknown key "client_ca_keys" in [backend] is ignored; use "client_cakeys"`,
+		resourcePath + ": --basic-auth has no effect with the file backend",
+	}
+
+	binary := operations.BuildConfd(t)
+	modes := map[string][]string{
+		"onetime":      {"env", "--onetime", "--confdir", env.ConfDir},
+		"check-config": {"env", "--check-config", "--confdir", env.ConfDir},
+	}
+	for mode, args := range modes {
+		t.Run(mode, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			output, err := exec.CommandContext(ctx, binary, args...).CombinedOutput()
+			if err != nil {
+				t.Fatalf("confd %v failed: %v\n%s", args, err, output)
+			}
+			for _, want := range wantWarnings {
+				if strings.Count(string(output), want) != 1 {
+					t.Errorf("want the warning %q exactly once in the output:\n%s", want, output)
+				}
+			}
+		})
 	}
 }

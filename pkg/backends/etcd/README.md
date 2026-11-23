@@ -202,7 +202,7 @@ Available backend options:
 - `nodes` - Array of etcd node addresses
 - `scheme` - `"http"` or `"https"`
 - `basic_auth` - Authenticate with `username` and `password`
-- `username` - Username; ignored without `basic_auth = true` (no warning is logged for `[backend]` sections)
+- `username` - Username; ignored without `basic_auth = true`
 - `password` - Password; ignored without `basic_auth = true`
 - `auth_token` - JWT used in place of a username and password
 - `client_cert` - Path to client certificate

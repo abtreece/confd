@@ -81,13 +81,13 @@ type CLI struct {
 	ReloadCmdTimeout time.Duration `name:"reload-cmd-timeout" help:"default timeout for reload commands (e.g., 60s)" default:"60s" env:"CONFD_RELOAD_CMD_TIMEOUT"`
 
 	// Connection timeouts
-	// Which backends use each of these is recorded in backendFlagScope
-	// (config.go); keep the help text in step with it.
+	// Which backends use each of these is recorded in settingScope
+	// (pkg/backends/scope.go); keep the help text in step with it.
 	DialTimeout  time.Duration `name:"dial-timeout" help:"connection timeout (not used by consul, env, file or vault)" default:"5s" env:"CONFD_DIAL_TIMEOUT"`
 	ReadTimeout  time.Duration `name:"read-timeout" help:"redis only: read timeout" default:"1s" env:"CONFD_READ_TIMEOUT"`
 	WriteTimeout time.Duration `name:"write-timeout" help:"redis only: write timeout" default:"1s" env:"CONFD_WRITE_TIMEOUT"`
 
-	// Retry configuration (redis only, see backendFlagScope)
+	// Retry configuration (redis only, see settingScope in pkg/backends/scope.go)
 	RetryMaxAttempts int           `name:"retry-max-attempts" help:"redis only: max connection retry attempts" default:"3" env:"CONFD_RETRY_MAX_ATTEMPTS"`
 	RetryBaseDelay   time.Duration `name:"retry-base-delay" help:"redis only: initial retry backoff delay" default:"100ms" env:"CONFD_RETRY_BASE_DELAY"`
 	RetryMaxDelay    time.Duration `name:"retry-max-delay" help:"redis only: maximum retry backoff delay" default:"5s" env:"CONFD_RETRY_MAX_DELAY"`

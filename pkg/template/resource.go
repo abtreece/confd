@@ -47,6 +47,11 @@ type Config struct {
 	PreflightTimeout  time.Duration // Preflight check timeout
 	// Error handling mode
 	FailureMode FailureMode // Error handling mode
+
+	// quietBackendWarnings stops NewTemplateResource from logging the
+	// [backend] section warnings, for a load that only inspects the resources
+	// before the processor loads them again (CheckWatchSupport).
+	quietBackendWarnings bool
 }
 
 // TemplateResourceConfig holds the parsed template resource.
@@ -199,9 +204,14 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tc := &TemplateResourceConfig{TemplateResource: TemplateResource{Uid: -1, Gid: -1}}
 
 	log.Debug("Loading template resource from %s", path)
-	_, err := toml.DecodeFile(path, &tc)
+	md, err := toml.DecodeFile(path, &tc)
 	if err != nil {
 		return nil, fmt.Errorf("cannot process template resource %s: %w", path, err)
+	}
+	// Before the backend client is created, so that the warnings are logged
+	// even when creating it fails.
+	if !config.quietBackendWarnings {
+		warnBackendSection(path, md, tc.BackendConfig)
 	}
 
 	tr := tc.TemplateResource

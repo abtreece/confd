@@ -66,7 +66,7 @@ func flagWarnings(t *testing.T, backend string, env map[string]string, extraArgs
 	if err := loadConfigFile(cli, &cfg); err != nil {
 		t.Fatalf("loadConfigFile: %v", err)
 	}
-	return ignoredBackendFlagWarnings(cli.configSources, backend)
+	return backends.IgnoredSettingWarnings(cfg, cli.configSources.isSupplied)
 }
 
 func TestIgnoredBackendFlagWarnings(t *testing.T) {
@@ -197,7 +197,7 @@ func TestIgnoredBackendFlagWarnings(t *testing.T) {
 }
 
 // TestIgnoredAuthFlagWarnings covers the auth and TLS settings in
-// backendFlagScope. Unlike the timeout and retry flags they are subcommand
+// backends.settingScope. Unlike the timeout and retry flags they are subcommand
 // flags, so on the command line only some backends accept them; in confd.toml
 // any backend can be given them.
 func TestIgnoredAuthFlagWarnings(t *testing.T) {
@@ -306,7 +306,7 @@ func TestIgnoredAuthFlagWarnings(t *testing.T) {
 
 // credentialWarnings parses args, loads a confd.toml holding tomlContent,
 // builds the backend config the way Run does, and returns the
-// basicAuthCredentialWarnings for it.
+// backends.IgnoredSettingWarnings for it.
 func credentialWarnings(t *testing.T, backend string, extraArgs []string, tomlContent string) []string {
 	t.Helper()
 
@@ -324,7 +324,7 @@ func credentialWarnings(t *testing.T, backend string, extraArgs []string, tomlCo
 	if err := loadConfigFile(cli, &cfg); err != nil {
 		t.Fatalf("loadConfigFile: %v", err)
 	}
-	return basicAuthCredentialWarnings(cli.configSources, cfg)
+	return backends.IgnoredSettingWarnings(cfg, cli.configSources.isSupplied)
 }
 
 func TestBasicAuthCredentialWarnings(t *testing.T) {
@@ -332,7 +332,7 @@ func TestBasicAuthCredentialWarnings(t *testing.T) {
 		return flag + " has no effect with the " + backend + " backend unless --basic-auth is set"
 	}
 
-	for _, backend := range basicAuthBackends {
+	for _, backend := range []string{"consul", "etcd"} {
 		t.Run(backend, func(t *testing.T) {
 			tests := []struct {
 				name        string

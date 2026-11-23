@@ -95,7 +95,7 @@ func validateResourceFile(path string, templateDir string) []ValidationError {
 
 	// Parse TOML
 	var tc TemplateResourceConfig
-	_, err := toml.DecodeFile(path, &tc)
+	md, err := toml.DecodeFile(path, &tc)
 	if err != nil {
 		errs = append(errs, ValidationError{
 			File:    path,
@@ -103,6 +103,8 @@ func validateResourceFile(path string, templateDir string) []ValidationError {
 		})
 		return errs // Can't continue if TOML parsing failed
 	}
+	// Warnings, not validation errors: the file still passes.
+	warnBackendSection(path, md, tc.BackendConfig)
 
 	tr := tc.TemplateResource
 
@@ -398,7 +400,7 @@ func validateTemplate(resourcePath string, templateDir string, mockData map[stri
 
 	// Parse resource file
 	var tc TemplateResourceConfig
-	_, err := toml.DecodeFile(resourcePath, &tc)
+	md, err := toml.DecodeFile(resourcePath, &tc)
 	if err != nil {
 		errs = append(errs, ValidationError{
 			File:    resourcePath,
@@ -406,6 +408,7 @@ func validateTemplate(resourcePath string, templateDir string, mockData map[stri
 		})
 		return errs
 	}
+	warnBackendSection(resourcePath, md, tc.BackendConfig)
 
 	if tc.TemplateResource.Src == "" {
 		errs = append(errs, ValidationError{
