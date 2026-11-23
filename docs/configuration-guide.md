@@ -28,8 +28,8 @@ Configuration is loaded from multiple sources in order of precedence (highest to
 
 ## Logging Options
 
-* `log_level` (string) - Log level: `debug`, `info`, `warn`, `error`. Default: `"info"`. Also accepted as `log-level`; when a file sets both `log_level` and `log-level`, `log_level` takes precedence
-* `log_format` (string) - Log format: `text` or `json`. Default: `"text"`. Also accepted as `log-format`; when a file sets both `log_format` and `log-format`, `log_format` takes precedence
+* `log_level` (string) - Log level: `debug`, `info`, `warn`, `error`. Default: `"info"`. Also accepted as `log-level`; when a file sets both `log_level` and `log-level`, `log_level` takes precedence if its value is non-empty, and an empty `log_level` falls back to `log-level`
+* `log_format` (string) - Log format: `text` or `json`. Default: `"text"`. Also accepted as `log-format`; when a file sets both `log_format` and `log-format`, `log_format` takes precedence if its value is non-empty, and an empty `log_format` falls back to `log-format`
 
 ## Backend Connection Options
 
