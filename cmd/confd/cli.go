@@ -456,9 +456,6 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	}
 	applyBackendDefaults(&backendCfg)
 
-	// Process environment variables
-	processEnv(&backendCfg)
-
 	// Apply CLI timeout/retry config to backend config
 	backendCfg.DialTimeout = cli.DialTimeout
 	backendCfg.ReadTimeout = cli.ReadTimeout
