@@ -313,10 +313,16 @@ diff /tmp/confd-test-output test/integration/shared/expect/expected.conf
 
 ### End-to-End Tests
 
-End-to-end tests are Go tests behind the `e2e` build tag. They start backend containers with testcontainers, so Docker must be running:
+End-to-end tests are Go tests behind the `e2e` build tag. Only the `watch` package starts backend containers (with testcontainers), so the full run needs Docker to be running:
 
 ```bash
 go test -v -tags=e2e -timeout 15m ./test/e2e/...
+```
+
+The other packages run without Docker:
+
+```bash
+go test -v -tags=e2e ./test/e2e/features/ ./test/e2e/operations/ ./test/e2e/validation/ ./test/e2e/resilience/ ./test/e2e/concurrency/
 ```
 
 ```
