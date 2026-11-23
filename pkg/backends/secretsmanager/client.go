@@ -155,9 +155,10 @@ func (c *Client) getSecretCached(ctx context.Context, secretName string, cache m
 			cache[secretName] = nil
 			return nil, nil
 		}
-		// Cache other errors to propagate them
-		errorCache[secretName] = err
-		return nil, fmt.Errorf("get secret value %q: %w", secretName, err)
+		// Cache other errors, already wrapped, so a cache hit returns the same error
+		wrappedErr := fmt.Errorf("get secret value %q: %w", secretName, err)
+		errorCache[secretName] = wrappedErr
+		return nil, wrappedErr
 	}
 
 	cache[secretName] = resp

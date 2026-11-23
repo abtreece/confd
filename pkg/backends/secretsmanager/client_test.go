@@ -191,6 +191,53 @@ func TestGetValues_Error(t *testing.T) {
 	}
 }
 
+func TestGetSecretCached_CachedErrorKeepsWrap(t *testing.T) {
+	const secretName = "myapp/database"
+	sdkErr := &types.InternalServiceError{Message: aws.String("service unavailable")}
+	apiCalls := 0
+	mock := &mockSecretsManager{
+		getSecretValueFunc: func(ctx context.Context, input *secretsmanager.GetSecretValueInput, opts ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+			apiCalls++
+			return nil, sdkErr
+		},
+	}
+
+	client := newTestClient(mock, "", false)
+	secretCache := make(map[string]*secretsmanager.GetSecretValueOutput)
+	errorCache := make(map[string]error)
+
+	_, firstErr := client.getSecretCached(context.Background(), secretName, secretCache, errorCache)
+	_, cachedErr := client.getSecretCached(context.Background(), secretName, secretCache, errorCache)
+
+	if apiCalls != 1 {
+		t.Errorf("GetSecretValue called %d times, want 1", apiCalls)
+	}
+
+	wantMessage := `get secret value "myapp/database": ` + sdkErr.Error()
+	lookups := []struct {
+		name string
+		err  error
+	}{
+		{"first lookup", firstErr},
+		{"cached lookup", cachedErr},
+	}
+	for _, lookup := range lookups {
+		if lookup.err == nil {
+			t.Fatalf("%s: expected error, got nil", lookup.name)
+		}
+		if lookup.err.Error() != wantMessage {
+			t.Errorf("%s: error = %q, want %q", lookup.name, lookup.err.Error(), wantMessage)
+		}
+		if !errors.Is(lookup.err, sdkErr) {
+			t.Errorf("%s: errors.Is does not find the SDK error in %v", lookup.name, lookup.err)
+		}
+		var internalErr *types.InternalServiceError
+		if !errors.As(lookup.err, &internalErr) {
+			t.Errorf("%s: errors.As does not find *types.InternalServiceError in %v", lookup.name, lookup.err)
+		}
+	}
+}
+
 func TestGetValues_EmptyKeys(t *testing.T) {
 	mock := &mockSecretsManager{}
 	client := newTestClient(mock, "", false)
