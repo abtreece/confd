@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -339,19 +341,31 @@ func TestNew_WithToken(t *testing.T) {
 		name string
 		// envToken is CONSUL_HTTP_TOKEN; empty leaves it unset
 		envToken string
-		token    string
-		want     string
+		// fileToken is written to the file named by CONSUL_HTTP_TOKEN_FILE;
+		// empty leaves that variable unset
+		fileToken string
+		token     string
+		want      string
 	}{
 		{name: "token sent as the ACL token", token: "flag-token", want: "flag-token"},
 		{name: "no token sends no header"},
 		{name: "CONSUL_HTTP_TOKEN still applies without a token", envToken: "env-token", want: "env-token"},
 		{name: "token wins over CONSUL_HTTP_TOKEN", envToken: "env-token", token: "flag-token", want: "flag-token"},
+		{name: "CONSUL_HTTP_TOKEN_FILE still applies without a token", fileToken: "file-token", want: "file-token"},
+		{name: "token wins over CONSUL_HTTP_TOKEN_FILE", fileToken: "file-token", token: "flag-token", want: "flag-token"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(api.HTTPTokenEnvName, tt.envToken)
-			t.Setenv(api.HTTPTokenFileEnvName, "")
+			tokenFile := ""
+			if tt.fileToken != "" {
+				tokenFile = filepath.Join(t.TempDir(), "token")
+				if err := os.WriteFile(tokenFile, []byte(tt.fileToken+"\n"), 0o600); err != nil {
+					t.Fatalf("write token file: %v", err)
+				}
+			}
+			t.Setenv(api.HTTPTokenFileEnvName, tokenFile)
 			server := newConsulTokenServer(t)
 
 			address := strings.TrimPrefix(server.URL, "http://")
