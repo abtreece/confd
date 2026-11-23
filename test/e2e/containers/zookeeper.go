@@ -4,6 +4,7 @@ package containers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -227,7 +228,7 @@ func (z *ZookeeperContainer) createParentNodes(path string) error {
 		}
 		if !exists {
 			_, err = z.conn.Create(current, []byte{}, 0, zk.WorldACL(zk.PermAll))
-			if err != nil && err != zk.ErrNodeExists {
+			if err != nil && !errors.Is(err, zk.ErrNodeExists) {
 				return fmt.Errorf("failed to create parent node %s: %w", current, err)
 			}
 		}
