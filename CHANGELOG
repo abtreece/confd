@@ -1,5 +1,6 @@
 ### [Unreleased]
 
+* fix: for string settings, an environment variable set to an empty value is treated as unset, so the value from confd.toml or the built-in default applies; previously it suppressed the file's value, `CONFD_CONFDIR=` made confd look for `conf.d` in the current directory, and `CONFD_FAILURE_MODE=` was a startup error (#675)
 * chore: lint the packages behind the `e2e` build tag (`run.build-tags` in `.golangci.yml`, so `make lint` and the lint workflow both cover them) and fix the 15 wrapcheck and errorlint findings in `test/e2e` (#674)
 * fix: `{{.src}}` in `reload_cmd` names a file that exists: the destination path, or the kept stage file with `--keep-stage-file`; it used to be the stage path after the file had been moved (#667)
 * docs: only the `test/e2e/watch` package needs Docker; show how to run the other e2e packages without it (#658)

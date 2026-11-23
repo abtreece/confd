@@ -123,6 +123,8 @@ func newConfigSources(ctx *kong.Context) *configSources {
 		}
 		sources.cli[name] = true
 	}
+	// A string flag's variable that is set to the empty string is not in
+	// flag.Envs (see ignoreEmptyStringEnvs), so it is not recorded here.
 	for _, flag := range ctx.Flags() {
 		for _, env := range flag.Envs {
 			if _, ok := os.LookupEnv(env); ok {
