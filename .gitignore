@@ -1,5 +1,5 @@
 bin/
-confd
+/confd
 dist/
 plans/
 
