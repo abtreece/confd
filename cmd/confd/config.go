@@ -213,9 +213,32 @@ func ignoredBackendFlagWarnings(sources *configSources, backend string) []string
 	return warnings
 }
 
-// warnIgnoredBackendFlags logs the ignoredBackendFlagWarnings messages.
-func warnIgnoredBackendFlags(sources *configSources, backend string) {
-	for _, warning := range ignoredBackendFlagWarnings(sources, backend) {
+// basicAuthBackends send --username and --password only when basic auth is
+// enabled. backendFlagScope cannot express this: the backends use the
+// settings, but only when another setting is on.
+var basicAuthBackends = []string{"consul", "etcd"}
+
+// basicAuthCredentialWarnings returns one message for each of --username and
+// --password that was supplied for a backend in basicAuthBackends while basic
+// auth is off. cfg.BasicAuth is the resolved value, after confd.toml and flags.
+func basicAuthCredentialWarnings(sources *configSources, cfg backends.Config) []string {
+	if cfg.BasicAuth || !slices.Contains(basicAuthBackends, cfg.Backend) {
+		return nil
+	}
+	var warnings []string
+	for _, flag := range []string{"username", "password"} {
+		if sources.isSupplied(flag) {
+			warnings = append(warnings, fmt.Sprintf("--%s has no effect with the %s backend unless --basic-auth is set", flag, cfg.Backend))
+		}
+	}
+	return warnings
+}
+
+// warnIgnoredBackendFlags logs the ignoredBackendFlagWarnings and
+// basicAuthCredentialWarnings messages.
+func warnIgnoredBackendFlags(sources *configSources, cfg backends.Config) {
+	warnings := slices.Concat(ignoredBackendFlagWarnings(sources, cfg.Backend), basicAuthCredentialWarnings(sources, cfg))
+	for _, warning := range warnings {
 		log.Warning("%s", warning)
 	}
 }

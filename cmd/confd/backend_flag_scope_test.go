@@ -303,3 +303,75 @@ func TestIgnoredAuthFlagWarnings(t *testing.T) {
 		}
 	})
 }
+
+// credentialWarnings parses args, loads a confd.toml holding tomlContent,
+// builds the backend config the way Run does, and returns the
+// basicAuthCredentialWarnings for it.
+func credentialWarnings(t *testing.T, backend string, extraArgs []string, tomlContent string) []string {
+	t.Helper()
+
+	clearCONFDEnvVars(t)
+	unsetEnv(t, redisPasswordEnv)
+
+	configPath := filepath.Join(t.TempDir(), "confd.toml")
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0600); err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	args := slices.Concat([]string{"--config-file", configPath}, backendArgs[backend], extraArgs)
+	cli, ctx := parseCLI(t, args)
+	cfg := backendConfigFor(t, cli, ctx)
+	if err := loadConfigFile(cli, &cfg); err != nil {
+		t.Fatalf("loadConfigFile: %v", err)
+	}
+	return basicAuthCredentialWarnings(cli.configSources, cfg)
+}
+
+func TestBasicAuthCredentialWarnings(t *testing.T) {
+	warning := func(flag, backend string) string {
+		return flag + " has no effect with the " + backend + " backend unless --basic-auth is set"
+	}
+
+	for _, backend := range basicAuthBackends {
+		t.Run(backend, func(t *testing.T) {
+			tests := []struct {
+				name        string
+				args        []string
+				tomlContent string
+				want        []string
+			}{
+				{name: "username flag", args: []string{"--username", "u"}, want: []string{warning("--username", backend)}},
+				{name: "password flag", args: []string{"--password", "p"}, want: []string{warning("--password", backend)}},
+				{name: "username in confd.toml", tomlContent: `username = "u"`, want: []string{warning("--username", backend)}},
+				{name: "password in confd.toml", tomlContent: `password = "p"`, want: []string{warning("--password", backend)}},
+				{name: "both", args: []string{"--password", "p", "--username", "u"}, want: []string{warning("--username", backend), warning("--password", backend)}},
+				{name: "basic-auth flag", args: []string{"--basic-auth", "--username", "u", "--password", "p"}},
+				{name: "basic_auth in confd.toml", tomlContent: "basic_auth = true\nusername = \"u\"\npassword = \"p\""},
+				{name: "basic_auth = false in confd.toml", tomlContent: "basic_auth = false\nusername = \"u\"", want: []string{warning("--username", backend)}},
+				{name: "--basic-auth=false over confd.toml", args: []string{"--basic-auth=false"}, tomlContent: "basic_auth = true\nusername = \"u\"", want: []string{warning("--username", backend)}},
+				{name: "nothing supplied"},
+				{name: "basic auth without credentials", args: []string{"--basic-auth"}},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					got := credentialWarnings(t, backend, tt.args, tt.tomlContent+"\n")
+					if !slices.Equal(got, tt.want) {
+						t.Errorf("warnings = %q, want %q", got, tt.want)
+					}
+				})
+			}
+		})
+	}
+
+	// vault and redis use the credentials without --basic-auth.
+	for _, backend := range []string{"vault", "redis"} {
+		t.Run(backend, func(t *testing.T) {
+			if got := credentialWarnings(t, backend, []string{"--username", "u", "--password", "p"}, ""); len(got) != 0 {
+				t.Errorf("flag: warnings = %q, want none", got)
+			}
+			if got := credentialWarnings(t, backend, nil, "username = \"u\"\npassword = \"p\"\n"); len(got) != 0 {
+				t.Errorf("confd.toml: warnings = %q, want none", got)
+			}
+		})
+	}
+}

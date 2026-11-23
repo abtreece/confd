@@ -21,6 +21,10 @@ confd consul --node 127.0.0.1:8500 \
   --basic-auth --username admin --password secret --onetime
 ```
 
+`--username` and `--password` (or `username` and `password` in `confd.toml`) are sent only when `--basic-auth` (or `basic_auth = true`) is set. Without it confd ignores them and logs `--username has no effect with the consul backend unless --basic-auth is set`.
+
+Consul's own `CONSUL_HTTP_AUTH` environment variable (`user:password`) applies when `--basic-auth` is not set. With `--basic-auth`, `--username` and `--password` replace it, even when they are empty.
+
 #### ACL Token
 
 Pass the token with `--auth-token` (or `auth_token` in `confd.toml`):
@@ -54,9 +58,9 @@ confd consul --node 127.0.0.1:8501 \
 |------|-------------|---------|
 | `-n, --node` | Consul agent address | `127.0.0.1:8500` |
 | `--scheme` | HTTP scheme (`http` or `https`) | `http` |
-| `--basic-auth` | Enable HTTP basic authentication | `false` |
-| `--username` | Username for basic auth | - |
-| `--password` | Password for basic auth | - |
+| `--basic-auth` | Send `--username` and `--password` as HTTP basic auth, in place of `CONSUL_HTTP_AUTH` | `false` |
+| `--username` | Username for basic auth; used only with `--basic-auth` | - |
+| `--password` | Password for basic auth; used only with `--basic-auth` | - |
 | `--auth-token` | ACL token; wins over `CONSUL_HTTP_TOKEN` and `CONSUL_HTTP_TOKEN_FILE` | - |
 | `--client-cert` | Path to client certificate | - |
 | `--client-key` | Path to client private key | - |
@@ -70,6 +74,7 @@ Consul's standard environment variables are also supported:
 |----------|-------------|
 | `CONSUL_HTTP_ADDR` | Consul agent address |
 | `CONSUL_HTTP_TOKEN` | ACL token |
+| `CONSUL_HTTP_AUTH` | HTTP basic auth as `user:password`; ignored when `--basic-auth` is set |
 | `CONSUL_HTTP_SSL` | Enable HTTPS |
 | `CONSUL_CACERT` | CA certificate path |
 | `CONSUL_CLIENT_CERT` | Client certificate path |
@@ -220,9 +225,9 @@ Available backend options:
 - `backend` - Must be `"consul"`
 - `nodes` - Array of Consul agent addresses
 - `scheme` - `"http"` or `"https"`
-- `basic_auth` - Enable HTTP basic authentication
-- `username` - Username for basic auth
-- `password` - Password for basic auth
+- `basic_auth` - Send `username` and `password` as HTTP basic auth
+- `username` - Username for basic auth; ignored without `basic_auth = true` (no warning is logged for `[backend]` sections)
+- `password` - Password for basic auth; ignored without `basic_auth = true`
 - `client_cert` - Path to client certificate
 - `client_key` - Path to client private key
 - `client_cakeys` - Path to CA certificate

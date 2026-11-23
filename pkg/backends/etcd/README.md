@@ -30,9 +30,11 @@ confd etcd --node http://127.0.0.1:2379 \
   --basic-auth --username admin --password secret --onetime
 ```
 
+`--username` and `--password` (or `username` and `password` in `confd.toml`) are used only when `--basic-auth` (or `basic_auth = true`) is set. Without it confd ignores them and logs `--username has no effect with the etcd backend unless --basic-auth is set`. With it, the etcd client authenticates only when both are non-empty.
+
 #### JWT Token
 
-To authenticate with a JWT, pass it with `--auth-token` (or `auth_token` in `confd.toml`). It replaces the username and password, and the etcd client rejects it together with `--basic-auth`:
+To authenticate with a JWT, pass it with `--auth-token` (or `auth_token` in `confd.toml`). It replaces the username and password. The etcd client refuses to start when the token is combined with `--basic-auth` and a non-empty `--username` or `--password`:
 
 ```bash
 confd etcd --node http://127.0.0.1:2379 --auth-token "$ETCD_JWT" --onetime
@@ -62,10 +64,10 @@ confd etcd --node https://127.0.0.1:2379 \
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-n, --node` | etcd node address (can be specified multiple times) | - |
-| `--basic-auth` | Enable basic authentication | `false` |
-| `--username` | Username for basic auth | - |
-| `--password` | Password for basic auth | - |
-| `--auth-token` | JWT used in place of a username and password; cannot be combined with `--basic-auth` | - |
+| `--basic-auth` | Authenticate with `--username` and `--password`; nothing is sent unless both are non-empty | `false` |
+| `--username` | Username; used only with `--basic-auth` | - |
+| `--password` | Password; used only with `--basic-auth` | - |
+| `--auth-token` | JWT used in place of a username and password; the etcd client refuses to start when it is combined with `--basic-auth` and a non-empty `--username` or `--password` | - |
 | `--client-cert` | Path to client certificate | - |
 | `--client-key` | Path to client private key | - |
 | `--client-ca-keys` | Path to CA certificate | - |
@@ -199,9 +201,9 @@ Available backend options:
 - `backend` - Must be `"etcd"`
 - `nodes` - Array of etcd node addresses
 - `scheme` - `"http"` or `"https"`
-- `basic_auth` - Enable basic authentication
-- `username` - Username for basic auth
-- `password` - Password for basic auth
+- `basic_auth` - Authenticate with `username` and `password`
+- `username` - Username; ignored without `basic_auth = true` (no warning is logged for `[backend]` sections)
+- `password` - Password; ignored without `basic_auth = true`
 - `auth_token` - JWT used in place of a username and password
 - `client_cert` - Path to client certificate
 - `client_key` - Path to client private key
