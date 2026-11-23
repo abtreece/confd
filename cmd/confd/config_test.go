@@ -643,13 +643,25 @@ func TestLoadConfigFile_BothLogKeySpellings(t *testing.T) {
 			hyphenatedLine: `log-format = "text"`,
 			wantLogFormat:  "json",
 		},
+		{
+			name:           "empty_log_level",
+			underscoreLine: `log_level = ""`,
+			hyphenatedLine: `log-level = "debug"`,
+			wantLogLevel:   "debug",
+		},
+		{
+			name:           "empty_log_format",
+			underscoreLine: `log_format = ""`,
+			hyphenatedLine: `log-format = "json"`,
+			wantLogFormat:  "json",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			clearCONFDEnvVars(t)
 
-			// The underscore spelling wins wherever it sits in the file.
+			// The outcome does not depend on the order of the keys in the file.
 			fileContents := []string{
 				tt.underscoreLine + "\n" + tt.hyphenatedLine + "\n",
 				tt.hyphenatedLine + "\n" + tt.underscoreLine + "\n",
