@@ -38,7 +38,7 @@ When the password is set in more than one place, the first non-empty source in t
 1. `--password` flag
 2. `REDIS_PASSWORD` environment variable
 3. `password` in `confd.toml`
-4. Legacy client key: `--client-key` flag, `CONFD_CLIENT_KEY` environment variable, or `client_key` in `confd.toml`
+4. Legacy client key: `--client-key` flag, `CONFD_CLIENT_KEY` environment variable, or `client_key` in `confd.toml`, in that order. Unlike `--password`, an empty `--client-key=` is an explicit value: it does not fall back to `CONFD_CLIENT_KEY` or `client_key`, so no legacy password is sent
 
 Only that one source is used. If authentication fails with it, confd does not try the next one.
 
