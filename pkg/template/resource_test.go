@@ -845,7 +845,7 @@ func TestReload_Success(t *testing.T) {
 		StageFile: tmpFile,
 	}
 
-	err = tr.reload()
+	err = tr.reload(tmpFile.Name())
 	if err != nil {
 		t.Errorf("reload() unexpected error: %v", err)
 	}
@@ -874,7 +874,7 @@ func TestReload_Failure(t *testing.T) {
 		StageFile: tmpFile,
 	}
 
-	err = tr.reload()
+	err = tr.reload(tmpFile.Name())
 	if err == nil {
 		t.Error("reload() expected error for exit 1, got nil")
 	}
@@ -894,7 +894,7 @@ func TestReload_InvalidTemplate(t *testing.T) {
 		StageFile: tmpFile,
 	}
 
-	err = tr.reload()
+	err = tr.reload(tmpFile.Name())
 	if err == nil {
 		t.Error("reload() expected error for invalid template, got nil")
 	}
@@ -921,7 +921,7 @@ func TestReload_RateLimiting(t *testing.T) {
 	}
 
 	// This reload should be throttled
-	err = tr.reload()
+	err = tr.reload(tmpFile.Name())
 	if err != nil {
 		t.Errorf("reload() unexpected error: %v", err)
 	}
@@ -953,7 +953,7 @@ func TestReload_WithTemplateVariables(t *testing.T) {
 		StageFile: tmpFile,
 	}
 
-	err = tr.reload()
+	err = tr.reload(tmpFile.Name())
 	if err != nil {
 		t.Errorf("reload() with template variables unexpected error: %v", err)
 	}

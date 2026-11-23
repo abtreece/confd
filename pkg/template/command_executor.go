@@ -120,7 +120,8 @@ func (e *commandExecutor) executeCheck(stagePath string) error {
 }
 
 // executeReload executes the reload command to notify the application of config changes.
-// The command template can reference {{.src}} (staged file) and {{.dest}} (destination file).
+// The command template can reference {{.src}} and {{.dest}} (destination file). {{.src}} is
+// stagePath: the destination once the stage file has been moved onto it, or the kept stage file.
 // If minReloadInterval is set, reloads are rate-limited to prevent command spam.
 // It returns nil if the reload is skipped due to rate limiting or if the command succeeds.
 func (e *commandExecutor) executeReload(stagePath, destPath string) error {

@@ -27,7 +27,7 @@ Template resources are stored under the `/etc/confd/conf.d` directory by default
 
 * `check_cmd` (string) - The command to check config. Use `{{.src}}` to reference the rendered source template.
 * `check_cmd_timeout` (string) - Timeout for the check command. Uses Go duration format (e.g., `30s`, `1m`). Overrides the global `--check-cmd-timeout` flag.
-* `reload_cmd` (string) - The command to reload config. Use `{{.src}}` to reference the rendered source template, or `{{.dest}}` to reference the destination file.
+* `reload_cmd` (string) - The command to reload config. Use `{{.dest}}` to reference the destination file. `{{.src}}` is also available: when `reload_cmd` runs the stage file has already been moved onto the destination, so `{{.src}}` is the destination path, or the kept stage file with `--keep-stage-file`.
 * `reload_cmd_timeout` (string) - Timeout for the reload command. Uses Go duration format (e.g., `60s`, `2m`). Overrides the global `--reload-cmd-timeout` flag.
 
 **Validation:**
@@ -69,7 +69,7 @@ When multiple template resources specify identical backend configurations, confd
 When using the `reload_cmd` feature it's important that the command exits on its own. The reload
 command is not managed by confd, and will block the configuration run until it exits.
 
-If `reload_cmd` fails, the destination file has already been replaced. confd remembers the failure and retries `reload_cmd` the next time it processes the resource, even though the destination is in sync, until the command succeeds. With `--interval` that is the next cycle; in watch mode it is the next change to a watched key. Before a retry the template is still fetched from the backend and still rendered, so a backend or rendering error prevents the retry on that cycle; what a retry skips is writing the file and running `check_cmd`. The pending retry is kept in memory only, so it is lost on restart and on `SIGHUP`. During a retry there is no stage file, so `{{.src}}` in `reload_cmd` is the destination path.
+If `reload_cmd` fails, the destination file has already been replaced. confd remembers the failure and retries `reload_cmd` the next time it processes the resource, even though the destination is in sync, until the command succeeds. With `--interval` that is the next cycle; in watch mode it is the next change to a watched key. Before a retry the template is still fetched from the backend and still rendered, so a backend or rendering error prevents the retry on that cycle; what a retry skips is writing the file and running `check_cmd`. The pending retry is kept in memory only, so it is lost on restart and on `SIGHUP`. During a retry `{{.src}}` in `reload_cmd` is always the destination path, including with `--keep-stage-file`.
 
 `check_cmd` and `reload_cmd` run through a shell: `/bin/sh -c` on Unix and `cmd /C` on Windows.
 Shell quoting and expansion (variables, globs, pipes, `&&`) apply to the rendered command string,

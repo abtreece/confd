@@ -1,5 +1,6 @@
 ### [Unreleased]
 
+* fix: `{{.src}}` in `reload_cmd` names a file that exists: the destination path, or the kept stage file with `--keep-stage-file`; it used to be the stage path after the file had been moved (#667)
 * docs: only the `test/e2e/watch` package needs Docker; show how to run the other e2e packages without it (#658)
 * chore: set an explicit wrapcheck `ignore-sigs` list in `.golangci.yml` (`.Errorf(`, `errors.New(`, `errors.Unwrap(`, `errors.Join(`, `.Wrap(`, `.Wrapf(`) in place of the linter's built-in defaults; no findings change (#657)
 * docs: document that confd.toml accepts `log-level` / `log-format` alongside `log_level` / `log_format`, that the underscore spelling takes precedence when it is non-empty, and that an empty underscore value falls back to the hyphenated one; add tests for both and for flag and env overrides (#656)

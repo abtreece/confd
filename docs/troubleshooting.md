@@ -311,7 +311,7 @@ run command: <error>
 
 - With `--interval` the retry runs on every cycle until it succeeds. With `--watch` the resource is only processed when a watched key changes, so the retry waits for the next change.
 - A retry skips writing the file and running `check_cmd`, but the template is still fetched from the backend and still rendered first, so a backend or rendering error is reported instead and `reload_cmd` is not retried on that cycle. The retry resumes once the resource fetches and renders cleanly again.
-- There is no stage file during a retry, so `{{.src}}` in `reload_cmd` is the destination path.
+- `{{.src}}` in `reload_cmd` names a file that exists and holds the rendered content: the destination path, because the stage file has been moved onto it, or the kept stage file with `--keep-stage-file`. A retry always uses the destination path.
 - The pending retry is held in memory. It is lost when confd restarts or reloads its template resources on `SIGHUP`, and a `--onetime` run cannot retry: it exits non-zero, and a second run finds the destination in sync and does not run `reload_cmd`. In those cases reload the application yourself, or remove the destination file so that confd regenerates it and reruns the commands.
 - `--noop` and `--sync-only` never run `reload_cmd`, including retries.
 - A failed retry is an error for that cycle. Under `--failure-mode fail-fast` in interval mode, a resource whose reload keeps failing therefore stops the resources after it on every cycle, and they are not rendered at all until the reload succeeds.
