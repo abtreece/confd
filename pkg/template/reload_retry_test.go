@@ -143,14 +143,11 @@ func TestTemplateResource_ReloadRetriedAfterFailure(t *testing.T) {
 	}
 	fixture.assertReloadCount(t, 3)
 
-	// On a retry there is no stage file: {{.src}} is the destination.
-	srcPaths := fixture.reloadSrcPaths(t)
-	if srcPaths[0] == fixture.dest {
-		t.Errorf("first reload ran with {{.src}} = destination, want the stage file")
-	}
-	for _, srcPath := range srcPaths[1:] {
+	// The stage file is moved onto the destination before the first reload
+	// and there is none on a retry: {{.src}} is the destination every time.
+	for run, srcPath := range fixture.reloadSrcPaths(t) {
 		if srcPath != fixture.dest {
-			t.Errorf("retry ran with {{.src}} = %s, want the destination %s", srcPath, fixture.dest)
+			t.Errorf("reload %d ran with {{.src}} = %s, want the destination %s", run+1, srcPath, fixture.dest)
 		}
 	}
 
@@ -189,8 +186,8 @@ func TestTemplateResource_ReloadRetryReplacedByUpdate(t *testing.T) {
 	}
 	fixture.assertReloadCount(t, 2)
 	fixture.assertDestContent(t, "v2")
-	if srcPath := fixture.reloadSrcPaths(t)[1]; srcPath == fixture.dest {
-		t.Errorf("update ran reload_cmd with {{.src}} = destination, want the stage file")
+	if srcPath := fixture.reloadSrcPaths(t)[1]; srcPath != fixture.dest {
+		t.Errorf("update ran reload_cmd with {{.src}} = %s, want the destination %s", srcPath, fixture.dest)
 	}
 
 	if err := fixture.resource.process(); err != nil {

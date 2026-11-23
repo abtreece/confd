@@ -417,8 +417,14 @@ func (t *TemplateResource) sync() error {
 
 	// Run reload command after successful sync. The destination is already
 	// replaced, so a failure is remembered and retried on the next cycle.
+	// syncFiles moved the stage file onto the destination unless it was told
+	// to keep it, so {{.src}} is the stage file only when it was kept.
 	if !t.syncOnly && t.ReloadCmd != "" {
-		err := t.reload()
+		reloadSrc := t.Dest
+		if t.fileStgr.keepStageFile {
+			reloadSrc = staged
+		}
+		err := t.reload(reloadSrc)
 		t.reloadPending = err != nil
 		if err != nil {
 			return err
@@ -458,15 +464,16 @@ func (t *TemplateResource) check() error {
 }
 
 // reload executes the reload command. The command is modified so that any
-// references to src template are substituted with a string representing the
-// full path of the staged file, and any references to dest are substituted
-// with the full path of the destination file. This allows the reload command
-// to reference the relevant file paths.
+// references to src template are substituted with srcPath, and any references
+// to dest are substituted with the full path of the destination file. The
+// caller passes a srcPath that exists and holds the rendered content: the
+// destination once the stage file has been moved onto it, or the stage file
+// when it was kept.
 // It returns nil if the reload command returns 0.
 // If min_reload_interval is set and not enough time has passed since the last
 // reload, the reload is skipped and a warning is logged.
-func (t *TemplateResource) reload() error {
-	return t.runReload(t.StageFile.Name())
+func (t *TemplateResource) reload(srcPath string) error {
+	return t.runReload(srcPath)
 }
 
 // retryPendingReload runs the reload command again when an earlier reload
