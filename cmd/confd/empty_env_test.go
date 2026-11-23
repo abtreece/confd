@@ -62,46 +62,6 @@ func stringEnvFlags(t *testing.T) map[string]*stringEnvFlag {
 	return found
 }
 
-// emptyEnvBackendConfigs builds the backend config from the parsed command
-// the way that command's Run method does, for every command a string
-// environment variable can reach.
-var emptyEnvBackendConfigs = map[string]func(*CLI) backends.Config{
-	"env": func(*CLI) backends.Config {
-		return backends.Config{Backend: "env"}
-	},
-	"consul": func(cli *CLI) backends.Config {
-		c := cli.Consul
-		return backends.Config{
-			Backend: "consul", BackendNodes: c.Node, Scheme: c.Scheme,
-			ClientCert: c.ClientCert, ClientKey: c.ClientKey, ClientCaKeys: c.ClientCaKeys,
-			BasicAuth: c.BasicAuth, Username: c.Username, Password: c.Password,
-		}
-	},
-	"etcd": func(cli *CLI) backends.Config {
-		e := cli.Etcd
-		return backends.Config{
-			Backend: "etcd", BackendNodes: e.Node, Scheme: e.Scheme,
-			ClientCert: e.ClientCert, ClientKey: e.ClientKey, ClientCaKeys: e.ClientCaKeys,
-			ClientInsecure: e.ClientInsecure,
-			BasicAuth:      e.BasicAuth, Username: e.Username, Password: e.Password,
-		}
-	},
-	"vault": func(cli *CLI) backends.Config {
-		v := cli.Vault
-		return backends.Config{
-			Backend: "vault", BackendNodes: v.Node,
-			ClientCert: v.ClientCert, ClientKey: v.ClientKey, ClientCaKeys: v.ClientCaKeys,
-			AuthType: v.AuthType, AuthToken: v.AuthToken,
-			AppID: v.AppID, UserID: v.UserID, RoleID: v.RoleID, SecretID: v.SecretID,
-			Path: v.Path, Username: v.Username, Password: v.Password,
-		}
-	},
-	"redis": func(cli *CLI) backends.Config {
-		cli.Redis.resolvePassword(cli)
-		return cli.Redis.backendConfig()
-	},
-}
-
 // emptyEnvCase says how one string environment variable is checked.
 type emptyEnvCase struct {
 	// tomlKey and tomlValue are the confd.toml key for the same setting and a
@@ -208,7 +168,7 @@ func TestEmptyEnvVarIsUnset(t *testing.T) {
 	// resolve parses args with env either unset or set to the empty string.
 	// With loadFile false the config file is not read, for the one setting
 	// that is the config file's own path.
-	resolve := func(t *testing.T, env string, empty bool, command string, args []string, loadFile bool) resolved {
+	resolve := func(t *testing.T, env string, empty bool, args []string, loadFile bool) resolved {
 		t.Helper()
 		clearCONFDEnvVars(t)
 		for _, name := range allEnvs {
@@ -217,12 +177,8 @@ func TestEmptyEnvVarIsUnset(t *testing.T) {
 		if empty {
 			t.Setenv(env, "")
 		}
-		cli, _ := parseCLI(t, args)
-		buildConfig, ok := emptyEnvBackendConfigs[command]
-		if !ok {
-			t.Fatalf("emptyEnvBackendConfigs has no entry for the %s command", command)
-		}
-		cfg := buildConfig(cli)
+		cli, ctx := parseCLI(t, args)
+		cfg := backendConfigFor(t, cli, ctx)
 		if loadFile {
 			resolveConfig(t, cli, &cfg)
 		}
@@ -248,8 +204,8 @@ func TestEmptyEnvVarIsUnset(t *testing.T) {
 					// unset for one command line, and returns the empty run.
 					check := func(t *testing.T, args []string, loadFile bool) resolved {
 						t.Helper()
-						unset := resolve(t, env, false, command, args, loadFile)
-						empty := resolve(t, env, true, command, args, loadFile)
+						unset := resolve(t, env, false, args, loadFile)
+						empty := resolve(t, env, true, args, loadFile)
 						if empty.cli.configSources.env[normalizeConfigName(flag)] {
 							t.Errorf("%s= is recorded as an environment source for --%s", env, flag)
 						}

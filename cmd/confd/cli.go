@@ -214,6 +214,22 @@ type NodeFlags struct {
 
 // Backend commands
 
+// backendCommand is a backend subcommand. backendConfig builds the backend
+// config from the command's parsed flags; Run and the tests both call it, so
+// that the tests check the mapping production uses.
+type backendCommand interface {
+	backendConfig(cli *CLI) (backends.Config, error)
+}
+
+// runBackend is the Run body shared by every backend command.
+func runBackend(cli *CLI, cmd backendCommand) error {
+	cfg, err := cmd.backendConfig(cli)
+	if err != nil {
+		return err
+	}
+	return run(cli, cfg)
+}
+
 type ConsulCmd struct {
 	NodeFlags
 	TLSFlags
@@ -222,7 +238,11 @@ type ConsulCmd struct {
 }
 
 func (c *ConsulCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	return runBackend(cli, c)
+}
+
+func (c *ConsulCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{
 		Backend:      "consul",
 		BackendNodes: c.Node,
 		Scheme:       c.Scheme,
@@ -232,8 +252,7 @@ func (c *ConsulCmd) Run(cli *CLI) error {
 		BasicAuth:    c.BasicAuth,
 		Username:     c.Username,
 		Password:     c.Password,
-	}
-	return run(cli, cfg)
+	}, nil
 }
 
 type EtcdCmd struct {
@@ -245,7 +264,11 @@ type EtcdCmd struct {
 }
 
 func (e *EtcdCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	return runBackend(cli, e)
+}
+
+func (e *EtcdCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{
 		Backend:        "etcd",
 		BackendNodes:   e.Node,
 		Scheme:         e.Scheme,
@@ -256,8 +279,7 @@ func (e *EtcdCmd) Run(cli *CLI) error {
 		BasicAuth:      e.BasicAuth,
 		Username:       e.Username,
 		Password:       e.Password,
-	}
-	return run(cli, cfg)
+	}, nil
 }
 
 type VaultCmd struct {
@@ -275,7 +297,11 @@ type VaultCmd struct {
 }
 
 func (v *VaultCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	return runBackend(cli, v)
+}
+
+func (v *VaultCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{
 		Backend:      "vault",
 		BackendNodes: v.Node,
 		ClientCert:   v.ClientCert,
@@ -290,8 +316,7 @@ func (v *VaultCmd) Run(cli *CLI) error {
 		Path:         v.Path,
 		Username:     v.Username,
 		Password:     v.Password,
-	}
-	return run(cli, cfg)
+	}, nil
 }
 
 // redisPasswordEnv is the environment variable the redis command reads its
@@ -312,8 +337,7 @@ type RedisCmd struct {
 }
 
 func (r *RedisCmd) Run(cli *CLI) error {
-	r.resolvePassword(cli)
-	return run(cli, r.backendConfig())
+	return runBackend(cli, r)
 }
 
 // resolvePassword treats an empty --password as unset, so that the first
@@ -334,8 +358,10 @@ func (r *RedisCmd) resolvePassword(cli *CLI) {
 	}
 }
 
-// backendConfig builds the redis backend config from the parsed command.
-func (r *RedisCmd) backendConfig() backends.Config {
+// backendConfig resolves the password (see resolvePassword) and builds the
+// redis backend config from the parsed command.
+func (r *RedisCmd) backendConfig(cli *CLI) (backends.Config, error) {
+	r.resolvePassword(cli)
 	return backends.Config{
 		Backend:      "redis",
 		BackendNodes: r.Node,
@@ -345,7 +371,7 @@ func (r *RedisCmd) backendConfig() backends.Config {
 		Username:     r.Username,
 		Password:     r.Password,
 		Separator:    r.Separator,
-	}
+	}, nil
 }
 
 type ZookeeperCmd struct {
@@ -353,11 +379,14 @@ type ZookeeperCmd struct {
 }
 
 func (z *ZookeeperCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	return runBackend(cli, z)
+}
+
+func (z *ZookeeperCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{
 		Backend:      "zookeeper",
 		BackendNodes: z.Node,
-	}
-	return run(cli, cfg)
+	}, nil
 }
 
 type DynamoDBCmd struct {
@@ -365,20 +394,24 @@ type DynamoDBCmd struct {
 }
 
 func (d *DynamoDBCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	return runBackend(cli, d)
+}
+
+func (d *DynamoDBCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{
 		Backend: "dynamodb",
 		Table:   d.Table,
-	}
-	return run(cli, cfg)
+	}, nil
 }
 
 type SSMCmd struct{}
 
 func (s *SSMCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
-		Backend: "ssm",
-	}
-	return run(cli, cfg)
+	return runBackend(cli, s)
+}
+
+func (s *SSMCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{Backend: "ssm"}, nil
 }
 
 type ACMCmd struct {
@@ -386,11 +419,14 @@ type ACMCmd struct {
 }
 
 func (a *ACMCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	return runBackend(cli, a)
+}
+
+func (a *ACMCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{
 		Backend:             "acm",
 		ACMExportPrivateKey: a.ExportPrivateKey,
-	}
-	return run(cli, cfg)
+	}, nil
 }
 
 type SecretsManagerCmd struct {
@@ -399,21 +435,25 @@ type SecretsManagerCmd struct {
 }
 
 func (s *SecretsManagerCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	return runBackend(cli, s)
+}
+
+func (s *SecretsManagerCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{
 		Backend:                    "secretsmanager",
 		SecretsManagerVersionStage: s.VersionStage,
 		SecretsManagerNoFlatten:    s.NoFlatten,
-	}
-	return run(cli, cfg)
+	}, nil
 }
 
 type EnvCmd struct{}
 
 func (e *EnvCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
-		Backend: "env",
-	}
-	return run(cli, cfg)
+	return runBackend(cli, e)
+}
+
+func (e *EnvCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{Backend: "env"}, nil
 }
 
 type FileCmd struct {
@@ -422,13 +462,15 @@ type FileCmd struct {
 }
 
 func (f *FileCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
-		Backend: "file",
-		Filter:  f.Filter,
-	}
-	// YAMLFile is a util.Nodes type ([]string)
-	cfg.YAMLFile = f.File
-	return run(cli, cfg)
+	return runBackend(cli, f)
+}
+
+func (f *FileCmd) backendConfig(_ *CLI) (backends.Config, error) {
+	return backends.Config{
+		Backend:  "file",
+		Filter:   f.Filter,
+		YAMLFile: f.File,
+	}, nil
 }
 
 type IMDSCmd struct {
@@ -436,16 +478,18 @@ type IMDSCmd struct {
 }
 
 func (i *IMDSCmd) Run(cli *CLI) error {
+	return runBackend(cli, i)
+}
+
+func (i *IMDSCmd) backendConfig(_ *CLI) (backends.Config, error) {
 	cacheTTL, err := time.ParseDuration(i.CacheTTL)
 	if err != nil {
-		return fmt.Errorf("invalid imds-cache-ttl: %w", err)
+		return backends.Config{}, fmt.Errorf("invalid imds-cache-ttl: %w", err)
 	}
-
-	cfg := backends.Config{
+	return backends.Config{
 		Backend:      "imds",
 		IMDSCacheTTL: cacheTTL,
-	}
-	return run(cli, cfg)
+	}, nil
 }
 
 // run is the shared execution function for all backends

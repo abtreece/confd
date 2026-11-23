@@ -64,10 +64,9 @@ func TestRedisPasswordPrecedence(t *testing.T) {
 			if tt.flag != nil {
 				args = append(args, "--password", *tt.flag)
 			}
-			cli, _ := parseCLI(t, args)
+			cli, ctx := parseCLI(t, args)
 
-			cli.Redis.resolvePassword(cli)
-			cfg := cli.Redis.backendConfig()
+			cfg := backendConfigFor(t, cli, ctx)
 			if err := loadConfigFile(cli, &cfg); err != nil {
 				t.Fatalf("loadConfigFile: %v", err)
 			}
