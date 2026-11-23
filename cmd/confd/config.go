@@ -507,20 +507,3 @@ func getBackendNodesFromSRV(record string) ([]string, error) {
 	}
 	return nodes, nil
 }
-
-func processEnv(cfg *backends.Config) {
-	cakeys := os.Getenv("CONFD_CLIENT_CAKEYS")
-	if len(cakeys) > 0 && cfg.ClientCaKeys == "" {
-		cfg.ClientCaKeys = cakeys
-	}
-
-	cert := os.Getenv("CONFD_CLIENT_CERT")
-	if len(cert) > 0 && cfg.ClientCert == "" {
-		cfg.ClientCert = cert
-	}
-
-	key := os.Getenv("CONFD_CLIENT_KEY")
-	if len(key) > 0 && cfg.ClientKey == "" {
-		cfg.ClientKey = key
-	}
-}

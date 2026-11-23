@@ -890,50 +890,66 @@ password = "secret"
 		t.Errorf("Expected username 'admin', got %q", backendCfg.Username)
 	}
 }
-func TestProcessEnv(t *testing.T) {
-	t.Setenv("CONFD_CLIENT_CERT", "/env/cert")
-	t.Setenv("CONFD_CLIENT_KEY", "/env/key")
-	t.Setenv("CONFD_CLIENT_CAKEYS", "/env/ca")
-	// ACM_EXPORT_PRIVATE_KEY is parsed by Kong; processEnv must leave it alone.
-	t.Setenv("ACM_EXPORT_PRIVATE_KEY", "true")
 
-	cfg := &backends.Config{}
-	processEnv(cfg)
+// TestTLSEnvVarsReachBackends checks that CONFD_CLIENT_CERT, CONFD_CLIENT_KEY
+// and CONFD_CLIENT_CAKEYS reach the backend config of every command that
+// defines the TLS flags, with the same precedence as every other setting:
+// flag, then environment variable, then confd.toml. An empty flag is an
+// explicit value and wins over the variable.
+func TestTLSEnvVarsReachBackends(t *testing.T) {
+	settings := []struct {
+		env     string
+		flag    string
+		tomlKey string
+		get     func(*backends.Config) string
+	}{
+		{env: "CONFD_CLIENT_CERT", flag: "--client-cert", tomlKey: "client_cert", get: func(cfg *backends.Config) string { return cfg.ClientCert }},
+		{env: "CONFD_CLIENT_KEY", flag: "--client-key", tomlKey: "client_key", get: func(cfg *backends.Config) string { return cfg.ClientKey }},
+		{env: "CONFD_CLIENT_CAKEYS", flag: "--client-ca-keys", tomlKey: "client_cakeys", get: func(cfg *backends.Config) string { return cfg.ClientCaKeys }},
+	}
+	cases := []struct {
+		name     string
+		toml     bool
+		flagArgs func(flag string) []string
+		want     string
+	}{
+		{name: "env only", want: "/env"},
+		{name: "env over toml", toml: true, want: "/env"},
+		{name: "flag over env", toml: true, flagArgs: func(flag string) []string { return []string{flag, "/flag"} }, want: "/flag"},
+		{name: "empty flag over env", toml: true, flagArgs: func(flag string) []string { return []string{flag + "="} }, want: ""},
+	}
 
-	if cfg.ClientCert != "/env/cert" {
-		t.Errorf("Expected ClientCert '/env/cert', got %q", cfg.ClientCert)
-	}
-	if cfg.ClientKey != "/env/key" {
-		t.Errorf("Expected ClientKey '/env/key', got %q", cfg.ClientKey)
-	}
-	if cfg.ClientCaKeys != "/env/ca" {
-		t.Errorf("Expected ClientCaKeys '/env/ca', got %q", cfg.ClientCaKeys)
-	}
-	if cfg.ACMExportPrivateKey {
-		t.Error("Expected processEnv to leave ACMExportPrivateKey false")
+	for _, command := range []string{"consul", "etcd", "vault", "redis"} {
+		for _, setting := range settings {
+			for _, tc := range cases {
+				t.Run(command+"/"+setting.env+"/"+tc.name, func(t *testing.T) {
+					clearCONFDEnvVars(t)
+					t.Setenv(setting.env, "/env")
+					toml := ""
+					if tc.toml {
+						toml = setting.tomlKey + ` = "/toml"`
+					}
+					args := []string{"--config-file", writeConfigFile(t, toml), command}
+					if tc.flagArgs != nil {
+						args = append(args, tc.flagArgs(setting.flag)...)
+					}
+					cli, _ := parseCLI(t, args)
+
+					cfg := emptyEnvBackendConfigs[command](cli)
+					resolveConfig(t, cli, &cfg)
+
+					if got := setting.get(&cfg); got != tc.want {
+						t.Errorf("got %q, want %q", got, tc.want)
+					}
+				})
+			}
+		}
 	}
 }
 
-func TestProcessEnvDoesNotOverride(t *testing.T) {
-	// Save and restore environment
-	origCert := os.Getenv("CONFD_CLIENT_CERT")
-	defer os.Setenv("CONFD_CLIENT_CERT", origCert)
-
-	os.Setenv("CONFD_CLIENT_CERT", "/env/cert")
-
-	// Pre-set value should not be overridden
-	cfg := &backends.Config{
-		ClientCert: "/cli/cert",
-	}
-	processEnv(cfg)
-
-	if cfg.ClientCert != "/cli/cert" {
-		t.Errorf("Expected ClientCert '/cli/cert' (not overridden), got %q", cfg.ClientCert)
-	}
-}
-
-// resolveConfig merges confd.toml, backend defaults and the environment into
-// cli and backendCfg in the same order as run().
+// resolveConfig merges confd.toml and backend defaults into cli and
+// backendCfg in the same order as run(). Flags and environment variables are
+// already applied by the parser.
 func resolveConfig(t *testing.T, cli *CLI, backendCfg *backends.Config) {
 	t.Helper()
 
@@ -941,7 +957,6 @@ func resolveConfig(t *testing.T, cli *CLI, backendCfg *backends.Config) {
 		t.Fatalf("loadConfigFile failed: %v", err)
 	}
 	applyBackendDefaults(backendCfg)
-	processEnv(backendCfg)
 }
 
 // TestConfigPrecedence_Representative walks one option of each kind through
