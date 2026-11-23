@@ -54,18 +54,22 @@ Configuration is loaded from multiple sources in order of precedence (highest to
 * `backend_timeout` (duration) - Overall timeout for backend operations. Default: `"30s"`
 * `check_cmd_timeout` (duration) - Default timeout for check commands. Default: `"30s"`
 * `reload_cmd_timeout` (duration) - Default timeout for reload commands. Default: `"60s"`
-* `dial_timeout` (duration) - Connection timeout for backends. Default: `"5s"`
-* `read_timeout` (duration) - Read timeout for backend operations. Default: `"1s"`
-* `write_timeout` (duration) - Write timeout for backend operations. Default: `"1s"`
+* `dial_timeout` (duration) - Connection timeout. Used by etcd, redis and zookeeper (connecting), imds (client setup), and acm, dynamodb, secretsmanager and ssm (only the region lookup against instance metadata, and only when `AWS_REGION` is not set). Not used by consul, vault, env or file. Default: `"5s"`
+* `read_timeout` (duration) - Read timeout. Used by the redis backend only. Default: `"1s"`
+* `write_timeout` (duration) - Write timeout. Used by the redis backend only. Default: `"1s"`
 * `preflight_timeout` (duration) - Timeout for preflight checks. Default: `"10s"`
 * `watch_error_backoff` (duration) - Backoff duration after watch errors. Default: `"2s"`
 * `shutdown_timeout` (duration) - Graceful shutdown timeout. Default: `"30s"`
 
+When `dial_timeout`, `read_timeout`, `write_timeout` or one of the retry options below is set for a backend that does not use it, confd logs a warning at startup (for example `--read-timeout has no effect with the etcd backend`) and carries on. The warning names the command-line flag whichever way the setting was supplied.
+
 ## Retry Options
 
-* `retry_max_attempts` (int) - Maximum number of retry attempts. Default: `3`
-* `retry_base_delay` (duration) - Initial backoff delay. Default: `"100ms"`
-* `retry_max_delay` (duration) - Maximum backoff delay. Default: `"5s"`
+These are used by the redis backend only.
+
+* `retry_max_attempts` (int) - Maximum number of retry attempts. Used by the redis backend only. Default: `3`
+* `retry_base_delay` (duration) - Initial backoff delay. Used by the redis backend only. Default: `"100ms"`
+* `retry_max_delay` (duration) - Maximum backoff delay. Used by the redis backend only. Default: `"5s"`
 
 ## Performance Options
 
@@ -74,7 +78,7 @@ Configuration is loaded from multiple sources in order of precedence (highest to
 
 ## Error Handling Options
 
-* `failure_mode` (string) - Error handling mode: `best-effort` or `fail-fast`. Default: `"best-effort"`
+* `failure_mode` (string) - Error handling mode: `best-effort` or `fail-fast`. Default: `"best-effort"`. With `--onetime` it also decides whether the remaining resources are processed when a resource file fails to load; see [`--failure-mode`](command-line-flags.md#--failure-mode)
   - `best-effort`: Continue processing remaining templates when one fails
   - `fail-fast`: Stop all processing on first template error
 
@@ -145,7 +149,7 @@ nodes = [
 prefix = "/production"
 ```
 
-### Production Configuration with Timeouts and Retries
+### Production Configuration with Timeouts
 
 ```toml
 confdir = "/etc/confd"
@@ -170,11 +174,10 @@ backend_timeout = "30s"
 check_cmd_timeout = "30s"
 reload_cmd_timeout = "60s"
 shutdown_timeout = "30s"
+dial_timeout = "10s"
 
-# Retries
-retry_max_attempts = 5
-retry_base_delay = "200ms"
-retry_max_delay = "10s"
+# The retry_* options, read_timeout and write_timeout are left out: only the
+# redis backend uses them, and this is an etcd configuration.
 
 # Error handling
 failure_mode = "best-effort"

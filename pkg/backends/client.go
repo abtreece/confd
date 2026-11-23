@@ -84,7 +84,12 @@ func New(ctx context.Context, config Config) (StoreClient, error) {
 		client, err = zookeeper.NewZookeeperClient(backendNodes, config.DialTimeout)
 	case "redis":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		client, err = redis.NewRedisClient(backendNodes, config.ClientKey, config.Separator,
+		// The client key is the legacy way to supply the redis password.
+		redisPassword := config.Password
+		if redisPassword == "" {
+			redisPassword = config.ClientKey
+		}
+		client, err = redis.NewRedisClient(backendNodes, redisPassword, config.Separator,
 			config.DialTimeout, config.ReadTimeout, config.WriteTimeout,
 			config.RetryMaxAttempts, config.RetryBaseDelay, config.RetryMaxDelay)
 	case "env":

@@ -37,7 +37,7 @@ Template resources are stored under the `/etc/confd/conf.d` directory by default
 **Watch Mode Tuning:**
 
 * `min_reload_interval` (string) - Minimum time between reload command executions for this resource. Uses Go duration format (e.g., `30s`, `1m`, `500ms`). If changes occur more frequently, reloads are throttled and a warning is logged.
-* `debounce` (string) - Wait for changes to settle before processing in watch mode. Uses Go duration format (e.g., `2s`, `500ms`). After detecting a change, confd waits this duration before processing. Additional changes during this period reset the timer. Useful for reducing unnecessary reloads when multiple keys change in rapid succession.
+* `debounce` (string) - Delay processing after a change in watch mode. Uses Go duration format (e.g., `2s`, `500ms`). After detecting a change, confd waits this duration and then processes the template once. Additional changes during the wait are picked up by that run and do not extend the wait, so a key that keeps changing is processed about once per debounce period. Useful for reducing unnecessary reloads when multiple keys change in rapid succession. Not applied when `--batch-interval` is set.
 
 ### Per-Resource Backend Configuration
 
@@ -68,6 +68,8 @@ When multiple template resources specify identical backend configurations, confd
 
 When using the `reload_cmd` feature it's important that the command exits on its own. The reload
 command is not managed by confd, and will block the configuration run until it exits.
+
+If `reload_cmd` fails, the destination file has already been replaced. confd remembers the failure and retries `reload_cmd` the next time it processes the resource, even though the destination is in sync, until the command succeeds. With `--interval` that is the next cycle; in watch mode it is the next change to a watched key. Before a retry the template is still fetched from the backend and still rendered, so a backend or rendering error prevents the retry on that cycle; what a retry skips is writing the file and running `check_cmd`. The pending retry is kept in memory only, so it is lost on restart and on `SIGHUP`. During a retry there is no stage file, so `{{.src}}` in `reload_cmd` is the destination path.
 
 `check_cmd` and `reload_cmd` run through a shell: `/bin/sh -c` on Unix and `cmd /C` on Windows.
 Shell quoting and expansion (variables, globs, pipes, `&&`) apply to the rendered command string,
@@ -191,7 +193,7 @@ If a change is detected within 30 seconds of the last reload, confd will log a w
 
 ## Example with Debouncing (Watch Mode)
 
-This example waits for changes to settle for 2 seconds before processing, useful in watch mode when multiple keys may change in rapid succession:
+This example waits 2 seconds after a change before processing, useful in watch mode when multiple keys may change in rapid succession:
 
 ```TOML
 [template]
@@ -204,7 +206,7 @@ reload_cmd = "/usr/bin/systemctl reload myapp"
 debounce = "2s"
 ```
 
-When running in watch mode (`--watch`), if multiple keys under `/myapp/config` change within 2 seconds, confd will only process the template once after all changes have settled. This reduces unnecessary template renders and reload commands.
+When running in watch mode (`--watch`), confd waits 2 seconds after the first change and then processes the template once, so multiple keys under `/myapp/config` that change within those 2 seconds cause a single render and reload. The wait is a fixed delay: later changes do not extend it. If keys keep changing for longer than 2 seconds, the template is processed about once per debounce period for as long as they keep changing. This reduces unnecessary template renders and reload commands.
 
 You can also set a global debounce for all templates using the `--debounce` command-line flag:
 
@@ -224,7 +226,7 @@ confd --watch --batch-interval 5s consul
 
 When running in watch mode with `--batch-interval`, all template changes are collected and processed together every 5 seconds. This differs from debouncing:
 
-- **Debouncing**: Per-template, waits for a single template's changes to settle
+- **Debouncing**: Per-template, waits a fixed delay after a template's change and then processes that template
 - **Batch Processing**: Global, collects changes from all templates and processes them together
 
 Batch processing is especially useful when:
@@ -232,4 +234,4 @@ Batch processing is especially useful when:
 - Template processing is expensive and you want to minimize processing overhead
 - Multiple related keys change in quick succession across different templates
 
-Note: When batch processing is enabled, individual template debounce settings are still respected within the batch window.
+Note: When batch processing is enabled, debounce is not applied. Neither the per-resource `debounce` key nor the global `--debounce` flag has any effect: each change is queued as soon as it is detected and processed when the batch interval expires.

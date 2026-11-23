@@ -38,7 +38,7 @@ Cannot load template resources: config dir '<confdir>/conf.d': <reason>
 Found no templates
 ```
 
-**Cause:** confd looks for template resources in `<confdir>/conf.d` and templates in `<confdir>/templates`. Either the directory does not exist (or is unreadable), or it contains no files ending in `toml`. Both are warnings, not errors: `--onetime` exits 0 having done nothing.
+**Cause:** confd looks for template resources in `<confdir>/conf.d` and templates in `<confdir>/templates`. Either the directory does not exist (or is unreadable), or it contains no files ending in `toml`. Both are warnings, not errors: `--onetime` exits 0 having done nothing, and interval and watch mode keep running.
 
 **Confirm:** run with `--log-level debug` and look for `Loading template resources from config dir <dir>` followed by one `Found template: <path>` line per resource file.
 
@@ -52,7 +52,7 @@ At debug level:
 Target config <dest> in sync
 ```
 
-**Cause:** the rendered output, file mode and ownership all match the destination, so confd does nothing. Neither `check_cmd` nor `reload_cmd` runs when nothing changed.
+**Cause:** the rendered output, file mode and ownership all match the destination, so confd does not write the file. `check_cmd` does not run when nothing changed, and `reload_cmd` runs only to retry a reload that failed on an earlier cycle (see [The reload command fails](#the-reload-command-fails)).
 
 **Fix:** none needed. If you expected a change, the backend is returning the same values as before: check the keys and prefix (see [Missing key](#missing-key)).
 
@@ -84,8 +84,10 @@ Failed to load template resource <path>: cannot process template resource <path>
 
 How much damage one bad file does depends on the mode:
 
-- With `--onetime`, confd exits with an error and processes **no** resources, including the valid ones. `--failure-mode` does not change this; it only applies to errors during processing.
-- In interval and watch mode, confd logs `Some template resources failed to load: <error>` and carries on with the resources that did load. If none load, it logs `Failed to load any template resources: <error>` and shuts down. It exits with status 0 in that case, so a service manager does not record a failure: check the log.
+- With `--onetime`, `--failure-mode` decides, as it does for errors during processing. Under `best-effort` (the default) confd processes the resources that did load. Under `fail-fast` it logs `Fail-fast mode: not processing any template resource after a load error` and processes nothing. Either way it exits non-zero, and the final error names each resource file that failed to load.
+- In interval and watch mode (including `--batch-interval`), confd logs `Some template resources failed to load: <error>` and carries on with the resources that did load, whatever the failure mode. If none load, it logs `Failed to load any template resources: <error>`, shuts down gracefully and exits with status 1 and the error `no template resources could be loaded: <error>`, so a service manager records a failure. The same applies when a `SIGHUP` reload finds resource files and none of them load: confd stops rather than carrying on with the resources it had.
+
+An empty or missing `conf.d` is not a load failure: see [No template resources were loaded](#no-template-resources-were-loaded).
 
 ### Other load-time errors
 
@@ -228,6 +230,14 @@ The client was created but a read failed. In interval and watch mode confd keeps
   | `--retry-max-attempts`, `--retry-base-delay`, `--retry-max-delay` | redis |
 
   consul, vault, env and file use none of these.
+
+  When one of these six flags is set for a backend that does not use it, confd logs a warning at startup and carries on:
+
+  ```text
+  --<flag> has no effect with the <backend> backend
+  ```
+
+  The setting is ignored, not rejected. The message names the flag even when the value came from its `CONFD_*` environment variable or its `confd.toml` key, so look in all three places. Remove the setting, or use `--backend-timeout`, which applies to every backend.
 - TLS handshake errors come from the client library. For consul, etcd and vault, check `--client-ca-keys`, `--client-cert` and `--client-key`; for consul also check that `--scheme` matches what the agent serves.
 
 Backend-specific messages that confd itself produces:
@@ -297,7 +307,14 @@ run command: <error>
 
 **Cause:** `reload_cmd` exited non-zero. Read `exit_code` and `output` in the `Command failed` record. `exit_code=127` with a "command not found" message from the shell means the command is not on confd's `PATH`, which is often shorter under a service manager than in your shell: use absolute paths. A permission error in the output means the user confd runs as is not allowed to perform the reload.
 
-**Important:** the destination file has already been replaced when `reload_cmd` runs. On the next cycle confd finds the destination in sync and does **not** run the reload again, so the application keeps running with its old configuration until something else changes. After fixing the cause, reload the application yourself, or remove the destination file so that confd regenerates it and reruns the commands.
+**Retry:** the destination file has already been replaced when `reload_cmd` runs, so the application keeps running with its old configuration until a reload succeeds. confd remembers the failed reload and retries `reload_cmd` the next time it processes the resource, even though the destination is now in sync. It logs `Retrying reload_cmd for <dest> after an earlier failure` at info level, and a retry that fails is reported like the first failure. The retry stops after the first success.
+
+- With `--interval` the retry runs on every cycle until it succeeds. With `--watch` the resource is only processed when a watched key changes, so the retry waits for the next change.
+- A retry skips writing the file and running `check_cmd`, but the template is still fetched from the backend and still rendered first, so a backend or rendering error is reported instead and `reload_cmd` is not retried on that cycle. The retry resumes once the resource fetches and renders cleanly again.
+- There is no stage file during a retry, so `{{.src}}` in `reload_cmd` is the destination path.
+- The pending retry is held in memory. It is lost when confd restarts or reloads its template resources on `SIGHUP`, and a `--onetime` run cannot retry: it exits non-zero, and a second run finds the destination in sync and does not run `reload_cmd`. In those cases reload the application yourself, or remove the destination file so that confd regenerates it and reruns the commands.
+- `--noop` and `--sync-only` never run `reload_cmd`, including retries.
+- A failed retry is an error for that cycle. Under `--failure-mode fail-fast` in interval mode, a resource whose reload keeps failing therefore stops the resources after it on every cycle, and they are not rendered at all until the reload succeeds.
 
 ### A command times out
 
@@ -314,7 +331,7 @@ command timed out after <timeout>
 
 | Log line | Reason |
 |----------|--------|
-| `Target config <dest> in sync` (debug) | Nothing changed, so no commands run. |
+| `Target config <dest> in sync` (debug) | Nothing changed, so `check_cmd` does not run, and `reload_cmd` runs only to retry a reload that failed earlier. |
 | `Reload throttled for <dest> (next allowed in <duration>)` | `min_reload_interval` has not elapsed since the last reload. The file was still updated; the reload for this change is skipped, not deferred. |
 | `Noop mode enabled. <dest> will not be modified` | `--noop` is set (on the command line, as `CONFD_NOOP`, or `noop = true` in `confd.toml`). |
 | none | `--sync-only` is set, which writes files but skips both commands. |
@@ -374,7 +391,7 @@ Two cases the startup check does not cover:
 
 ## Errors Are Logged but confd Keeps Running
 
-**Cause:** this is the default. In interval and watch mode a failing resource is logged at error level and retried on the next cycle or change; other resources are unaffected. Only `--onetime` turns a processing error into a non-zero exit status. While the backend is failing, the `/ready` endpoint (with `--metrics-addr` set) returns 503.
+**Cause:** this is the default. In interval and watch mode a failing resource is logged at error level and retried on the next cycle or change; other resources are unaffected. Only `--onetime` turns a processing error into a non-zero exit status; a long-running confd exits non-zero on its own only when [no resource file could be loaded](#a-resource-file-fails-to-load). While the backend is failing, the `/ready` endpoint (with `--metrics-addr` set) returns 503.
 
 **Fix:** to stop a cycle at the first failure, use `--failure-mode fail-fast`; confd logs `Fail-fast mode: stopping after error in <dest>` and skips the remaining resources for that cycle. To detect failures from outside, alert on error-level log lines or, with `--metrics-addr` set, on `confd_template_process_total` with `status="error"` and on `confd_backend_errors_total`.
 

@@ -29,6 +29,7 @@ func parseSources(t *testing.T, env map[string]string, args []string) *configSou
 	t.Helper()
 
 	clearCONFDEnvVars(t)
+	unsetEnv(t, redisPasswordEnv)
 	for key, value := range env {
 		t.Setenv(key, value)
 	}

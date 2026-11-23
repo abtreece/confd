@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -78,14 +79,16 @@ type CLI struct {
 	ReloadCmdTimeout time.Duration `name:"reload-cmd-timeout" help:"default timeout for reload commands (e.g., 60s)" default:"60s" env:"CONFD_RELOAD_CMD_TIMEOUT"`
 
 	// Connection timeouts
-	DialTimeout  time.Duration `name:"dial-timeout" help:"connection timeout for backends" default:"5s" env:"CONFD_DIAL_TIMEOUT"`
-	ReadTimeout  time.Duration `name:"read-timeout" help:"read timeout for backend operations" default:"1s" env:"CONFD_READ_TIMEOUT"`
-	WriteTimeout time.Duration `name:"write-timeout" help:"write timeout for backend operations" default:"1s" env:"CONFD_WRITE_TIMEOUT"`
+	// Which backends use each of these is recorded in backendFlagScope
+	// (config.go); keep the help text in step with it.
+	DialTimeout  time.Duration `name:"dial-timeout" help:"connection timeout (not used by consul, env, file or vault)" default:"5s" env:"CONFD_DIAL_TIMEOUT"`
+	ReadTimeout  time.Duration `name:"read-timeout" help:"redis only: read timeout" default:"1s" env:"CONFD_READ_TIMEOUT"`
+	WriteTimeout time.Duration `name:"write-timeout" help:"redis only: write timeout" default:"1s" env:"CONFD_WRITE_TIMEOUT"`
 
-	// Retry configuration
-	RetryMaxAttempts int           `name:"retry-max-attempts" help:"max retry attempts for connections" default:"3" env:"CONFD_RETRY_MAX_ATTEMPTS"`
-	RetryBaseDelay   time.Duration `name:"retry-base-delay" help:"initial backoff delay" default:"100ms" env:"CONFD_RETRY_BASE_DELAY"`
-	RetryMaxDelay    time.Duration `name:"retry-max-delay" help:"maximum backoff delay" default:"5s" env:"CONFD_RETRY_MAX_DELAY"`
+	// Retry configuration (redis only, see backendFlagScope)
+	RetryMaxAttempts int           `name:"retry-max-attempts" help:"redis only: max connection retry attempts" default:"3" env:"CONFD_RETRY_MAX_ATTEMPTS"`
+	RetryBaseDelay   time.Duration `name:"retry-base-delay" help:"redis only: initial retry backoff delay" default:"100ms" env:"CONFD_RETRY_BASE_DELAY"`
+	RetryMaxDelay    time.Duration `name:"retry-max-delay" help:"redis only: maximum retry backoff delay" default:"5s" env:"CONFD_RETRY_MAX_DELAY"`
 
 	// Watch mode timeouts
 	WatchErrorBackoff time.Duration `name:"watch-error-backoff" help:"backoff after watch errors" default:"2s" env:"CONFD_WATCH_ERROR_BACKOFF"`
@@ -237,15 +240,49 @@ func (v *VaultCmd) Run(cli *CLI) error {
 	return run(cli, cfg)
 }
 
+// redisPasswordEnv is the environment variable the redis command reads its
+// password from.
+const redisPasswordEnv = "REDIS_PASSWORD"
+
+// RedisCmd declares the AuthFlags fields itself rather than embedding
+// AuthFlags, so that REDIS_PASSWORD is bound to the redis password flag only
+// and no other backend reads it.
 type RedisCmd struct {
 	NodeFlags
 	TLSFlags
-	AuthFlags
+	BasicAuth bool   `name:"basic-auth" help:"use basic authentication"`
+	Username  string `help:"authentication username"`
+	Password  string `help:"Redis password (legacy: --client-key is used when no password is set)" env:"REDIS_PASSWORD"`
+	AuthToken string `name:"auth-token" help:"bearer token for authentication"`
 	Separator string `help:"separator to replace '/' in keys"`
 }
 
 func (r *RedisCmd) Run(cli *CLI) error {
-	cfg := backends.Config{
+	r.resolvePassword(cli)
+	return run(cli, r.backendConfig())
+}
+
+// resolvePassword treats an empty --password or REDIS_PASSWORD as unset, so
+// that the first non-empty source wins: flag, then REDIS_PASSWORD, then
+// password in confd.toml.
+//
+// An empty --password stops the parser from reading REDIS_PASSWORD, so the
+// variable is read here. When neither gives a password, both are still
+// recorded as explicit sources, which would stop the confd.toml password
+// from applying, so those records are dropped.
+func (r *RedisCmd) resolvePassword(cli *CLI) {
+	if r.Password == "" {
+		r.Password = os.Getenv(redisPasswordEnv)
+	}
+	if r.Password == "" && cli.configSources != nil {
+		delete(cli.configSources.cli, "password")
+		delete(cli.configSources.env, "password")
+	}
+}
+
+// backendConfig builds the redis backend config from the parsed command.
+func (r *RedisCmd) backendConfig() backends.Config {
+	return backends.Config{
 		Backend:      "redis",
 		BackendNodes: r.Node,
 		ClientCert:   r.ClientCert,
@@ -255,7 +292,6 @@ func (r *RedisCmd) Run(cli *CLI) error {
 		Password:     r.Password,
 		Separator:    r.Separator,
 	}
-	return run(cli, cfg)
 }
 
 type ZookeeperCmd struct {
@@ -384,6 +420,11 @@ func run(cli *CLI, backendCfg backends.Config) error {
 	if cli.LogFormat != "" {
 		log.SetFormat(cli.LogFormat)
 	}
+
+	// Warn about timeout and retry flags the backend does not use. This runs
+	// before the backend client is created so that it is logged even when the
+	// backend then fails to connect.
+	warnIgnoredBackendFlags(cli.configSources, backendCfg.Backend)
 
 	// Check-config mode: validate configuration and exit (no backend needed)
 	if cli.CheckConfig {
@@ -587,13 +628,24 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		return nil
 	}
 
+	procErrs := &processorErrors{errChan: errChan, doneChan: doneChan}
+	// finish shuts down once the processor has stopped. A processor that
+	// stopped because no template resource loaded makes confd exit non-zero.
+	finish := func() error {
+		procErrs.waitDone()
+		if err := shutdown(); err != nil {
+			return err
+		}
+		return procErrs.fatal
+	}
+
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	var stopOnce sync.Once
 	for {
 		select {
 		case err := <-errChan:
-			log.Error("%s", err.Error())
+			procErrs.handle(err)
 		case s := <-signalChan:
 			switch s {
 			case syscall.SIGHUP:
@@ -615,11 +667,50 @@ func run(cli *CLI, backendCfg backends.Config) error {
 				}
 				cancel() // Cancel context to signal all goroutines
 				stopOnce.Do(func() { close(stopChan) })
-				<-doneChan
-				return shutdown()
+				return finish()
 			}
 		case <-doneChan:
-			return shutdown()
+			return finish()
+		}
+	}
+}
+
+// processorErrors receives the errors a long-running processor reports.
+// Errors are logged and the processor carries on, except for
+// template.ErrNoTemplateResources: the processor has stopped, and the error
+// is kept in fatal for run to return once shutdown has completed.
+type processorErrors struct {
+	errChan  <-chan error
+	doneChan <-chan bool
+	fatal    error
+}
+
+func (p *processorErrors) handle(err error) {
+	if errors.Is(err, template.ErrNoTemplateResources) {
+		// Not logged here: run returns it and it is reported on exit.
+		p.fatal = err
+		return
+	}
+	log.Error("%s", err.Error())
+}
+
+// waitDone handles errors until the processor has stopped, then the ones it
+// reported just before stopping. A processor sends its last error before it
+// closes doneChan, so that error may still be unread when doneChan closes.
+func (p *processorErrors) waitDone() {
+	for {
+		select {
+		case err := <-p.errChan:
+			p.handle(err)
+		case <-p.doneChan:
+			for {
+				select {
+				case err := <-p.errChan:
+					p.handle(err)
+				default:
+					return
+				}
+			}
 		}
 	}
 }

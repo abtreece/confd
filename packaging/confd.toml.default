@@ -43,15 +43,16 @@
 # client_insecure = false
 
 # Timeouts
+# dial_timeout is not used by the consul, vault, env or file backends.
 # dial_timeout = "5s"
-# read_timeout = "1s"
-# write_timeout = "1s"
+# read_timeout = "1s"   # redis backend only
+# write_timeout = "1s"  # redis backend only
 # backend_timeout = "30s"
 # check_cmd_timeout = "30s"
 # reload_cmd_timeout = "60s"
 
-# Retry configuration
-# retry_max_attempts = 3
+# Retry configuration (redis backend only)
+# retry_max_attempts = 3  # redis backend only
 # retry_base_delay = "100ms"
 # retry_max_delay = "5s"
 

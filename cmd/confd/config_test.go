@@ -773,22 +773,11 @@ password = "secret"
 	}
 }
 func TestProcessEnv(t *testing.T) {
-	// Save and restore environment
-	origCert := os.Getenv("CONFD_CLIENT_CERT")
-	origKey := os.Getenv("CONFD_CLIENT_KEY")
-	origCaKeys := os.Getenv("CONFD_CLIENT_CAKEYS")
-	origACM := os.Getenv("ACM_EXPORT_PRIVATE_KEY")
-	defer func() {
-		os.Setenv("CONFD_CLIENT_CERT", origCert)
-		os.Setenv("CONFD_CLIENT_KEY", origKey)
-		os.Setenv("CONFD_CLIENT_CAKEYS", origCaKeys)
-		os.Setenv("ACM_EXPORT_PRIVATE_KEY", origACM)
-	}()
-
-	os.Setenv("CONFD_CLIENT_CERT", "/env/cert")
-	os.Setenv("CONFD_CLIENT_KEY", "/env/key")
-	os.Setenv("CONFD_CLIENT_CAKEYS", "/env/ca")
-	os.Setenv("ACM_EXPORT_PRIVATE_KEY", "true")
+	t.Setenv("CONFD_CLIENT_CERT", "/env/cert")
+	t.Setenv("CONFD_CLIENT_KEY", "/env/key")
+	t.Setenv("CONFD_CLIENT_CAKEYS", "/env/ca")
+	// ACM_EXPORT_PRIVATE_KEY is parsed by Kong; processEnv must leave it alone.
+	t.Setenv("ACM_EXPORT_PRIVATE_KEY", "true")
 
 	cfg := &backends.Config{}
 	processEnv(cfg)
@@ -802,8 +791,8 @@ func TestProcessEnv(t *testing.T) {
 	if cfg.ClientCaKeys != "/env/ca" {
 		t.Errorf("Expected ClientCaKeys '/env/ca', got %q", cfg.ClientCaKeys)
 	}
-	if !cfg.ACMExportPrivateKey {
-		t.Error("Expected ACMExportPrivateKey to be true")
+	if cfg.ACMExportPrivateKey {
+		t.Error("Expected processEnv to leave ACMExportPrivateKey false")
 	}
 }
 
@@ -881,8 +870,6 @@ func TestConfigPrecedence_Representative(t *testing.T) {
 		backend func(*CLI) backends.Config
 		got     func(*CLI, *backends.Config) any
 		want    any
-		// skip, when set, is the reason this case is not run
-		skip string
 	}{
 		// bool, resolving to true
 		{name: "bool true/toml only", toml: `noop = true`, args: []string{"env"}, got: noop, want: true},
@@ -934,23 +921,12 @@ func TestConfigPrecedence_Representative(t *testing.T) {
 		{name: "acm export private key/toml only", toml: `acm_export_private_key = true`, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: true},
 		{name: "acm export private key/env true over toml", toml: `acm_export_private_key = false`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "true"}, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: true},
 		{name: "acm export private key/flag over env", toml: `acm_export_private_key = false`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "false"}, args: []string{"acm", "--acm-export-private-key"}, backend: acmConfig, got: acmExport, want: true},
-		{
-			name: "acm export private key/env false over toml", toml: `acm_export_private_key = true`,
-			env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "false"}, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: false,
-			skip: "processEnv treats any non-empty ACM_EXPORT_PRIVATE_KEY as true, so an explicit false enables export",
-		},
-		{
-			name: "acm export private key/flag false over env", toml: `acm_export_private_key = true`,
-			env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "true"}, args: []string{"acm", "--acm-export-private-key=false"}, backend: acmConfig, got: acmExport, want: false,
-			skip: "processEnv re-enables export from ACM_EXPORT_PRIVATE_KEY after an explicit --acm-export-private-key=false",
-		},
+		{name: "acm export private key/env false over toml", toml: `acm_export_private_key = true`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "false"}, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: false},
+		{name: "acm export private key/flag false over env", toml: `acm_export_private_key = true`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "true"}, args: []string{"acm", "--acm-export-private-key=false"}, backend: acmConfig, got: acmExport, want: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.skip != "" {
-				t.Skip(tt.skip)
-			}
 			clearCONFDEnvVars(t)
 			for key, value := range tt.env {
 				t.Setenv(key, value)
@@ -966,6 +942,44 @@ func TestConfigPrecedence_Representative(t *testing.T) {
 
 			if got := tt.got(cli, &backendCfg); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("got %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestACMExportPrivateKeyEnvValues checks that ACM_EXPORT_PRIVATE_KEY is read
+// as a boolean rather than as "set means true", and that an explicit flag wins
+// over it in both directions.
+func TestACMExportPrivateKeyEnvValues(t *testing.T) {
+	tests := []struct {
+		name string
+		// env is the value of ACM_EXPORT_PRIVATE_KEY; nil leaves it unset
+		env  *string
+		flag []string
+		want bool
+	}{
+		{name: "env_false", env: new("false"), want: false},
+		{name: "env_0", env: new("0"), want: false},
+		{name: "env_true", env: new("true"), want: true},
+		{name: "env_unset", want: false},
+		{name: "env_true_flag_false", env: new("true"), flag: []string{"--acm-export-private-key=false"}, want: false},
+		{name: "env_false_flag_true", env: new("false"), flag: []string{"--acm-export-private-key"}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearCONFDEnvVars(t)
+			if tt.env != nil {
+				t.Setenv("ACM_EXPORT_PRIVATE_KEY", *tt.env)
+			}
+			configFile := writeConfigFile(t, "")
+			cli, _ := parseCLI(t, append([]string{"--config-file", configFile, "acm"}, tt.flag...))
+
+			backendCfg := backends.Config{Backend: "acm", ACMExportPrivateKey: cli.ACM.ExportPrivateKey}
+			resolveConfig(t, cli, &backendCfg)
+
+			if backendCfg.ACMExportPrivateKey != tt.want {
+				t.Errorf("ACMExportPrivateKey = %v, want %v", backendCfg.ACMExportPrivateKey, tt.want)
 			}
 		})
 	}

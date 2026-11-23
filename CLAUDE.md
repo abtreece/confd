@@ -356,17 +356,23 @@ confd provides configurable timeouts and retry behavior for production resilienc
 - `--backend-timeout` - Overall timeout for backend operations (default: 30s)
 - `--check-cmd-timeout` - Timeout for check commands (default: 30s)
 - `--reload-cmd-timeout` - Timeout for reload commands (default: 60s)
-- `--dial-timeout` - Connection timeout for backends (default: 5s)
-- `--read-timeout` - Read timeout for backend operations (default: 1s)
-- `--write-timeout` - Write timeout for backend operations (default: 1s)
+- `--dial-timeout` - Connection timeout (default: 5s). Used by etcd, redis, zookeeper and imds, and by acm, dynamodb, secretsmanager and ssm only for the region lookup against instance metadata when `AWS_REGION` is not set. Not used by consul, vault, env or file
+- `--read-timeout` - Read timeout, redis only (default: 1s)
+- `--write-timeout` - Write timeout, redis only (default: 1s)
 - `--preflight-timeout` - Timeout for preflight checks (default: 10s)
 - `--watch-error-backoff` - Backoff after watch errors (default: 2s)
 
 ### Retry Configuration
 
-- `--retry-max-attempts` - Maximum retry attempts (default: 3)
-- `--retry-base-delay` - Initial backoff delay (default: 100ms)
-- `--retry-max-delay` - Maximum backoff delay (default: 5s)
+These apply to the redis backend only.
+
+- `--retry-max-attempts` - Maximum retry attempts, redis only (default: 3)
+- `--retry-base-delay` - Initial backoff delay, redis only (default: 100ms)
+- `--retry-max-delay` - Maximum backoff delay, redis only (default: 5s)
+
+### Ignored Timeout and Retry Flags
+
+When one of the six connection timeout and retry flags above is supplied (flag, `CONFD_*` variable or `confd.toml` key) for a backend that does not use it, confd logs `--<flag> has no effect with the <backend> backend` at startup and carries on. The scope table is `backendFlagScope` in `cmd/confd/config.go`; it mirrors the constructor calls in `backends.New` and must be updated with them.
 
 ### Failure Modes
 
@@ -379,7 +385,7 @@ confd supports two error handling modes via `--failure-mode`:
 
 ### Debouncing
 
-Global debounce waits for changes to settle before processing:
+Global debounce waits a fixed delay after a change before processing:
 
 ```bash
 confd --watch --debounce 2s etcd
@@ -394,7 +400,7 @@ confd --watch --batch-interval 5s etcd
 ```
 
 **Difference**:
-- `--debounce`: Per-template, resets timer on each change
+- `--debounce`: Per-template, fixed delay after a change; later changes do not extend it, so a key that keeps changing is processed about once per debounce period
 - `--batch-interval`: Global, fixed interval for all templates
 
 ## Release Process

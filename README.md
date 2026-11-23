@@ -89,7 +89,7 @@ confd file --file /path/to/config.yaml --onetime
 # Watch etcd for changes
 confd etcd --node http://127.0.0.1:2379 --watch
 
-# Watch with debouncing (wait 2s after changes settle)
+# Watch with debouncing (wait 2s after a change before processing)
 confd etcd --watch --debounce 2s
 
 # Batch processing (collect changes every 5s)
@@ -149,10 +149,11 @@ backend_timeout = "30s"
 check_cmd_timeout = "30s"
 reload_cmd_timeout = "60s"
 
-# Retries
-retry_max_attempts = 3
-retry_base_delay = "100ms"
-retry_max_delay = "5s"
+# Retries: used by the redis backend only. Other backends ignore them and
+# confd logs a warning at startup, so uncomment these only with `confd redis`.
+# retry_max_attempts = 3
+# retry_base_delay = "100ms"
+# retry_max_delay = "5s"
 
 # Metrics
 metrics_addr = ":9100"

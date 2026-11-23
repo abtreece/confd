@@ -2,8 +2,10 @@ package template
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -1222,10 +1224,15 @@ func TestSync_CheckCmdFails(t *testing.T) {
 
 	err = tr.sync()
 	if err == nil {
-		t.Error("sync() expected error when check command fails, got nil")
+		t.Fatal("sync() expected error when check command fails, got nil")
 	}
-	if !strings.Contains(err.Error(), "config check failed") {
-		t.Errorf("sync() error = %v, want error containing 'config check failed'", err)
+	want := "config check failed: run command: exit status 1"
+	if err.Error() != want {
+		t.Errorf("sync() error = %q, want %q", err, want)
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Errorf("sync() error = %v, want it to wrap *exec.ExitError", err)
 	}
 }
 
