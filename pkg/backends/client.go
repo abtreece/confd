@@ -90,7 +90,7 @@ func New(ctx context.Context, config Config) (StoreClient, error) {
 		if redisPassword == "" {
 			redisPassword = config.ClientKey
 		}
-		client, err = redis.NewRedisClient(backendNodes, redisPassword, config.Separator,
+		client, err = redis.NewRedisClient(backendNodes, config.Username, redisPassword, config.Separator,
 			config.DialTimeout, config.ReadTimeout, config.WriteTimeout,
 			config.RetryMaxAttempts, config.RetryBaseDelay, config.RetryMaxDelay)
 	case "env":

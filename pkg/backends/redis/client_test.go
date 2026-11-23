@@ -230,7 +230,7 @@ func TestRedisNilError(t *testing.T) {
 
 func TestCreateClient_EmptyMachines(t *testing.T) {
 	config := RetryConfig{MaxRetries: 0, BaseDelay: 0, MaxDelay: 0, JitterFactor: 0}
-	client, db, err := createClient([]string{}, "password", true, config, 0, 0, 0)
+	client, db, err := createClient([]string{}, "", "password", true, config, 0, 0, 0)
 	if client != nil {
 		t.Error("createClient with empty machines should return nil client")
 	}
@@ -246,7 +246,7 @@ func TestCreateClient_InvalidAddress(t *testing.T) {
 	// Try to connect to an invalid address - should fail
 	// Use zero retries for fast test
 	config := RetryConfig{MaxRetries: 0, BaseDelay: 0, MaxDelay: 0, JitterFactor: 0}
-	client, _, err := createClient([]string{"invalid-host-that-does-not-exist:6379"}, "", true, config, 0, 0, 0)
+	client, _, err := createClient([]string{"invalid-host-that-does-not-exist:6379"}, "", "", true, config, 0, 0, 0)
 	if err == nil {
 		// Connection might not fail immediately in all environments
 		// but the client should still be nil or fail on ping
@@ -401,7 +401,7 @@ func TestNewRedisClient(t *testing.T) {
 	s := miniredis.RunT(t)
 
 	t.Run("default separator", func(t *testing.T) {
-		client, err := NewRedisClient([]string{s.Addr()}, "", "", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{s.Addr()}, "", "", "", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -416,7 +416,7 @@ func TestNewRedisClient(t *testing.T) {
 	})
 
 	t.Run("custom separator", func(t *testing.T) {
-		client, err := NewRedisClient([]string{s.Addr()}, "", ":", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{s.Addr()}, "", "", ":", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -431,7 +431,7 @@ func TestNewRedisClient(t *testing.T) {
 		s2 := miniredis.RunT(t)
 		s2.RequireAuth("secret")
 
-		client, err := NewRedisClient([]string{s2.Addr()}, "secret", "/", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{s2.Addr()}, "", "secret", "/", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -446,9 +446,96 @@ func TestNewRedisClient(t *testing.T) {
 		s2 := miniredis.RunT(t)
 		s2.RequireAuth("secret")
 
-		_, err := NewRedisClient([]string{s2.Addr()}, "wrong", "/", 0, 0, 0, 0, 0, 0)
+		_, err := NewRedisClient([]string{s2.Addr()}, "", "wrong", "/", 0, 0, 0, 0, 0, 0)
 		if err == nil {
 			t.Fatal("NewRedisClient() expected error for wrong password")
+		}
+	})
+}
+
+// TestNewRedisClient_Username checks that the username authenticates as a
+// Redis ACL user, both on the first connection and when the client
+// reconnects.
+func TestNewRedisClient_Username(t *testing.T) {
+	newACLServer := func(t *testing.T) *miniredis.Miniredis {
+		t.Helper()
+		s := miniredis.RunT(t)
+		s.RequireUserAuth("app", "secret")
+		if err := s.Set("/app/key", "value"); err != nil {
+			t.Fatalf("seed miniredis: %v", err)
+		}
+		return s
+	}
+
+	t.Run("username and password", func(t *testing.T) {
+		s := newACLServer(t)
+		client, err := NewRedisClient([]string{s.Addr()}, "app", "secret", "/", 0, 0, 0, 0, 0, 0)
+		if err != nil {
+			t.Fatalf("NewRedisClient() unexpected error: %v", err)
+		}
+		defer client.Close()
+
+		// Drop the connection so GetValues has to reconnect with the stored
+		// username.
+		client.client.Close()
+		client.client = nil
+		values, err := client.GetValues(context.Background(), []string{"/app/key"})
+		if err != nil {
+			t.Fatalf("GetValues() after reconnect: %v", err)
+		}
+		if values["/app/key"] != "value" {
+			t.Errorf("GetValues()[/app/key] = %q, want %q", values["/app/key"], "value")
+		}
+	})
+
+	t.Run("password without the username", func(t *testing.T) {
+		s := newACLServer(t)
+		if _, err := NewRedisClient([]string{s.Addr()}, "", "secret", "/", 0, 0, 0, 0, 0, 0); err == nil {
+			t.Fatal("NewRedisClient() succeeded without the ACL username, want authentication failure")
+		}
+	})
+
+	t.Run("wrong username", func(t *testing.T) {
+		s := newACLServer(t)
+		if _, err := NewRedisClient([]string{s.Addr()}, "other", "secret", "/", 0, 0, 0, 0, 0, 0); err == nil {
+			t.Fatal("NewRedisClient() succeeded with the wrong username, want authentication failure")
+		}
+	})
+
+	t.Run("watch connection", func(t *testing.T) {
+		s := newACLServer(t)
+		client, err := NewRedisClient([]string{s.Addr()}, "app", "secret", "/", 0, 0, 0, 0, 0, 0)
+		if err != nil {
+			t.Fatalf("NewRedisClient() unexpected error: %v", err)
+		}
+		defer client.Close()
+
+		client.pubsubMu.Lock()
+		client.watchedPrefixes["/app"] = struct{}{}
+		client.pubsubMu.Unlock()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			client.watchWithReconnect(ctx)
+		}()
+		defer func() {
+			cancel()
+			<-done
+		}()
+
+		// The watch opens its own connection, which must also authenticate
+		// as the ACL user before it can subscribe.
+		deadline := time.After(2 * time.Second)
+		for s.PubSubNumPat() == 0 {
+			select {
+			case resp := <-client.pscChan:
+				t.Fatalf("watch connection failed: %v", resp.err)
+			case <-deadline:
+				t.Fatal("watch connection did not subscribe within 2s")
+			case <-time.After(10 * time.Millisecond):
+			}
 		}
 	})
 }
@@ -462,7 +549,7 @@ func TestGetValues_StringType(t *testing.T) {
 	s.Set("/app/config/key2", "value2")
 	s.Set("/app/other/key3", "value3")
 
-	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}
@@ -510,7 +597,7 @@ func TestGetValues_HashType(t *testing.T) {
 	s.HSet("/app/config", "field2", "hashvalue2")
 	s.HSet("/app/config", "field3", "hashvalue3")
 
-	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}
@@ -542,7 +629,7 @@ func TestGetValues_ScanPattern(t *testing.T) {
 	s.Set("/app/service/timeout", "30")
 	s.Set("/other/key", "other")
 
-	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}
@@ -582,7 +669,7 @@ func TestGetValues_CustomSeparator(t *testing.T) {
 	s.Set("app:config:db:host", "localhost")
 	s.Set("app:config:db:port", "5432")
 
-	client, err := NewRedisClient([]string{s.Addr()}, "", ":", 0, 0, 0, 0, 0, 0)
+	client, err := NewRedisClient([]string{s.Addr()}, "", "", ":", 0, 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}
@@ -616,7 +703,7 @@ func TestConnectionFailover(t *testing.T) {
 
 		// Should fail over to s2
 		config := RetryConfig{MaxRetries: 0, BaseDelay: 0, MaxDelay: 0, JitterFactor: 0}
-		rClient, _, err := createClient([]string{addr1, addr2}, "", true, config, 0, 0, 0)
+		rClient, _, err := createClient([]string{addr1, addr2}, "", "", true, config, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("createClient() unexpected error: %v", err)
 		}
@@ -645,7 +732,7 @@ func TestConnectionFailover(t *testing.T) {
 		s2.Close()
 
 		config := RetryConfig{MaxRetries: 0, BaseDelay: 0, MaxDelay: 0, JitterFactor: 0}
-		_, _, err := createClient([]string{addr1, addr2}, "", true, config, 0, 0, 0)
+		_, _, err := createClient([]string{addr1, addr2}, "", "", true, config, 0, 0, 0)
 		if err == nil {
 			t.Fatal("createClient() expected error when all machines fail")
 		}
@@ -679,7 +766,7 @@ func TestConnectionFailover(t *testing.T) {
 			MaxDelay:     100 * time.Millisecond,
 			JitterFactor: 0,
 		}
-		rClient, _, err := createClient([]string{addr}, "", true, config, 0, 0, 0)
+		rClient, _, err := createClient([]string{addr}, "", "", true, config, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("createClient() unexpected error: %v", err)
 		}
@@ -701,7 +788,7 @@ func TestConnectedClient_Reconnection(t *testing.T) {
 		addr := s.Addr() // Save address before any operations
 		s.Set("key", "initial")
 
-		client, err := NewRedisClient([]string{addr}, "", "/", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{addr}, "", "", "/", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -751,7 +838,7 @@ func TestConnectedClient_Reconnection(t *testing.T) {
 	t.Run("returns existing connection when healthy", func(t *testing.T) {
 		s := miniredis.RunT(t)
 
-		client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -779,7 +866,7 @@ func TestHealthCheck(t *testing.T) {
 	t.Run("healthy connection", func(t *testing.T) {
 		s := miniredis.RunT(t)
 
-		client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -795,7 +882,7 @@ func TestHealthCheck(t *testing.T) {
 		s := miniredis.RunT(t)
 		addr := s.Addr() // Save address before operations
 
-		client, err := NewRedisClient([]string{addr}, "", "/", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{addr}, "", "", "/", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -818,7 +905,7 @@ func TestDatabaseSelection(t *testing.T) {
 		s := miniredis.RunT(t)
 
 		// miniredis supports multiple databases
-		client, err := NewRedisClient([]string{s.Addr() + "/2"}, "", "/", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{s.Addr() + "/2"}, "", "", "/", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -832,7 +919,7 @@ func TestDatabaseSelection(t *testing.T) {
 	t.Run("default database 0", func(t *testing.T) {
 		s := miniredis.RunT(t)
 
-		client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -848,7 +935,7 @@ func TestDatabaseSelection(t *testing.T) {
 
 		// Invalid db suffix (not a number) should be treated as part of address
 		// This tests the error handling in address parsing
-		client, err := NewRedisClient([]string{s.Addr() + "/notanumber"}, "", "/", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{s.Addr() + "/notanumber"}, "", "", "/", 0, 0, 0, 0, 0, 0)
 		// This might fail to connect since the address is malformed
 		// or it might work if the parsing handles it gracefully
 		if err != nil {
@@ -902,7 +989,7 @@ func TestCreateClient_WithRetries(t *testing.T) {
 		}
 
 		start := time.Now()
-		_, _, err := createClient([]string{addr}, "", true, config, 0, 0, 0)
+		_, _, err := createClient([]string{addr}, "", "", true, config, 0, 0, 0)
 		elapsed := time.Since(start)
 
 		if err == nil {
@@ -921,7 +1008,7 @@ func TestCreateClient_WithRetries(t *testing.T) {
 		_, _, err := createClient([]string{
 			"invalid1:6379",
 			"invalid2:6379",
-		}, "", true, config, 0, 0, 0)
+		}, "", "", true, config, 0, 0, 0)
 
 		if err == nil {
 			t.Fatal("createClient() expected error for invalid addresses")
@@ -940,7 +1027,7 @@ func TestGetValues_ErrorHandling(t *testing.T) {
 		s := miniredis.RunT(t)
 		s.Set("/key", "value")
 
-		client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+		client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("NewRedisClient() unexpected error: %v", err)
 		}
@@ -986,7 +1073,7 @@ func TestRetryConfigRetention(t *testing.T) {
 
 	// Pass actual default values (normally applied by backends.Config.ApplyTimeoutDefaults)
 	expected := DefaultRetryConfig()
-	client, err := NewRedisClient([]string{s.Addr()}, "", "/",
+	client, err := NewRedisClient([]string{s.Addr()}, "", "", "/",
 		time.Second, time.Second, time.Second,
 		expected.MaxRetries, expected.BaseDelay, expected.MaxDelay)
 	if err != nil {
@@ -1007,7 +1094,7 @@ func TestMachinesRetention(t *testing.T) {
 	s := miniredis.RunT(t)
 
 	machines := []string{s.Addr(), "backup:6379"}
-	client, err := NewRedisClient(machines, "", "/", 0, 0, 0, 0, 0, 0)
+	client, err := NewRedisClient(machines, "", "", "/", 0, 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}
@@ -1024,7 +1111,7 @@ func TestMachinesRetention(t *testing.T) {
 func TestWatchPrefix_StopChan_NoLeak(t *testing.T) {
 	s := miniredis.RunT(t)
 
-	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}
@@ -1077,7 +1164,7 @@ func TestWatchPrefix_StopChan_NoLeak(t *testing.T) {
 func TestWatchPrefix_ContextCancel_NoLeak(t *testing.T) {
 	s := miniredis.RunT(t)
 
-	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}
@@ -1194,7 +1281,7 @@ func TestBuildKeyspacePattern(t *testing.T) {
 func TestWatchPrefix_MultiplePrefixes(t *testing.T) {
 	s := miniredis.RunT(t)
 
-	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}
@@ -1329,7 +1416,7 @@ func TestWatchPrefix_MultiplePrefixes(t *testing.T) {
 func TestStopWatch_ClearsPrefixes(t *testing.T) {
 	s := miniredis.RunT(t)
 
-	client, err := NewRedisClient([]string{s.Addr()}, "", "/", 0, 0, 0, 0, 0, 0)
+	client, err := NewRedisClient([]string{s.Addr()}, "", "", "/", 0, 0, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("NewRedisClient() unexpected error: %v", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -71,5 +72,48 @@ func TestNew_EtcdAuthToken(t *testing.T) {
 	})
 	if !errors.Is(err, clientv3.ErrMutuallyExclusiveCfg) {
 		t.Fatalf("New() error = %v, want %v", err, clientv3.ErrMutuallyExclusiveCfg)
+	}
+}
+
+// TestNew_RedisUsername checks that Config.Username reaches the redis client
+// and authenticates as that ACL user.
+func TestNew_RedisUsername(t *testing.T) {
+	tests := []struct {
+		name     string
+		username string
+		wantErr  bool
+	}{
+		{name: "username sent", username: "app"},
+		{name: "no username", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := miniredis.RunT(t)
+			server.RequireUserAuth("app", "secret")
+
+			client, err := New(context.Background(), Config{
+				Backend:          "redis",
+				BackendNodes:     []string{server.Addr()},
+				Username:         tt.username,
+				Password:         "secret",
+				DialTimeout:      time.Second,
+				ReadTimeout:      time.Second,
+				WriteTimeout:     time.Second,
+				RetryMaxAttempts: 1,
+				RetryBaseDelay:   time.Millisecond,
+				RetryMaxDelay:    time.Millisecond,
+			})
+			if tt.wantErr {
+				if err == nil {
+					_ = client.Close()
+					t.Fatal("New() succeeded without the ACL username, want authentication failure")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("New() error: %v", err)
+			}
+			_ = client.Close()
+		})
 	}
 }
