@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/abtreece/confd/pkg/backends"
+	"github.com/alecthomas/kong"
 )
 
 func TestLoadConfigFile_InvalidDurations(t *testing.T) {
@@ -308,12 +309,9 @@ nodes = ["toml:8500"]
 scheme = "https"
 `)
 
-	cli, _ := parseCLI(t, []string{"--config-file", configFile, "consul"})
-	backendCfg := &backends.Config{
-		Backend:      "consul",
-		BackendNodes: cli.Consul.Node,
-		Scheme:       cli.Consul.Scheme,
-	}
+	cli, ctx := parseCLI(t, []string{"--config-file", configFile, "consul"})
+	cfg := backendConfigFor(t, cli, ctx)
+	backendCfg := &cfg
 	if err := loadConfigFile(cli, backendCfg); err != nil {
 		t.Fatalf("loadConfigFile failed: %v", err)
 	}
@@ -324,12 +322,9 @@ scheme = "https"
 		t.Fatalf("Scheme = %q, want TOML scheme", backendCfg.Scheme)
 	}
 
-	cli, _ = parseCLI(t, []string{"--config-file", configFile, "consul", "--node", "cli:8500", "--scheme", "http"})
-	backendCfg = &backends.Config{
-		Backend:      "consul",
-		BackendNodes: cli.Consul.Node,
-		Scheme:       cli.Consul.Scheme,
-	}
+	cli, ctx = parseCLI(t, []string{"--config-file", configFile, "consul", "--node", "cli:8500", "--scheme", "http"})
+	cfg = backendConfigFor(t, cli, ctx)
+	backendCfg = &cfg
 	if err := loadConfigFile(cli, backendCfg); err != nil {
 		t.Fatalf("loadConfigFile failed: %v", err)
 	}
@@ -958,9 +953,9 @@ func TestTLSEnvVarsReachBackends(t *testing.T) {
 					if tc.flagArgs != nil {
 						args = append(args, tc.flagArgs(setting.flag)...)
 					}
-					cli, _ := parseCLI(t, args)
+					cli, ctx := parseCLI(t, args)
 
-					cfg := emptyEnvBackendConfigs[command](cli)
+					cfg := backendConfigFor(t, cli, ctx)
 					resolveConfig(t, cli, &cfg)
 
 					if got := setting.get(&cfg); got != tc.want {
@@ -984,35 +979,31 @@ func resolveConfig(t *testing.T, cli *CLI, backendCfg *backends.Config) {
 	applyBackendDefaults(backendCfg)
 }
 
+// backendConfigFor builds the backend config of the command selected on the
+// command line, with the method that command's Run uses.
+func backendConfigFor(t *testing.T, cli *CLI, ctx *kong.Context) backends.Config {
+	t.Helper()
+
+	selected := ctx.Selected()
+	if selected == nil {
+		t.Fatal("no command selected on the command line")
+	}
+	cmd, ok := selected.Target.Addr().Interface().(backendCommand)
+	if !ok {
+		t.Fatalf("the %s command does not implement backendCommand", selected.Name)
+	}
+	cfg, err := cmd.backendConfig(cli)
+	if err != nil {
+		t.Fatalf("%s backendConfig: %v", selected.Name, err)
+	}
+	return cfg
+}
+
 // TestConfigPrecedence_Representative walks one option of each kind through
 // the precedence tiers: confd.toml alone, an env var over confd.toml, and a
 // flag over an env var. Slice options have no env vars, so they cover
 // confd.toml, a flag over confd.toml, and the built-in default.
 func TestConfigPrecedence_Representative(t *testing.T) {
-	consulConfig := func(cli *CLI) backends.Config {
-		return backends.Config{Backend: "consul", BackendNodes: cli.Consul.Node, Scheme: cli.Consul.Scheme}
-	}
-	vaultConfig := func(cli *CLI) backends.Config {
-		return backends.Config{Backend: "vault", BackendNodes: cli.Vault.Node, AuthToken: cli.Vault.AuthToken}
-	}
-	acmConfig := func(cli *CLI) backends.Config {
-		return backends.Config{Backend: "acm", ACMExportPrivateKey: cli.ACM.ExportPrivateKey}
-	}
-	secretsManagerConfig := func(cli *CLI) backends.Config {
-		return backends.Config{
-			Backend:                    "secretsmanager",
-			SecretsManagerVersionStage: cli.SecretsManager.VersionStage,
-			SecretsManagerNoFlatten:    cli.SecretsManager.NoFlatten,
-		}
-	}
-	imdsConfig := func(cli *CLI) backends.Config {
-		cacheTTL, err := time.ParseDuration(cli.IMDS.CacheTTL)
-		if err != nil {
-			t.Fatalf("parse imds-cache-ttl %q: %v", cli.IMDS.CacheTTL, err)
-		}
-		return backends.Config{Backend: "imds", IMDSCacheTTL: cacheTTL}
-	}
-
 	noop := func(cli *CLI, _ *backends.Config) any { return cli.Noop }
 	templateCache := func(cli *CLI, _ *backends.Config) any { return cli.TemplateCache }
 	prefix := func(cli *CLI, _ *backends.Config) any { return cli.Prefix }
@@ -1031,11 +1022,8 @@ func TestConfigPrecedence_Representative(t *testing.T) {
 		env  map[string]string
 		// args follow --config-file and include the backend subcommand
 		args []string
-		// backend builds the backend config from the parsed command the way
-		// that command's Run method does; nil means the env backend.
-		backend func(*CLI) backends.Config
-		got     func(*CLI, *backends.Config) any
-		want    any
+		got  func(*CLI, *backends.Config) any
+		want any
 	}{
 		// bool, resolving to true
 		{name: "bool true/toml only", toml: `noop = true`, args: []string{"env"}, got: noop, want: true},
@@ -1065,35 +1053,35 @@ func TestConfigPrecedence_Representative(t *testing.T) {
 		{name: "duration/flag over env", toml: `retry_max_delay = "10s"`, env: map[string]string{"CONFD_RETRY_MAX_DELAY": "20s"}, args: []string{"--retry-max-delay", "40s", "env"}, got: retryMaxDelay, want: 40 * time.Second},
 
 		// slice
-		{name: "slice/built-in default", args: []string{"consul"}, backend: consulConfig, got: nodes, want: []string{"127.0.0.1:8500"}},
-		{name: "slice/toml only", toml: `nodes = ["toml-a:8500", "toml-b:8500"]`, args: []string{"consul"}, backend: consulConfig, got: nodes, want: []string{"toml-a:8500", "toml-b:8500"}},
-		{name: "slice/flag over toml", toml: `nodes = ["toml-a:8500", "toml-b:8500"]`, args: []string{"consul", "--node", "flag:8500"}, backend: consulConfig, got: nodes, want: []string{"flag:8500"}},
+		{name: "slice/built-in default", args: []string{"consul"}, got: nodes, want: []string{"127.0.0.1:8500"}},
+		{name: "slice/toml only", toml: `nodes = ["toml-a:8500", "toml-b:8500"]`, args: []string{"consul"}, got: nodes, want: []string{"toml-a:8500", "toml-b:8500"}},
+		{name: "slice/flag over toml", toml: `nodes = ["toml-a:8500", "toml-b:8500"]`, args: []string{"consul", "--node", "flag:8500"}, got: nodes, want: []string{"flag:8500"}},
 
 		// backend-specific string with an env var
-		{name: "vault auth token/toml only", toml: `auth_token = "toml-token"`, args: []string{"vault"}, backend: vaultConfig, got: authToken, want: "toml-token"},
-		{name: "vault auth token/env over toml", toml: `auth_token = "toml-token"`, env: map[string]string{"VAULT_TOKEN": "env-token"}, args: []string{"vault"}, backend: vaultConfig, got: authToken, want: "env-token"},
-		{name: "vault auth token/flag over env", toml: `auth_token = "toml-token"`, env: map[string]string{"VAULT_TOKEN": "env-token"}, args: []string{"vault", "--auth-token", "flag-token"}, backend: vaultConfig, got: authToken, want: "flag-token"},
+		{name: "vault auth token/toml only", toml: `auth_token = "toml-token"`, args: []string{"vault"}, got: authToken, want: "toml-token"},
+		{name: "vault auth token/env over toml", toml: `auth_token = "toml-token"`, env: map[string]string{"VAULT_TOKEN": "env-token"}, args: []string{"vault"}, got: authToken, want: "env-token"},
+		{name: "vault auth token/flag over env", toml: `auth_token = "toml-token"`, env: map[string]string{"VAULT_TOKEN": "env-token"}, args: []string{"vault", "--auth-token", "flag-token"}, got: authToken, want: "flag-token"},
 
 		// backend-specific string whose flag has a default
-		{name: "scheme/command default", args: []string{"consul"}, backend: consulConfig, got: scheme, want: "http"},
-		{name: "scheme/toml over command default", toml: `scheme = "https"`, args: []string{"consul"}, backend: consulConfig, got: scheme, want: "https"},
-		{name: "scheme/flag set to default over toml", toml: `scheme = "https"`, args: []string{"consul", "--scheme", "http"}, backend: consulConfig, got: scheme, want: "http"},
-		{name: "secrets manager version stage/toml over command default", toml: `secretsmanager_version_stage = "AWSPREVIOUS"`, args: []string{"secretsmanager"}, backend: secretsManagerConfig, got: versionStage, want: "AWSPREVIOUS"},
-		{name: "secrets manager version stage/flag set to default over toml", toml: `secretsmanager_version_stage = "AWSPREVIOUS"`, args: []string{"secretsmanager", "--secretsmanager-version-stage", "AWSCURRENT"}, backend: secretsManagerConfig, got: versionStage, want: "AWSCURRENT"},
+		{name: "scheme/command default", args: []string{"consul"}, got: scheme, want: "http"},
+		{name: "scheme/toml over command default", toml: `scheme = "https"`, args: []string{"consul"}, got: scheme, want: "https"},
+		{name: "scheme/flag set to default over toml", toml: `scheme = "https"`, args: []string{"consul", "--scheme", "http"}, got: scheme, want: "http"},
+		{name: "secrets manager version stage/toml over command default", toml: `secretsmanager_version_stage = "AWSPREVIOUS"`, args: []string{"secretsmanager"}, got: versionStage, want: "AWSPREVIOUS"},
+		{name: "secrets manager version stage/flag set to default over toml", toml: `secretsmanager_version_stage = "AWSPREVIOUS"`, args: []string{"secretsmanager", "--secretsmanager-version-stage", "AWSCURRENT"}, got: versionStage, want: "AWSCURRENT"},
 
 		// backend-specific duration whose flag has a default
-		{name: "imds cache ttl/command default", args: []string{"imds"}, backend: imdsConfig, got: imdsCacheTTL, want: 60 * time.Second},
-		{name: "imds cache ttl/toml over command default", toml: `imds_cache_ttl = "5m"`, args: []string{"imds"}, backend: imdsConfig, got: imdsCacheTTL, want: 5 * time.Minute},
-		{name: "imds cache ttl/flag set to default over toml", toml: `imds_cache_ttl = "5m"`, args: []string{"imds", "--imds-cache-ttl", "60s"}, backend: imdsConfig, got: imdsCacheTTL, want: 60 * time.Second},
+		{name: "imds cache ttl/command default", args: []string{"imds"}, got: imdsCacheTTL, want: 60 * time.Second},
+		{name: "imds cache ttl/toml over command default", toml: `imds_cache_ttl = "5m"`, args: []string{"imds"}, got: imdsCacheTTL, want: 5 * time.Minute},
+		{name: "imds cache ttl/flag set to default over toml", toml: `imds_cache_ttl = "5m"`, args: []string{"imds", "--imds-cache-ttl", "60s"}, got: imdsCacheTTL, want: 60 * time.Second},
 
 		// backend-specific bool
-		{name: "secrets manager no-flatten/toml only", toml: `secretsmanager_no_flatten = true`, args: []string{"secretsmanager"}, backend: secretsManagerConfig, got: noFlatten, want: true},
-		{name: "secrets manager no-flatten/flag false over toml", toml: `secretsmanager_no_flatten = true`, args: []string{"secretsmanager", "--secretsmanager-no-flatten=false"}, backend: secretsManagerConfig, got: noFlatten, want: false},
-		{name: "acm export private key/toml only", toml: `acm_export_private_key = true`, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: true},
-		{name: "acm export private key/env true over toml", toml: `acm_export_private_key = false`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "true"}, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: true},
-		{name: "acm export private key/flag over env", toml: `acm_export_private_key = false`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "false"}, args: []string{"acm", "--acm-export-private-key"}, backend: acmConfig, got: acmExport, want: true},
-		{name: "acm export private key/env false over toml", toml: `acm_export_private_key = true`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "false"}, args: []string{"acm"}, backend: acmConfig, got: acmExport, want: false},
-		{name: "acm export private key/flag false over env", toml: `acm_export_private_key = true`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "true"}, args: []string{"acm", "--acm-export-private-key=false"}, backend: acmConfig, got: acmExport, want: false},
+		{name: "secrets manager no-flatten/toml only", toml: `secretsmanager_no_flatten = true`, args: []string{"secretsmanager"}, got: noFlatten, want: true},
+		{name: "secrets manager no-flatten/flag false over toml", toml: `secretsmanager_no_flatten = true`, args: []string{"secretsmanager", "--secretsmanager-no-flatten=false"}, got: noFlatten, want: false},
+		{name: "acm export private key/toml only", toml: `acm_export_private_key = true`, args: []string{"acm"}, got: acmExport, want: true},
+		{name: "acm export private key/env true over toml", toml: `acm_export_private_key = false`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "true"}, args: []string{"acm"}, got: acmExport, want: true},
+		{name: "acm export private key/flag over env", toml: `acm_export_private_key = false`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "false"}, args: []string{"acm", "--acm-export-private-key"}, got: acmExport, want: true},
+		{name: "acm export private key/env false over toml", toml: `acm_export_private_key = true`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "false"}, args: []string{"acm"}, got: acmExport, want: false},
+		{name: "acm export private key/flag false over env", toml: `acm_export_private_key = true`, env: map[string]string{"ACM_EXPORT_PRIVATE_KEY": "true"}, args: []string{"acm", "--acm-export-private-key=false"}, got: acmExport, want: false},
 	}
 
 	for _, tt := range tests {
@@ -1103,12 +1091,9 @@ func TestConfigPrecedence_Representative(t *testing.T) {
 				t.Setenv(key, value)
 			}
 			configFile := writeConfigFile(t, tt.toml)
-			cli, _ := parseCLI(t, append([]string{"--config-file", configFile}, tt.args...))
+			cli, ctx := parseCLI(t, append([]string{"--config-file", configFile}, tt.args...))
 
-			backendCfg := backends.Config{Backend: "env"}
-			if tt.backend != nil {
-				backendCfg = tt.backend(cli)
-			}
+			backendCfg := backendConfigFor(t, cli, ctx)
 			resolveConfig(t, cli, &backendCfg)
 
 			if got := tt.got(cli, &backendCfg); !reflect.DeepEqual(got, tt.want) {
@@ -1144,9 +1129,9 @@ func TestACMExportPrivateKeyEnvValues(t *testing.T) {
 				t.Setenv("ACM_EXPORT_PRIVATE_KEY", *tt.env)
 			}
 			configFile := writeConfigFile(t, "")
-			cli, _ := parseCLI(t, append([]string{"--config-file", configFile, "acm"}, tt.flag...))
+			cli, ctx := parseCLI(t, append([]string{"--config-file", configFile, "acm"}, tt.flag...))
 
-			backendCfg := backends.Config{Backend: "acm", ACMExportPrivateKey: cli.ACM.ExportPrivateKey}
+			backendCfg := backendConfigFor(t, cli, ctx)
 			resolveConfig(t, cli, &backendCfg)
 
 			if backendCfg.ACMExportPrivateKey != tt.want {
