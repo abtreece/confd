@@ -195,3 +195,111 @@ func TestIgnoredBackendFlagWarnings(t *testing.T) {
 		}
 	})
 }
+
+// TestIgnoredAuthFlagWarnings covers the auth and TLS settings in
+// backendFlagScope. Unlike the timeout and retry flags they are subcommand
+// flags, so on the command line only some backends accept them; in confd.toml
+// any backend can be given them.
+func TestIgnoredAuthFlagWarnings(t *testing.T) {
+	// The backends that use each setting, read from the constructor calls in
+	// backends.New.
+	usedBy := map[string][]string{
+		"--auth-token":     {"consul", "etcd", "vault"},
+		"--basic-auth":     {"consul", "etcd"},
+		"--client-cert":    {"consul", "etcd", "vault"},
+		"--client-ca-keys": {"consul", "etcd", "vault"},
+	}
+	want := func(flag, backend string) []string {
+		if slices.Contains(usedBy[flag], backend) {
+			return nil
+		}
+		return []string{flag + " has no effect with the " + backend + " backend"}
+	}
+
+	t.Run("confd.toml", func(t *testing.T) {
+		keys := []struct {
+			flag string
+			toml string
+		}{
+			{"--auth-token", `auth_token = "token"`},
+			{"--basic-auth", `basic_auth = true`},
+			{"--client-cert", `client_cert = "/cert"`},
+			{"--client-ca-keys", `client_cakeys = "/ca"`},
+			{"--client-ca-keys", `client_ca_keys = "/ca"`},
+		}
+		for backend := range backendArgs {
+			for _, key := range keys {
+				t.Run(backend+"/"+key.toml, func(t *testing.T) {
+					got := flagWarnings(t, backend, nil, nil, key.toml+"\n")
+					if w := want(key.flag, backend); !slices.Equal(got, w) {
+						t.Errorf("warnings = %q, want %q", got, w)
+					}
+				})
+			}
+		}
+	})
+
+	t.Run("flag", func(t *testing.T) {
+		// The commands that accept each flag.
+		accepted := map[string][]string{
+			"--auth-token":     {"consul", "etcd", "redis", "vault"},
+			"--basic-auth":     {"consul", "etcd", "redis"},
+			"--client-cert":    {"consul", "etcd", "redis", "vault"},
+			"--client-ca-keys": {"consul", "etcd", "redis", "vault"},
+		}
+		for flag, backends := range accepted {
+			for _, backend := range backends {
+				t.Run(backend+"/"+flag, func(t *testing.T) {
+					args := []string{flag, "value"}
+					if flag == "--basic-auth" {
+						args = []string{flag}
+					}
+					got := flagWarnings(t, backend, nil, args, "")
+					if w := want(flag, backend); !slices.Equal(got, w) {
+						t.Errorf("warnings = %q, want %q", got, w)
+					}
+				})
+			}
+		}
+	})
+
+	t.Run("env var", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			backend string
+			env     map[string]string
+			want    []string
+		}{
+			{name: "CONFD_CLIENT_CERT with redis", backend: "redis", env: map[string]string{"CONFD_CLIENT_CERT": "/cert"}, want: want("--client-cert", "redis")},
+			{name: "CONFD_CLIENT_CAKEYS with redis", backend: "redis", env: map[string]string{"CONFD_CLIENT_CAKEYS": "/ca"}, want: want("--client-ca-keys", "redis")},
+			{name: "CONFD_CLIENT_CERT with consul", backend: "consul", env: map[string]string{"CONFD_CLIENT_CERT": "/cert"}},
+			// The env command defines no TLS flags, so the variable is not
+			// a source for it.
+			{name: "CONFD_CLIENT_CERT with env", backend: "env", env: map[string]string{"CONFD_CLIENT_CERT": "/cert"}},
+			// VAULT_TOKEN belongs to the vault command's --auth-token only.
+			{name: "VAULT_TOKEN with consul", backend: "consul", env: map[string]string{"VAULT_TOKEN": "token"}},
+			{name: "VAULT_TOKEN with vault", backend: "vault", env: map[string]string{"VAULT_TOKEN": "token"}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				got := flagWarnings(t, tt.backend, tt.env, nil, "")
+				if !slices.Equal(got, tt.want) {
+					t.Errorf("warnings = %q, want %q", got, tt.want)
+				}
+			})
+		}
+	})
+
+	t.Run("all four with redis", func(t *testing.T) {
+		got := flagWarnings(t, "redis", nil, []string{"--auth-token", "t", "--basic-auth", "--client-cert", "/cert", "--client-ca-keys", "/ca"}, "")
+		wantAll := []string{
+			"--auth-token has no effect with the redis backend",
+			"--basic-auth has no effect with the redis backend",
+			"--client-cert has no effect with the redis backend",
+			"--client-ca-keys has no effect with the redis backend",
+		}
+		if !slices.Equal(got, wantAll) {
+			t.Errorf("warnings = %q, want %q", got, wantAll)
+		}
+	})
+}
