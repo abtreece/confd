@@ -42,14 +42,16 @@ For a string setting, an environment variable set to an empty value (`CONFD_LOG_
 
 ## TLS/Authentication Options
 
-* `client_cert` (string) - Path to client certificate file.
-* `client_key` (string) - Path to client key file.
-* `client_cakeys` (string) - Path to CA certificate file.
-* `client_insecure` (bool) - Skip TLS certificate verification. Default: `false`
+* `client_cert` (string) - Path to client certificate file (consul, etcd and vault backends).
+* `client_key` (string) - Path to client key file (consul, etcd and vault backends; the redis backend reads it as the legacy password).
+* `client_cakeys` (string) - Path to CA certificate file (consul, etcd and vault backends).
+* `client_insecure` (bool) - Skip TLS certificate verification (etcd backend only). Default: `false`
 * `basic_auth` (bool) - Use Basic Auth to authenticate (consul and etcd backends only). Default: `false`
-* `username` (string) - Username for authentication.
+* `username` (string) - Username for authentication (consul and etcd with `basic_auth`, vault userpass, redis ACL user).
 * `password` (string) - Password for authentication.
-* `auth_token` (string) - Auth bearer token to use.
+* `auth_token` (string) - Auth token: the consul ACL token, an etcd JWT, or the vault token (consul, etcd and vault backends).
+
+Setting `client_cert`, `client_cakeys`, `basic_auth` or `auth_token` for a backend that does not use it logs `--<flag> has no effect with the <backend> backend` at startup.
 
 ## Timeout Options
 

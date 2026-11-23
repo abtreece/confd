@@ -107,12 +107,12 @@ Common options:
 | `backend` | Backend type (required): `consul`, `etcd`, `vault`, `redis`, `zookeeper`, `dynamodb`, `ssm`, `secretsmanager`, `acm`, `imds`, `env`, `file` |
 | `nodes` | Backend node addresses |
 | `scheme` | URI scheme (`http` or `https`) |
-| `auth_token` | Authentication token |
+| `auth_token` | Authentication token: Consul ACL token, etcd JWT or Vault token (consul, etcd, vault) |
 | `auth_type` | Auth method (Vault: `token`, `app-role`, `userpass`, `kubernetes`) |
 | `role_id` / `secret_id` | AppRole credentials (Vault) |
-| `username` / `password` | Basic auth or userpass credentials |
-| `client_cert` / `client_key` / `client_cakeys` | TLS client certificates |
-| `client_insecure` | Skip TLS verification |
+| `username` / `password` | Basic auth (consul, etcd), userpass (Vault) or ACL user (Redis) credentials |
+| `client_cert` / `client_key` / `client_cakeys` | TLS client certificates (consul, etcd, vault; redis reads `client_key` as the legacy password) |
+| `client_insecure` | Skip TLS verification (etcd) |
 | `file` | File paths (file backend) |
 | `table` | DynamoDB table name |
 | `separator` | Key separator (Redis) |

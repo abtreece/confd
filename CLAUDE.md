@@ -373,9 +373,11 @@ These apply to the redis backend only.
 - `--retry-base-delay` - Initial backoff delay, redis only (default: 100ms)
 - `--retry-max-delay` - Maximum backoff delay, redis only (default: 5s)
 
-### Ignored Timeout and Retry Flags
+### Ignored Timeout, Retry, Auth and TLS Flags
 
-When one of the six connection timeout and retry flags above is supplied (flag, `CONFD_*` variable or `confd.toml` key) for a backend that does not use it, confd logs `--<flag> has no effect with the <backend> backend` at startup and carries on. The scope table is `backendFlagScope` in `cmd/confd/config.go`; it mirrors the constructor calls in `backends.New` and must be updated with them.
+When one of the six connection timeout and retry flags above, or `--auth-token`, `--basic-auth`, `--client-cert` or `--client-ca-keys`, is supplied (flag, environment variable or `confd.toml` key) for a backend that does not use it, confd logs `--<flag> has no effect with the <backend> backend` at startup and carries on. The scope table is `backendFlagScope` in `cmd/confd/config.go`; it mirrors the constructor calls in `backends.New` and must be updated with them.
+
+`--auth-token` is the ACL token for consul (it wins over `CONSUL_HTTP_TOKEN`), a JWT for etcd (rejected together with `--basic-auth`) and the token for vault. Redis takes `--username` as its ACL user but uses none of the four flags above; it has no TLS support, and `--client-key` is its legacy password.
 
 ### Failure Modes
 

@@ -50,6 +50,20 @@ Earlier versions read the Redis password from the client key setting. This still
 confd redis --node 127.0.0.1:6379 --client-key secret --onetime
 ```
 
+#### ACL Username
+
+To authenticate as a Redis ACL user (Redis 6 and later), add `--username` (or `username` in `confd.toml`) to the password from any of the sources above:
+
+```bash
+confd redis --node 127.0.0.1:6379 --username app --password secret --onetime
+```
+
+The username is only sent together with a password.
+
+#### Flags with no effect
+
+The redis command also accepts `--basic-auth`, `--auth-token`, `--client-cert` and `--client-ca-keys`, but the Redis client does not use them: confd does not connect to Redis over TLS. Setting one of them, or `basic_auth`, `auth_token`, `client_cert` or `client_cakeys` in `confd.toml`, logs `--<flag> has no effect with the redis backend` at startup.
+
 ### Database Selection
 
 Specify a database number (default is 0):
@@ -82,6 +96,7 @@ This transforms `/myapp/database/url` to `myapp:database:url` when querying Redi
 |------|-------------|---------|
 | `-n, --node` | Redis server address (host:port or socket path) | - |
 | `--password` | Redis password (env: `REDIS_PASSWORD`) | - |
+| `--username` | Redis ACL username (Redis 6+), sent with the password | - |
 | `--client-key` | Legacy way to supply the Redis password; used only when no password is set | - |
 | `--separator` | Character to replace `/` in keys | `/` |
 
