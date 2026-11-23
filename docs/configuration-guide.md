@@ -14,7 +14,7 @@ Configuration is loaded from multiple sources in order of precedence (highest to
 3. Configuration file (`/etc/confd/confd.toml`)
 4. Built-in defaults
 
-For a string setting, an environment variable set to an empty value (`CONFD_LOG_LEVEL=`) is treated as unset: the configuration file's value applies, and without one the built-in default. For a boolean, integer or duration setting an empty value is an error.
+For a string setting, an environment variable set to an empty value (`CONFD_LOG_LEVEL=`) is treated as unset: the configuration file's value applies, and without one the built-in default. `CONFD_DEBOUNCE` and `CONFD_BATCH_INTERVAL` hold durations but are string settings, so an empty value for them is treated as unset too. For a boolean, integer or any other duration setting an empty value is an error.
 
 ## Core Options
 
