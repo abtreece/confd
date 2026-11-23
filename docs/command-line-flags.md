@@ -102,6 +102,7 @@ confd consul --help
 | `--basic-auth` | Use basic authentication | `false` |
 | `--username` | Authentication username | - |
 | `--password` | Authentication password | - |
+| `--auth-token` | ACL token; wins over `CONSUL_HTTP_TOKEN` and `CONSUL_HTTP_TOKEN_FILE` | - |
 | `--client-cert` | Client certificate file | - |
 | `--client-key` | Client key file | - |
 | `--client-ca-keys` | CA certificate file | - |
@@ -119,7 +120,7 @@ confd etcd --help
 | `--basic-auth` | Use basic authentication | `false` |
 | `--username` | Authentication username | - |
 | `--password` | Authentication password | - |
-| `--auth-token` | Bearer token for authentication | - |
+| `--auth-token` | JWT used in place of a username and password; cannot be combined with `--basic-auth` | - |
 | `--client-cert` | Client certificate file | - |
 | `--client-key` | Client key file | - |
 | `--client-ca-keys` | CA certificate file | - |
@@ -156,13 +157,11 @@ confd redis --help
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-n, --node` | Redis server address | `127.0.0.1:6379` |
-| `--basic-auth` | Use basic authentication | `false` |
-| `--username` | Authentication username | - |
+| `--username` | Redis ACL username (Redis 6+), sent with the password | - |
 | `--password` | Redis password. Also read from `REDIS_PASSWORD`; the flag wins when both are set. `--client-key` is the legacy way to pass the password and is used only when no password is set | - |
 | `--separator` | Key separator (replaces `/`) | `/` |
-| `--client-cert` | Client certificate file | - |
-| `--client-key` | Client key file | - |
-| `--client-ca-keys` | CA certificate file | - |
+| `--client-key` | Legacy way to pass the password; used only when no password is set | - |
+| `--basic-auth`, `--auth-token`, `--client-cert`, `--client-ca-keys` | Accepted but not used by the Redis client; confd logs a warning at startup when one is set | - |
 
 ### zookeeper
 
@@ -446,15 +445,18 @@ Configure timeouts for various operations:
 | `--watch-error-backoff` | Backoff duration after watch errors | `2s` |
 | `--shutdown-timeout` | Graceful shutdown timeout | `30s` |
 
-### Which backends use the connection timeout and retry flags
+### Which backends use the connection timeout, retry, auth and TLS flags
 
-`--backend-timeout` applies to every backend. The connection timeout and [retry](#retry-flags) flags do not:
+`--backend-timeout` applies to every backend. The connection timeout and [retry](#retry-flags) flags, and some of the auth and TLS settings, do not:
 
 | Flag | Used by | Not used by |
 |------|---------|-------------|
 | `--dial-timeout` | etcd, redis and zookeeper (connecting); imds (client setup); acm, dynamodb, secretsmanager and ssm (only the region lookup against instance metadata, and only when `AWS_REGION` is not set) | consul, vault, env, file |
 | `--read-timeout`, `--write-timeout` | redis | every other backend |
 | `--retry-max-attempts`, `--retry-base-delay`, `--retry-max-delay` | redis | every other backend |
+| `--auth-token` | consul (ACL token), etcd (JWT), vault | every other backend, including redis |
+| `--basic-auth` | consul, etcd | every other backend, including redis |
+| `--client-cert`, `--client-ca-keys` | consul, etcd, vault | every other backend, including redis |
 
 Setting one of these for a backend that does not use it changes nothing. confd logs a warning for each such flag at startup and carries on, for example:
 
@@ -486,7 +488,7 @@ confd etcd --watch \
 
 ## Retry Flags
 
-Configure retry behavior for connections to the redis backend. No other backend uses these flags; setting one for another backend logs a warning at startup and has no other effect (see [Which backends use the connection timeout and retry flags](#which-backends-use-the-connection-timeout-and-retry-flags)).
+Configure retry behavior for connections to the redis backend. No other backend uses these flags; setting one for another backend logs a warning at startup and has no other effect (see [Which backends use the connection timeout, retry, auth and TLS flags](#which-backends-use-the-connection-timeout-retry-auth-and-tls-flags)).
 
 | Flag | Description | Default |
 |------|-------------|---------|

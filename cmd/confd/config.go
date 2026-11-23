@@ -175,28 +175,37 @@ func (s *configSources) isSupplied(name string) bool {
 	return s.isExplicit(name) || s.toml[normalizeConfigName(name)]
 }
 
-// backendFlagScope lists the backends that use each connection timeout and
-// retry flag. It mirrors the constructor calls in backends.New
-// (pkg/backends/client.go): a backend uses a setting only if New passes that
-// setting to its constructor. Update this table whenever those calls change.
+// backendFlagScope lists the backends that use each connection timeout, retry,
+// auth and TLS setting that not every backend uses. It mirrors the constructor
+// calls in backends.New (pkg/backends/client.go): a backend uses a setting
+// only if New passes that setting to its constructor. Update this table
+// whenever those calls change.
 var backendFlagScope = []struct {
 	flag   string
 	usedBy []string
+	// tomlAliases are other confd.toml spellings of the setting, as accepted
+	// by loadConfigFile.
+	tomlAliases []string
 }{
-	{"dial-timeout", []string{"acm", "dynamodb", "etcd", "imds", "redis", "secretsmanager", "ssm", "zookeeper"}},
-	{"read-timeout", []string{"redis"}},
-	{"write-timeout", []string{"redis"}},
-	{"retry-max-attempts", []string{"redis"}},
-	{"retry-base-delay", []string{"redis"}},
-	{"retry-max-delay", []string{"redis"}},
+	{flag: "dial-timeout", usedBy: []string{"acm", "dynamodb", "etcd", "imds", "redis", "secretsmanager", "ssm", "zookeeper"}},
+	{flag: "read-timeout", usedBy: []string{"redis"}},
+	{flag: "write-timeout", usedBy: []string{"redis"}},
+	{flag: "retry-max-attempts", usedBy: []string{"redis"}},
+	{flag: "retry-base-delay", usedBy: []string{"redis"}},
+	{flag: "retry-max-delay", usedBy: []string{"redis"}},
+	{flag: "auth-token", usedBy: []string{"consul", "etcd", "vault"}},
+	{flag: "basic-auth", usedBy: []string{"consul", "etcd"}},
+	{flag: "client-cert", usedBy: []string{"consul", "etcd", "vault"}},
+	{flag: "client-ca-keys", usedBy: []string{"consul", "etcd", "vault"}, tomlAliases: []string{"client_cakeys"}},
 }
 
-// ignoredBackendFlagWarnings returns one message for each timeout or retry
-// flag that was supplied but is not used by the backend.
+// ignoredBackendFlagWarnings returns one message for each setting in
+// backendFlagScope that was supplied but is not used by the backend.
 func ignoredBackendFlagWarnings(sources *configSources, backend string) []string {
 	var warnings []string
 	for _, scope := range backendFlagScope {
-		if !sources.isSupplied(scope.flag) || slices.Contains(scope.usedBy, backend) {
+		supplied := sources.isSupplied(scope.flag) || slices.ContainsFunc(scope.tomlAliases, sources.isSupplied)
+		if !supplied || slices.Contains(scope.usedBy, backend) {
 			continue
 		}
 		warnings = append(warnings, fmt.Sprintf("--%s has no effect with the %s backend", scope.flag, backend))

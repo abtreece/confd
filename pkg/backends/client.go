@@ -75,10 +75,11 @@ func New(ctx context.Context, config Config) (StoreClient, error) {
 			config.BasicAuth,
 			config.Username,
 			config.Password,
+			config.AuthToken,
 		)
 	case "etcd":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
-		client, err = etcd.NewEtcdClient(backendNodes, config.ClientCert, config.ClientKey, config.ClientCaKeys, config.ClientInsecure, config.BasicAuth, config.Username, config.Password, config.DialTimeout)
+		client, err = etcd.NewEtcdClient(backendNodes, config.ClientCert, config.ClientKey, config.ClientCaKeys, config.ClientInsecure, config.BasicAuth, config.Username, config.Password, config.AuthToken, config.DialTimeout)
 	case "zookeeper":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))
 		client, err = zookeeper.NewZookeeperClient(backendNodes, config.DialTimeout)
@@ -89,7 +90,7 @@ func New(ctx context.Context, config Config) (StoreClient, error) {
 		if redisPassword == "" {
 			redisPassword = config.ClientKey
 		}
-		client, err = redis.NewRedisClient(backendNodes, redisPassword, config.Separator,
+		client, err = redis.NewRedisClient(backendNodes, config.Username, redisPassword, config.Separator,
 			config.DialTimeout, config.ReadTimeout, config.WriteTimeout,
 			config.RetryMaxAttempts, config.RetryBaseDelay, config.RetryMaxDelay)
 	case "env":

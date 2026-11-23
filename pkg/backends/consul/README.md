@@ -23,12 +23,20 @@ confd consul --node 127.0.0.1:8500 \
 
 #### ACL Token
 
-Set the `CONSUL_HTTP_TOKEN` environment variable:
+Pass the token with `--auth-token` (or `auth_token` in `confd.toml`):
+
+```bash
+confd consul --node 127.0.0.1:8500 --auth-token your-acl-token --onetime
+```
+
+Or set Consul's own `CONSUL_HTTP_TOKEN` (or `CONSUL_HTTP_TOKEN_FILE`) environment variable:
 
 ```bash
 export CONSUL_HTTP_TOKEN=your-acl-token
 confd consul --node 127.0.0.1:8500 --onetime
 ```
+
+When both are set, `--auth-token` wins.
 
 #### TLS Client Certificates
 
@@ -49,6 +57,7 @@ confd consul --node 127.0.0.1:8501 \
 | `--basic-auth` | Enable HTTP basic authentication | `false` |
 | `--username` | Username for basic auth | - |
 | `--password` | Password for basic auth | - |
+| `--auth-token` | ACL token; wins over `CONSUL_HTTP_TOKEN` and `CONSUL_HTTP_TOKEN_FILE` | - |
 | `--client-cert` | Path to client certificate | - |
 | `--client-key` | Path to client private key | - |
 | `--client-ca-keys` | Path to CA certificate | - |

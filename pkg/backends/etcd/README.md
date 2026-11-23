@@ -30,6 +30,14 @@ confd etcd --node http://127.0.0.1:2379 \
   --basic-auth --username admin --password secret --onetime
 ```
 
+#### JWT Token
+
+To authenticate with a JWT, pass it with `--auth-token` (or `auth_token` in `confd.toml`). It replaces the username and password, and the etcd client rejects it together with `--basic-auth`:
+
+```bash
+confd etcd --node http://127.0.0.1:2379 --auth-token "$ETCD_JWT" --onetime
+```
+
 #### TLS Client Certificates
 
 ```bash
@@ -57,6 +65,7 @@ confd etcd --node https://127.0.0.1:2379 \
 | `--basic-auth` | Enable basic authentication | `false` |
 | `--username` | Username for basic auth | - |
 | `--password` | Password for basic auth | - |
+| `--auth-token` | JWT used in place of a username and password; cannot be combined with `--basic-auth` | - |
 | `--client-cert` | Path to client certificate | - |
 | `--client-key` | Path to client private key | - |
 | `--client-ca-keys` | Path to CA certificate | - |
@@ -193,6 +202,7 @@ Available backend options:
 - `basic_auth` - Enable basic authentication
 - `username` - Username for basic auth
 - `password` - Password for basic auth
+- `auth_token` - JWT used in place of a username and password
 - `client_cert` - Path to client certificate
 - `client_key` - Path to client private key
 - `client_cakeys` - Path to CA certificate

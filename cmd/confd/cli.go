@@ -252,6 +252,7 @@ func (c *ConsulCmd) backendConfig(_ *CLI) (backends.Config, error) {
 		BasicAuth:    c.BasicAuth,
 		Username:     c.Username,
 		Password:     c.Password,
+		AuthToken:    c.AuthToken,
 	}, nil
 }
 
@@ -279,6 +280,7 @@ func (e *EtcdCmd) backendConfig(_ *CLI) (backends.Config, error) {
 		BasicAuth:      e.BasicAuth,
 		Username:       e.Username,
 		Password:       e.Password,
+		AuthToken:      e.AuthToken,
 	}, nil
 }
 

@@ -69,6 +69,7 @@ func calculateBackoff(attempt int, config RetryConfig) time.Duration {
 type Client struct {
 	client       *redis.Client
 	machines     []string
+	username     string
 	password     string
 	separator    string
 	db           int
@@ -89,7 +90,9 @@ type Client struct {
 
 // createClient attempts to connect to each machine in order with exponential backoff retry logic.
 // Returns the first successful connection or an aggregated error from all attempts.
-func createClient(machines []string, password string, withReadTimeout bool, retryConfig RetryConfig, dialTimeout, readTimeout, writeTimeout time.Duration) (*redis.Client, int, error) {
+// A non-empty username authenticates as that Redis ACL user (Redis 6+) with the
+// password.
+func createClient(machines []string, username, password string, withReadTimeout bool, retryConfig RetryConfig, dialTimeout, readTimeout, writeTimeout time.Duration) (*redis.Client, int, error) {
 	var allErrors []error
 
 	for _, address := range machines {
@@ -125,6 +128,7 @@ func createClient(machines []string, password string, withReadTimeout bool, retr
 			opts := &redis.Options{
 				Network:      network,
 				Addr:         address,
+				Username:     username,
 				Password:     password,
 				DB:           db,
 				DialTimeout:  dialTimeout,
@@ -183,7 +187,7 @@ func (c *Client) connectedClient(ctx context.Context) (*redis.Client, error) {
 
 	// Existing client could have been deleted by previous block
 	if c.client == nil {
-		client, db, err := createClient(c.machines, c.password, true, c.retryConfig, c.dialTimeout, c.readTimeout, c.writeTimeout)
+		client, db, err := createClient(c.machines, c.username, c.password, true, c.retryConfig, c.dialTimeout, c.readTimeout, c.writeTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to reconnect redis client: %w", err)
 		}
@@ -195,8 +199,10 @@ func (c *Client) connectedClient(ctx context.Context) (*redis.Client, error) {
 }
 
 // NewRedisClient returns an *redis.Client with a connection to named machines.
-// It returns an error if a connection to the cluster cannot be made.
-func NewRedisClient(machines []string, password string, separator string, dialTimeout, readTimeout, writeTimeout time.Duration, retryMaxAttempts int, retryBaseDelay, retryMaxDelay time.Duration) (*Client, error) {
+// It returns an error if a connection to the cluster cannot be made. A
+// non-empty username is the Redis ACL user (Redis 6+) to authenticate as with
+// the password.
+func NewRedisClient(machines []string, username, password string, separator string, dialTimeout, readTimeout, writeTimeout time.Duration, retryMaxAttempts int, retryBaseDelay, retryMaxDelay time.Duration) (*Client, error) {
 	if separator == "" {
 		separator = "/"
 	}
@@ -210,7 +216,7 @@ func NewRedisClient(machines []string, password string, separator string, dialTi
 		JitterFactor: 0.3, // 30% jitter
 	}
 
-	client, db, err := createClient(machines, password, true, retryConfig, dialTimeout, readTimeout, writeTimeout)
+	client, db, err := createClient(machines, username, password, true, retryConfig, dialTimeout, readTimeout, writeTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create redis client: %w", err)
 	}
@@ -218,6 +224,7 @@ func NewRedisClient(machines []string, password string, separator string, dialTi
 	return &Client{
 		client:          client,
 		machines:        machines,
+		username:        username,
 		password:        password,
 		separator:       separator,
 		db:              db,
@@ -474,7 +481,7 @@ func (c *Client) watchWithReconnect(ctx context.Context) {
 
 		// Create a new client for PubSub (without read timeout for blocking)
 		var err error
-		rClient, db, err = createClient(c.machines, c.password, false, c.retryConfig, c.dialTimeout, c.readTimeout, c.writeTimeout)
+		rClient, db, err = createClient(c.machines, c.username, c.password, false, c.retryConfig, c.dialTimeout, c.readTimeout, c.writeTimeout)
 		if err != nil {
 			attempt++
 			if attempt > c.retryConfig.MaxRetries {

@@ -774,3 +774,34 @@ func TestWatch_WaitNext_NotifyCancelledAfterBreak(t *testing.T) {
 //
 // The etcd client uses complex watch channels and reconnection logic
 // that requires an actual etcd connection to test properly.
+
+// TestNewEtcdClient_Token checks that a token reaches the etcd client. With a
+// token set, clientv3.New makes no authentication call, so no server is needed.
+func TestNewEtcdClient_Token(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{name: "token set", token: "jwt-token"},
+		{name: "no token"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := NewEtcdClient([]string{"127.0.0.1:1"}, "", "", "", false, false, "", "", tt.token, time.Second)
+			if err != nil {
+				t.Fatalf("NewEtcdClient() error: %v", err)
+			}
+			defer client.Close()
+			if client.client.Token != tt.token {
+				t.Errorf("client token = %q, want %q", client.client.Token, tt.token)
+			}
+		})
+	}
+}
+
+func TestNewEtcdClient_TokenWithBasicAuth(t *testing.T) {
+	_, err := NewEtcdClient([]string{"127.0.0.1:1"}, "", "", "", false, true, "user", "pass", "jwt-token", time.Second)
+	if !errors.Is(err, clientv3.ErrMutuallyExclusiveCfg) {
+		t.Fatalf("NewEtcdClient() error = %v, want %v", err, clientv3.ErrMutuallyExclusiveCfg)
+	}
+}
