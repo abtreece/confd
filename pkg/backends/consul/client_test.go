@@ -344,8 +344,11 @@ func TestNew_WithToken(t *testing.T) {
 		// fileToken is written to the file named by CONSUL_HTTP_TOKEN_FILE;
 		// empty leaves that variable unset
 		fileToken string
-		token     string
-		want      string
+		// missingTokenFile points CONSUL_HTTP_TOKEN_FILE at a file that does
+		// not exist
+		missingTokenFile bool
+		token            string
+		want             string
 	}{
 		{name: "token sent as the ACL token", token: "flag-token", want: "flag-token"},
 		{name: "no token sends no header"},
@@ -353,13 +356,22 @@ func TestNew_WithToken(t *testing.T) {
 		{name: "token wins over CONSUL_HTTP_TOKEN", envToken: "env-token", token: "flag-token", want: "flag-token"},
 		{name: "CONSUL_HTTP_TOKEN_FILE still applies without a token", fileToken: "file-token", want: "file-token"},
 		{name: "token wins over CONSUL_HTTP_TOKEN_FILE", fileToken: "file-token", token: "flag-token", want: "flag-token"},
+		// The Consul API client only treats a token as explicit when it
+		// differs from CONSUL_HTTP_TOKEN; these pin that confd does not
+		// depend on that.
+		{name: "token equal to CONSUL_HTTP_TOKEN wins over CONSUL_HTTP_TOKEN_FILE", envToken: "same-token", fileToken: "file-token", token: "same-token", want: "same-token"},
+		{name: "token ignores an unreadable CONSUL_HTTP_TOKEN_FILE", missingTokenFile: true, token: "flag-token", want: "flag-token"},
+		{name: "token equal to CONSUL_HTTP_TOKEN ignores an unreadable CONSUL_HTTP_TOKEN_FILE", envToken: "same-token", missingTokenFile: true, token: "same-token", want: "same-token"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(api.HTTPTokenEnvName, tt.envToken)
 			tokenFile := ""
-			if tt.fileToken != "" {
+			switch {
+			case tt.missingTokenFile:
+				tokenFile = filepath.Join(t.TempDir(), "missing")
+			case tt.fileToken != "":
 				tokenFile = filepath.Join(t.TempDir(), "token")
 				if err := os.WriteFile(tokenFile, []byte(tt.fileToken+"\n"), 0o600); err != nil {
 					t.Fatalf("write token file: %v", err)

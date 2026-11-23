@@ -3,6 +3,7 @@ package consul
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -63,6 +64,13 @@ func New(nodes []string, scheme, cert, key, caCert string, basicAuth bool, usern
 
 	if token != "" {
 		conf.Token = token
+		// api.NewClient treats Token as explicit only when it differs from
+		// CONSUL_HTTP_TOKEN; when the two are equal it reads
+		// CONSUL_HTTP_TOKEN_FILE instead, and fails if that file cannot be
+		// read. An explicit TokenFile takes precedence over both and replaces
+		// Token only when the file is non-empty, so pointing it at the null
+		// device keeps this token whatever the environment holds.
+		conf.TokenFile = os.DevNull
 	}
 
 	if cert != "" && key != "" {
