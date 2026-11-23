@@ -5,3 +5,20 @@ linters:
   enable:
     - errorlint     # Enforce error wrapping and proper use of errors
     - wrapcheck     # Check that errors are wrapped
+  settings:
+    wrapcheck:
+      # Calls whose returned error may be returned as-is. Setting this list
+      # replaces wrapcheck's built-in defaults, so anything not listed here
+      # (for example .WithMessage( and .WithStack() is reported.
+      #   .Errorf(, errors.New(  - create the error at the return site
+      #   errors.Unwrap(         - deliberately hands back the inner error
+      #   errors.Join(           - returning joined errors unwrapped is accepted:
+      #                            each joined error already carries its own context
+      #   .Wrap(, .Wrapf(        - already wrap with context
+      ignore-sigs:
+        - .Errorf(
+        - errors.New(
+        - errors.Unwrap(
+        - errors.Join(
+        - .Wrap(
+        - .Wrapf(

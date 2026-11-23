@@ -623,6 +623,124 @@ log-format = "json"
 	}
 }
 
+func TestLoadConfigFile_BothLogKeySpellings(t *testing.T) {
+	tests := []struct {
+		name           string
+		underscoreLine string
+		hyphenatedLine string
+		wantLogLevel   string
+		wantLogFormat  string
+	}{
+		{
+			name:           "log_level",
+			underscoreLine: `log_level = "error"`,
+			hyphenatedLine: `log-level = "debug"`,
+			wantLogLevel:   "error",
+		},
+		{
+			name:           "log_format",
+			underscoreLine: `log_format = "json"`,
+			hyphenatedLine: `log-format = "text"`,
+			wantLogFormat:  "json",
+		},
+		{
+			name:           "empty_log_level",
+			underscoreLine: `log_level = ""`,
+			hyphenatedLine: `log-level = "debug"`,
+			wantLogLevel:   "debug",
+		},
+		{
+			name:           "empty_log_format",
+			underscoreLine: `log_format = ""`,
+			hyphenatedLine: `log-format = "json"`,
+			wantLogFormat:  "json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearCONFDEnvVars(t)
+
+			// The outcome does not depend on the order of the keys in the file.
+			fileContents := []string{
+				tt.underscoreLine + "\n" + tt.hyphenatedLine + "\n",
+				tt.hyphenatedLine + "\n" + tt.underscoreLine + "\n",
+			}
+			for _, fileContent := range fileContents {
+				configFile := writeConfigFile(t, fileContent)
+				cli, _ := parseCLI(t, []string{"--config-file", configFile, "env"})
+				if err := loadConfigFile(cli, &backends.Config{}); err != nil {
+					t.Fatalf("loadConfigFile failed for %q: %v", fileContent, err)
+				}
+				if cli.LogLevel != tt.wantLogLevel {
+					t.Errorf("file %q: LogLevel = %q, want %q", fileContent, cli.LogLevel, tt.wantLogLevel)
+				}
+				if cli.LogFormat != tt.wantLogFormat {
+					t.Errorf("file %q: LogFormat = %q, want %q", fileContent, cli.LogFormat, tt.wantLogFormat)
+				}
+			}
+		})
+	}
+}
+
+func TestLoadConfigFile_HyphenatedLogKeysOverridden(t *testing.T) {
+	tests := []struct {
+		name          string
+		fileContent   string
+		args          []string
+		env           map[string]string
+		wantLogLevel  string
+		wantLogFormat string
+	}{
+		{
+			name:         "flag_log_level",
+			fileContent:  `log-level = "debug"`,
+			args:         []string{"--log-level", "error"},
+			wantLogLevel: "error",
+		},
+		{
+			name:          "flag_log_format",
+			fileContent:   `log-format = "text"`,
+			args:          []string{"--log-format", "json"},
+			wantLogFormat: "json",
+		},
+		{
+			name:         "env_log_level",
+			fileContent:  `log-level = "debug"`,
+			env:          map[string]string{"CONFD_LOG_LEVEL": "error"},
+			wantLogLevel: "error",
+		},
+		{
+			name:          "env_log_format",
+			fileContent:   `log-format = "text"`,
+			env:           map[string]string{"CONFD_LOG_FORMAT": "json"},
+			wantLogFormat: "json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearCONFDEnvVars(t)
+			for name, value := range tt.env {
+				t.Setenv(name, value)
+			}
+
+			configFile := writeConfigFile(t, tt.fileContent)
+			args := append([]string{"--config-file", configFile}, tt.args...)
+			cli, _ := parseCLI(t, append(args, "env"))
+			if err := loadConfigFile(cli, &backends.Config{}); err != nil {
+				t.Fatalf("loadConfigFile failed: %v", err)
+			}
+			if cli.LogLevel != tt.wantLogLevel {
+				t.Errorf("LogLevel = %q, want %q", cli.LogLevel, tt.wantLogLevel)
+			}
+			if cli.LogFormat != tt.wantLogFormat {
+				t.Errorf("LogFormat = %q, want %q", cli.LogFormat, tt.wantLogFormat)
+			}
+		})
+	}
+}
+
 func TestLoadConfigFile_DocumentedKeysInvalidDurations(t *testing.T) {
 	keys := []string{
 		"backend_timeout", "check_cmd_timeout", "reload_cmd_timeout",
