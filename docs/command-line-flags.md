@@ -99,9 +99,9 @@ confd consul --help
 |------|-------------|---------|
 | `-n, --node` | Consul agent address | `127.0.0.1:8500` |
 | `--scheme` | URI scheme (http or https) | `http` |
-| `--basic-auth` | Use basic authentication | `false` |
-| `--username` | Authentication username | - |
-| `--password` | Authentication password | - |
+| `--basic-auth` | Send `--username` and `--password` as HTTP basic auth, in place of `CONSUL_HTTP_AUTH`. Without it the two flags are ignored (confd logs a warning) and `CONSUL_HTTP_AUTH` applies if set | `false` |
+| `--username` | Basic auth username; used only with `--basic-auth` | - |
+| `--password` | Basic auth password; used only with `--basic-auth` | - |
 | `--auth-token` | ACL token; wins over `CONSUL_HTTP_TOKEN` and `CONSUL_HTTP_TOKEN_FILE` | - |
 | `--client-cert` | Client certificate file | - |
 | `--client-key` | Client key file | - |
@@ -117,10 +117,10 @@ confd etcd --help
 |------|-------------|---------|
 | `-n, --node` | etcd node addresses (repeatable) | - |
 | `--scheme` | URI scheme (http or https) | `http` |
-| `--basic-auth` | Use basic authentication | `false` |
-| `--username` | Authentication username | - |
-| `--password` | Authentication password | - |
-| `--auth-token` | JWT used in place of a username and password; cannot be combined with `--basic-auth` | - |
+| `--basic-auth` | Authenticate with `--username` and `--password`; nothing is sent unless both are non-empty. Without it the two flags are ignored and confd logs a warning | `false` |
+| `--username` | Username; used only with `--basic-auth` | - |
+| `--password` | Password; used only with `--basic-auth` | - |
+| `--auth-token` | JWT used in place of a username and password; the etcd client refuses to start when it is combined with `--basic-auth` and a non-empty `--username` or `--password` | - |
 | `--client-cert` | Client certificate file | - |
 | `--client-key` | Client key file | - |
 | `--client-ca-keys` | CA certificate file | - |
@@ -465,6 +465,12 @@ Setting one of these for a backend that does not use it changes nothing. confd l
 ```
 
 The warning is logged whether the setting came from the command line, its `CONFD_*` environment variable or `confd.toml`, and also when it is set to its default value. It covers the backend chosen on the command line, not per-resource `[backend]` sections.
+
+consul and etcd use `--username` and `--password` only when `--basic-auth` is set. When either is supplied (on the command line or as `username` / `password` in `confd.toml`) without basic auth, confd logs, for example:
+
+```
+--username has no effect with the consul backend unless --basic-auth is set
+```
 
 ### --watch-error-backoff
 

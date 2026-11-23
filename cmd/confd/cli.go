@@ -518,10 +518,10 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		log.SetFormat(cli.LogFormat)
 	}
 
-	// Warn about timeout and retry flags the backend does not use. This runs
-	// before the backend client is created so that it is logged even when the
-	// backend then fails to connect.
-	warnIgnoredBackendFlags(cli.configSources, backendCfg.Backend)
+	// Warn about settings the backend does not use. This runs before the
+	// backend client is created so that it is logged even when the backend
+	// then fails to connect.
+	warnIgnoredBackendFlags(cli.configSources, backendCfg)
 
 	// Check-config mode: validate configuration and exit (no backend needed)
 	if cli.CheckConfig {
