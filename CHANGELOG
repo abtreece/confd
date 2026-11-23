@@ -1,5 +1,6 @@
 ### [Unreleased]
 
+* fix: Secrets Manager errors served from the per-call error cache keep the `get secret value "<name>":` prefix added on the first failure (#655)
 * fix: `ACM_EXPORT_PRIVATE_KEY` is parsed as a boolean; any non-empty value, including `false` and `0`, used to enable private key export and override an explicit `--acm-export-private-key=false` (#660)
 * fix: the redis backend authenticates with `--password`, `REDIS_PASSWORD` or `password` in confd.toml; previously only `--client-key` / `client_key` / `CONFD_CLIENT_KEY` carried the password. Precedence is `--password`, `REDIS_PASSWORD`, confd.toml `password`, then the legacy client key, and an empty value is treated as unset. **Migration:** a `password` key in confd.toml that redis used to ignore is now sent and wins over `client_key`; remove it if it is not the redis password (#661)
 * fix: log a startup warning (`--<flag> has no effect with the <backend> backend`) when `--dial-timeout`, `--read-timeout`, `--write-timeout`, `--retry-max-attempts`, `--retry-base-delay` or `--retry-max-delay` is supplied for a backend that does not use it; `--help` and the docs now state each flag's scope (the read/write timeout and retry flags apply to redis only) (#662)
