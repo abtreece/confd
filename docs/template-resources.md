@@ -25,7 +25,7 @@ Template resources are stored under the `/etc/confd/conf.d` directory by default
 
 **Commands:**
 
-* `check_cmd` (string) - The command to check config. Use `{{.src}}` to reference the rendered source template.
+* `check_cmd` (string) - The command to check config. Use `{{.src}}` to reference the staged file: the rendered output, written next to the destination before it replaces the destination, so the destination has not been touched when `check_cmd` runs. `{{.dest}}` is not available in `check_cmd`.
 * `check_cmd_timeout` (string) - Timeout for the check command. Uses Go duration format (e.g., `30s`, `1m`). Overrides the global `--check-cmd-timeout` flag.
 * `reload_cmd` (string) - The command to reload config. Use `{{.dest}}` to reference the destination file. `{{.src}}` is also available: when `reload_cmd` runs the stage file has already been moved onto the destination, so `{{.src}}` is the destination path, or the kept stage file with `--keep-stage-file`.
 * `reload_cmd_timeout` (string) - Timeout for the reload command. Uses Go duration format (e.g., `60s`, `2m`). Overrides the global `--reload-cmd-timeout` flag.
