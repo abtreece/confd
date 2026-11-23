@@ -600,6 +600,8 @@ confd --stat-cache-ttl 5s etcd --watch
 
 Global configuration can also be set via environment variables with the `CONFD_` prefix. Command-line flags take precedence over environment variables.
 
+For a string setting, an environment variable set to an empty value (`CONFD_PREFIX=`) is treated as unset: the value from `confd.toml` applies, and without one the built-in default. `CONFD_DEBOUNCE` and `CONFD_BATCH_INTERVAL` hold durations but are string settings, so an empty value for them is treated as unset too. For a boolean, integer or any other duration setting an empty value is an error.
+
 ### Core Settings
 
 | Variable | Description | Default |

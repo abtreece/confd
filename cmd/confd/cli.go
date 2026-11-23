@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"runtime"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -127,6 +129,58 @@ type CLI struct {
 // variables before the config file is merged in run().
 func (c *CLI) AfterApply(ctx *kong.Context) error {
 	c.configSources = newConfigSources(ctx)
+	return nil
+}
+
+// parserOptions returns the Kong options the confd command line is parsed
+// with. main and the tests both use them, so that they parse the same way.
+func parserOptions() []kong.Option {
+	return []kong.Option{
+		kong.Name("confd"),
+		kong.Description("Manage local config files using templates and data from backends"),
+		kong.UsageOnError(),
+		kong.PostBuild(ignoreEmptyStringEnvs),
+	}
+}
+
+// ignoreEmptyStringEnvs makes an environment variable that is set to the
+// empty string behave exactly as if it were unset, for every flag whose type
+// is string. Kong would otherwise apply the empty value over the flag's
+// default and validate it against the flag's enum, and newConfigSources would
+// record the setting as explicit, which stops its confd.toml value from
+// applying.
+//
+// The variable is detached from the flag before parsing, so everything that
+// follows (defaults, enum validation, source tracking) sees a flag with no
+// variable set. The process environment is not changed. Flags of other types
+// are left alone: an empty value there is a parse error.
+func ignoreEmptyStringEnvs(k *kong.Kong) error {
+	var visit func(node *kong.Node)
+	visit = func(node *kong.Node) {
+		for _, flag := range node.Flags {
+			if !flag.Target.IsValid() || flag.Target.Kind() != reflect.String {
+				continue
+			}
+			envs := slices.DeleteFunc(slices.Clone(flag.Tag.Envs), func(env string) bool {
+				value, isSet := os.LookupEnv(env)
+				return isSet && value == ""
+			})
+			if len(envs) == len(flag.Tag.Envs) {
+				continue
+			}
+			if len(envs) == 0 {
+				// Keep the variable's name in the help text, which Kong
+				// builds from the list being emptied here.
+				flag.Help = kong.DefaultHelpValueFormatter(flag.Value)
+			}
+			flag.Tag.Envs = envs
+			flag.Envs = envs
+		}
+		for _, child := range node.Children {
+			visit(child)
+		}
+	}
+	visit(k.Model.Node)
 	return nil
 }
 
@@ -262,21 +316,21 @@ func (r *RedisCmd) Run(cli *CLI) error {
 	return run(cli, r.backendConfig())
 }
 
-// resolvePassword treats an empty --password or REDIS_PASSWORD as unset, so
-// that the first non-empty source wins: flag, then REDIS_PASSWORD, then
-// password in confd.toml.
+// resolvePassword treats an empty --password as unset, so that the first
+// non-empty source wins: flag, then REDIS_PASSWORD, then password in
+// confd.toml. An empty REDIS_PASSWORD is already unset by the time the command
+// line is parsed (see ignoreEmptyStringEnvs).
 //
 // An empty --password stops the parser from reading REDIS_PASSWORD, so the
-// variable is read here. When neither gives a password, both are still
-// recorded as explicit sources, which would stop the confd.toml password
-// from applying, so those records are dropped.
+// variable is read here. When that gives no password either, the flag is
+// still recorded as an explicit source, which would stop the confd.toml
+// password from applying, so that record is dropped.
 func (r *RedisCmd) resolvePassword(cli *CLI) {
 	if r.Password == "" {
 		r.Password = os.Getenv(redisPasswordEnv)
 	}
 	if r.Password == "" && cli.configSources != nil {
 		delete(cli.configSources.cli, "password")
-		delete(cli.configSources.env, "password")
 	}
 }
 

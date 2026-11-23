@@ -22,10 +22,8 @@ func init() {
 func parseCLI(t *testing.T, args []string) (*CLI, *kong.Context) {
 	t.Helper()
 	var cli CLI
-	parser, err := kong.New(&cli,
-		kong.Name("confd"),
-		kong.Exit(func(int) {}), // Don't exit on error
-	)
+	// The exit option stops a parse error from exiting the test binary.
+	parser, err := kong.New(&cli, append(parserOptions(), kong.Exit(func(int) {}))...)
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
 	}

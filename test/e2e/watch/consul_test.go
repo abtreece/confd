@@ -4,6 +4,7 @@ package watch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -259,7 +260,7 @@ prefix = "/"
 	select {
 	case err := <-errChan:
 		// Context cancellation errors are acceptable
-		if err != nil && err != context.Canceled {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			t.Logf("Error during shutdown (may be expected): %v", err)
 		}
 	default:
