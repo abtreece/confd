@@ -1,6 +1,10 @@
 ### [Unreleased]
 
 * fix: `{{.src}}` in `reload_cmd` names a file that exists: the destination path, or the kept stage file with `--keep-stage-file`; it used to be the stage path after the file had been moved (#667)
+* docs: only the `test/e2e/watch` package needs Docker; show how to run the other e2e packages without it (#658)
+* chore: set an explicit wrapcheck `ignore-sigs` list in `.golangci.yml` (`.Errorf(`, `errors.New(`, `errors.Unwrap(`, `errors.Join(`, `.Wrap(`, `.Wrapf(`) in place of the linter's built-in defaults; no findings change (#657)
+* docs: document that confd.toml accepts `log-level` / `log-format` alongside `log_level` / `log_format`, that the underscore spelling takes precedence when it is non-empty, and that an empty underscore value falls back to the hyphenated one; add tests for both and for flag and env overrides (#656)
+* fix: Secrets Manager errors served from the per-call error cache keep the `get secret value "<name>":` prefix added on the first failure (#655)
 * fix: `ACM_EXPORT_PRIVATE_KEY` is parsed as a boolean; any non-empty value, including `false` and `0`, used to enable private key export and override an explicit `--acm-export-private-key=false` (#660)
 * fix: the redis backend authenticates with `--password`, `REDIS_PASSWORD` or `password` in confd.toml; previously only `--client-key` / `client_key` / `CONFD_CLIENT_KEY` carried the password. Precedence is `--password`, `REDIS_PASSWORD`, confd.toml `password`, then the legacy client key, and an empty value is treated as unset. **Migration:** a `password` key in confd.toml that redis used to ignore is now sent and wins over `client_key`; remove it if it is not the redis password (#661)
 * fix: log a startup warning (`--<flag> has no effect with the <backend> backend`) when `--dial-timeout`, `--read-timeout`, `--write-timeout`, `--retry-max-attempts`, `--retry-base-delay` or `--retry-max-delay` is supplied for a backend that does not use it; `--help` and the docs now state each flag's scope (the read/write timeout and retry flags apply to redis only) (#662)

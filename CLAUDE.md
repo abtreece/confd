@@ -120,7 +120,7 @@ test/integration/
 - `operations/` - Health and readiness endpoints, metrics, signals (SIGHUP, SIGTERM), reload
 - `validation/` - Invalid backend types, malformed TOML, template syntax errors
 - `resilience/` - Timeout handling
-- `watch/` - Watch mode against consul, etcd, redis and zookeeper; debounce, batch, reconnect
+- `watch/` - Watch mode against consul, etcd, redis and zookeeper; debounce, batch, reconnect. The only package that needs Docker (testcontainers-go)
 - `concurrency/` - Concurrent processing
 - `containers/`, `testenv/` - Test helpers (testcontainers-go backends, environment setup)
 
@@ -138,8 +138,11 @@ test/integration/backends/file/test_json.sh
 test/integration/backends/consul/test.sh
 test/integration/backends/etcd/test.sh
 
-# E2E tests (require Docker)
+# All E2E tests (the watch package requires Docker)
 go test -v -tags=e2e -timeout 15m ./test/e2e/...
+
+# E2E packages that run without Docker (everything except watch)
+go test -v -tags=e2e ./test/e2e/features/ ./test/e2e/operations/ ./test/e2e/validation/ ./test/e2e/resilience/ ./test/e2e/concurrency/
 
 # A single e2e package
 go test -v -tags=e2e ./test/e2e/features/...
