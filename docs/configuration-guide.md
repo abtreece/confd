@@ -14,6 +14,8 @@ Configuration is loaded from multiple sources in order of precedence (highest to
 3. Configuration file (`/etc/confd/confd.toml`)
 4. Built-in defaults
 
+For a string setting, an environment variable set to an empty value (`CONFD_LOG_LEVEL=`) is treated as unset: the configuration file's value applies, and without one the built-in default. For a boolean, integer or duration setting an empty value is an error.
+
 ## Core Options
 
 > Note: The backend is not a configuration file option. It is chosen on the command line as a subcommand (e.g., `confd etcd`).

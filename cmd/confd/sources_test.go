@@ -138,10 +138,9 @@ func TestSourceTracking_GlobalFlags(t *testing.T) {
 			wantEnv: []string{"dial_timeout"},
 		},
 		{
-			name:    "env var set to the empty string",
-			env:     map[string]string{"CONFD_PREFIX": ""},
-			args:    []string{"env"},
-			wantEnv: []string{"prefix"},
+			name: "string env var set to the empty string is not a source",
+			env:  map[string]string{"CONFD_PREFIX": ""},
+			args: []string{"env"},
 		},
 		{
 			name:    "several env vars",
