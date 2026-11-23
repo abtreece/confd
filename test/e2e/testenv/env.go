@@ -51,12 +51,18 @@ func NewE2ETestEnv(t *testing.T, container containers.BackendContainer) *E2ETest
 
 // Setup starts the backend container and prepares the test environment.
 func (e *E2ETestEnv) Setup(ctx context.Context) error {
-	return e.container.Start(ctx)
+	if err := e.container.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start backend container: %w", err)
+	}
+	return nil
 }
 
 // Teardown stops the backend container.
 func (e *E2ETestEnv) Teardown(ctx context.Context) error {
-	return e.container.Stop(ctx)
+	if err := e.container.Stop(ctx); err != nil {
+		return fmt.Errorf("failed to stop backend container: %w", err)
+	}
+	return nil
 }
 
 // WriteTemplate creates a template file in the templates directory.
@@ -81,18 +87,27 @@ func (e *E2ETestEnv) WriteConfig(name, content string) string {
 
 // SetBackendValue sets a key-value pair in the backend.
 func (e *E2ETestEnv) SetBackendValue(ctx context.Context, key, value string) error {
-	return e.container.SetValue(ctx, key, value)
+	if err := e.container.SetValue(ctx, key, value); err != nil {
+		return fmt.Errorf("failed to set backend value for key %s: %w", key, err)
+	}
+	return nil
 }
 
 // DeleteBackendValue deletes a key from the backend.
 func (e *E2ETestEnv) DeleteBackendValue(ctx context.Context, key string) error {
-	return e.container.DeleteValue(ctx, key)
+	if err := e.container.DeleteValue(ctx, key); err != nil {
+		return fmt.Errorf("failed to delete backend key %s: %w", key, err)
+	}
+	return nil
 }
 
 // RestartBackend restarts the backend container to test reconnection behavior.
 // Note: Backend data may be lost on restart depending on the backend type.
 func (e *E2ETestEnv) RestartBackend(ctx context.Context) error {
-	return e.container.Restart(ctx)
+	if err := e.container.Restart(ctx); err != nil {
+		return fmt.Errorf("failed to restart backend container: %w", err)
+	}
+	return nil
 }
 
 // ReadDest reads the content of a destination file.
@@ -101,7 +116,7 @@ func (e *E2ETestEnv) ReadDest(name string) (string, error) {
 	path := filepath.Join(e.destDir, name)
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read destination file %s: %w", path, err)
 	}
 	return string(content), nil
 }

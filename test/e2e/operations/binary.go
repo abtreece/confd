@@ -4,6 +4,7 @@ package operations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -151,7 +152,7 @@ func (c *ConfdBinary) WaitForReady(ctx context.Context, addr string, timeout tim
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("waiting for confd to be ready at %s: %w", url, ctx.Err())
 		default:
 		}
 
@@ -174,7 +175,10 @@ func (c *ConfdBinary) SendSignal(sig syscall.Signal) error {
 	if c.cmd == nil || c.cmd.Process == nil {
 		return fmt.Errorf("process not running")
 	}
-	return c.cmd.Process.Signal(sig)
+	if err := c.cmd.Process.Signal(sig); err != nil {
+		return fmt.Errorf("failed to send signal %v to confd: %w", sig, err)
+	}
+	return nil
 }
 
 // Stop terminates the process gracefully with SIGTERM, then SIGKILL if needed.
@@ -200,7 +204,10 @@ func (c *ConfdBinary) Stop() error {
 		return nil
 	case <-time.After(5 * time.Second):
 		// Force kill if graceful shutdown times out
-		return c.cmd.Process.Kill()
+		if err := c.cmd.Process.Kill(); err != nil {
+			return fmt.Errorf("failed to kill confd: %w", err)
+		}
+		return nil
 	}
 }
 
@@ -212,10 +219,11 @@ func (c *ConfdBinary) Wait() (int, error) {
 
 	err := c.cmd.Wait()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			return exitErr.ExitCode(), nil
 		}
-		return -1, err
+		return -1, fmt.Errorf("failed to wait for confd: %w", err)
 	}
 
 	return 0, nil
