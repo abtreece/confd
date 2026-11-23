@@ -34,12 +34,12 @@ var backendConfigCases = map[string]struct {
 		args: []string{
 			"etcd", "--node", "http://etcd:2379", "--scheme", "https",
 			"--client-cert", "/cert", "--client-key", "/key", "--client-ca-keys", "/ca", "--client-insecure",
-			"--basic-auth", "--username", "user", "--password", "pass",
+			"--basic-auth", "--username", "user", "--password", "pass", "--auth-token", "token",
 		},
 		want: backends.Config{
 			Backend: "etcd", BackendNodes: util.Nodes{"http://etcd:2379"}, Scheme: "https",
 			ClientCert: "/cert", ClientKey: "/key", ClientCaKeys: "/ca", ClientInsecure: true,
-			BasicAuth: true, Username: "user", Password: "pass",
+			BasicAuth: true, Username: "user", Password: "pass", AuthToken: "token",
 		},
 	},
 	"vault": {

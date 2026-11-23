@@ -280,6 +280,7 @@ func (e *EtcdCmd) backendConfig(_ *CLI) (backends.Config, error) {
 		BasicAuth:      e.BasicAuth,
 		Username:       e.Username,
 		Password:       e.Password,
+		AuthToken:      e.AuthToken,
 	}, nil
 }
 

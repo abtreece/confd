@@ -128,13 +128,16 @@ type Client struct {
 }
 
 // NewEtcdClient returns an *etcd.Client with a connection to named machines.
-func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure bool, basicAuth bool, username string, password string, dialTimeout time.Duration) (*Client, error) {
+// A non-empty token is a JWT sent in place of a username and password; the
+// etcd client rejects it together with basic auth (clientv3.ErrMutuallyExclusiveCfg).
+func NewEtcdClient(machines []string, cert, key, caCert string, clientInsecure bool, basicAuth bool, username string, password string, token string, dialTimeout time.Duration) (*Client, error) {
 	// Defaults already applied via ApplyTimeoutDefaults in the factory
 	cfg := clientv3.Config{
 		Endpoints:            machines,
 		DialTimeout:          dialTimeout,
 		DialKeepAliveTime:    10 * time.Second,
 		DialKeepAliveTimeout: 3 * time.Second,
+		Token:                token,
 	}
 
 	if basicAuth {

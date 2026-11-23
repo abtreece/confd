@@ -2,11 +2,15 @@ package backends
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // TestNew_ConsulAuthToken checks that Config.AuthToken reaches the consul
@@ -49,5 +53,23 @@ func TestNew_ConsulAuthToken(t *testing.T) {
 		if token != "acl-token" {
 			t.Errorf("X-Consul-Token = %q, want %q", token, "acl-token")
 		}
+	}
+}
+
+// TestNew_EtcdAuthToken checks that Config.AuthToken reaches the etcd client.
+// The etcd client rejects a token together with basic auth, so that error can
+// only come back if the token was passed through.
+func TestNew_EtcdAuthToken(t *testing.T) {
+	_, err := New(context.Background(), Config{
+		Backend:      "etcd",
+		BackendNodes: []string{"127.0.0.1:1"},
+		BasicAuth:    true,
+		Username:     "user",
+		Password:     "pass",
+		AuthToken:    "jwt-token",
+		DialTimeout:  time.Second,
+	})
+	if !errors.Is(err, clientv3.ErrMutuallyExclusiveCfg) {
+		t.Fatalf("New() error = %v, want %v", err, clientv3.ErrMutuallyExclusiveCfg)
 	}
 }
