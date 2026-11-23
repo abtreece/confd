@@ -75,6 +75,7 @@ func New(ctx context.Context, config Config) (StoreClient, error) {
 			config.BasicAuth,
 			config.Username,
 			config.Password,
+			config.AuthToken,
 		)
 	case "etcd":
 		log.Info("Backend source(s) set to %s", strings.Join(backendNodes, ", "))

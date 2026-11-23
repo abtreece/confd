@@ -3,8 +3,12 @@ package consul
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"runtime"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -249,7 +253,7 @@ func TestWatchPrefix_Error(t *testing.T) {
 
 func TestNew_BasicConfiguration(t *testing.T) {
 	// Test New with basic configuration
-	client, err := New([]string{"localhost:8500"}, "http", "", "", "", false, "", "")
+	client, err := New([]string{"localhost:8500"}, "http", "", "", "", false, "", "", "")
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}
@@ -260,7 +264,7 @@ func TestNew_BasicConfiguration(t *testing.T) {
 
 func TestNew_WithNodes(t *testing.T) {
 	// Test New with multiple nodes (should use first node)
-	client, err := New([]string{"node1:8500", "node2:8500", "node3:8500"}, "http", "", "", "", false, "", "")
+	client, err := New([]string{"node1:8500", "node2:8500", "node3:8500"}, "http", "", "", "", false, "", "", "")
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}
@@ -271,7 +275,7 @@ func TestNew_WithNodes(t *testing.T) {
 
 func TestNew_EmptyNodes(t *testing.T) {
 	// Test New with empty nodes list (should use default Consul address)
-	client, err := New([]string{}, "http", "", "", "", false, "", "")
+	client, err := New([]string{}, "http", "", "", "", false, "", "", "")
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}
@@ -282,7 +286,7 @@ func TestNew_EmptyNodes(t *testing.T) {
 
 func TestNew_WithBasicAuth(t *testing.T) {
 	// Test New with basic authentication
-	client, err := New([]string{"localhost:8500"}, "http", "", "", "", true, "user", "pass")
+	client, err := New([]string{"localhost:8500"}, "http", "", "", "", true, "user", "pass", "")
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}
@@ -291,9 +295,80 @@ func TestNew_WithBasicAuth(t *testing.T) {
 	}
 }
 
+// consulTokenServer is a stand-in Consul agent that answers every request
+// with an empty KV list and records the ACL token header of the last request.
+type consulTokenServer struct {
+	*httptest.Server
+	mu        sync.Mutex
+	lastToken string
+	requests  int
+}
+
+func newConsulTokenServer(t *testing.T) *consulTokenServer {
+	t.Helper()
+	server := &consulTokenServer{}
+	server.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server.mu.Lock()
+		server.lastToken = r.Header.Get("X-Consul-Token")
+		server.requests++
+		server.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+// tokenSent runs a health check against the server and returns the ACL token
+// header it carried.
+func (s *consulTokenServer) tokenSent(t *testing.T, client *ConsulClient) string {
+	t.Helper()
+	if err := client.HealthCheck(context.Background()); err != nil {
+		t.Fatalf("HealthCheck() error: %v", err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.requests == 0 {
+		t.Fatal("HealthCheck() sent no request to the server")
+	}
+	return s.lastToken
+}
+
+func TestNew_WithToken(t *testing.T) {
+	tests := []struct {
+		name string
+		// envToken is CONSUL_HTTP_TOKEN; empty leaves it unset
+		envToken string
+		token    string
+		want     string
+	}{
+		{name: "token sent as the ACL token", token: "flag-token", want: "flag-token"},
+		{name: "no token sends no header"},
+		{name: "CONSUL_HTTP_TOKEN still applies without a token", envToken: "env-token", want: "env-token"},
+		{name: "token wins over CONSUL_HTTP_TOKEN", envToken: "env-token", token: "flag-token", want: "flag-token"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(api.HTTPTokenEnvName, tt.envToken)
+			t.Setenv(api.HTTPTokenFileEnvName, "")
+			server := newConsulTokenServer(t)
+
+			address := strings.TrimPrefix(server.URL, "http://")
+			client, err := New([]string{address}, "http", "", "", "", false, "", "", tt.token)
+			if err != nil {
+				t.Fatalf("New() error: %v", err)
+			}
+			if got := server.tokenSent(t, client); got != tt.want {
+				t.Errorf("X-Consul-Token = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNew_WithHTTPS(t *testing.T) {
 	// Test New with HTTPS scheme
-	client, err := New([]string{"localhost:8500"}, "https", "", "", "", false, "", "")
+	client, err := New([]string{"localhost:8500"}, "https", "", "", "", false, "", "", "")
 	if err != nil {
 		t.Fatalf("New() unexpected error: %v", err)
 	}

@@ -24,8 +24,11 @@ type ConsulClient struct {
 	apiClient *api.Client // Full API client for health checks
 }
 
-// NewConsulClient returns a new client to Consul for the given address
-func New(nodes []string, scheme, cert, key, caCert string, basicAuth bool, username string, password string) (*ConsulClient, error) {
+// New returns a new client to Consul for the given address. A non-empty token
+// is sent as the ACL token and wins over CONSUL_HTTP_TOKEN and
+// CONSUL_HTTP_TOKEN_FILE, which the Consul API client reads by itself; an
+// empty token leaves those in effect.
+func New(nodes []string, scheme, cert, key, caCert string, basicAuth bool, username string, password string, token string) (*ConsulClient, error) {
 	start := time.Now()
 	logger := log.With("backend", "consul")
 
@@ -40,7 +43,8 @@ func New(nodes []string, scheme, cert, key, caCert string, basicAuth bool, usern
 		"address", address,
 		"scheme", scheme,
 		"tls_enabled", cert != "" && key != "",
-		"basic_auth", basicAuth)
+		"basic_auth", basicAuth,
+		"acl_token", token != "")
 
 	conf := api.DefaultConfig()
 
@@ -55,6 +59,10 @@ func New(nodes []string, scheme, cert, key, caCert string, basicAuth bool, usern
 			Username: username,
 			Password: password,
 		}
+	}
+
+	if token != "" {
+		conf.Token = token
 	}
 
 	if cert != "" && key != "" {
