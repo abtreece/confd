@@ -44,6 +44,15 @@ func TestBackendSectionWarnings(t *testing.T) {
 			want:    []string{path + ": --basic-auth has no effect with the redis backend"},
 		},
 		{
+			name:    "client_insecure on a backend other than etcd",
+			backend: "backend = \"vault\"\nclient_insecure = true",
+			want:    []string{path + ": --client-insecure has no effect with the vault backend"},
+		},
+		{
+			name:    "client_insecure on etcd",
+			backend: "backend = \"etcd\"\nclient_insecure = true",
+		},
+		{
 			name:    "consul username without basic_auth",
 			backend: "backend = \"consul\"\nusername = \"u\"",
 			want:    []string{path + ": --username has no effect with the consul backend unless --basic-auth is set"},

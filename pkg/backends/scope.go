@@ -27,6 +27,7 @@ var settingScope = []struct {
 	{flag: "basic-auth", keys: []string{"basic_auth"}, usedBy: []string{"consul", "etcd"}},
 	{flag: "client-cert", keys: []string{"client_cert"}, usedBy: []string{"consul", "etcd", "vault"}},
 	{flag: "client-ca-keys", keys: []string{"client_ca_keys", "client_cakeys"}, usedBy: []string{"consul", "etcd", "vault"}},
+	{flag: "client-insecure", keys: []string{"client_insecure"}, usedBy: []string{"etcd"}},
 }
 
 // basicAuthBackends send username and password only when basic auth is

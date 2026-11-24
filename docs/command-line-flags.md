@@ -477,6 +477,7 @@ Configure timeouts for various operations:
 | `--auth-token` | consul (ACL token), etcd (JWT), vault | every other backend, including redis |
 | `--basic-auth` | consul, etcd | every other backend, including redis |
 | `--client-cert`, `--client-ca-keys` | consul, etcd, vault | every other backend, including redis |
+| `--client-insecure` (`client_insecure` in `confd.toml`; only the etcd command accepts the flag) | etcd | every other backend, including consul and vault |
 
 Setting one of these for a backend that does not use it changes nothing. confd logs a warning for each such flag at startup and carries on, for example:
 
