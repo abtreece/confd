@@ -38,7 +38,7 @@ type Config struct {
 	Debounce      time.Duration // Global debounce for all templates
 	BatchInterval time.Duration // Batch processing interval
 	// PollInterval is the interval at which watch mode processes resources
-	// whose backend cannot watch.
+	// whose backend cannot watch. Zero or less means DefaultPollInterval.
 	PollInterval time.Duration
 	// Context for cancellation and timeouts
 	Ctx              context.Context

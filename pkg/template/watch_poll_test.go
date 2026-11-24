@@ -170,3 +170,36 @@ func TestWatchProcessor_ReloadMovesResourceToPoller(t *testing.T) {
 	waitForDone(t, doneChan, testShutdownTimeout)
 	requireNoProcessorError(t, errChan)
 }
+
+// TestWatchProcessor_UnsetPollIntervalUsesDefault verifies that a Config
+// built without a positive PollInterval, as callers other than the CLI may
+// build it, polls at DefaultPollInterval instead of panicking: the resource
+// is processed when it loads and not again within a few test intervals.
+func TestWatchProcessor_UnsetPollIntervalUsesDefault(t *testing.T) {
+	for _, interval := range []time.Duration{0, -time.Second} {
+		t.Run(interval.String(), func(t *testing.T) {
+			t.Cleanup(clearClientCache)
+			env := newProcessorTestEnv(t)
+			polledDest := writePolledResource(env, "polled")
+
+			client := &countingWatchClient{fakeWatchClient: newFakeWatchClient(nil)}
+			config := pollTestConfig(env, client)
+			config.PollInterval = interval
+			stopChan := make(chan bool)
+			doneChan := make(chan bool)
+			errChan := make(chan error, testErrorChannelBuffer)
+
+			go WatchProcessor(config, stopChan, doneChan, errChan, make(chan struct{})).Process()
+
+			first := waitForTicks(t, polledDest, "", 1)
+			time.Sleep(5 * testPollInterval)
+			if content, err := env.readDest("polled.txt"); err != nil || strings.TrimSpace(content) != first {
+				t.Errorf("resource was polled again within %v (content %q, err %v), want DefaultPollInterval %v", 5*testPollInterval, content, err, DefaultPollInterval)
+			}
+
+			close(stopChan)
+			waitForDone(t, doneChan, testShutdownTimeout)
+			requireNoProcessorError(t, errChan)
+		})
+	}
+}

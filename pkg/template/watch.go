@@ -11,6 +11,10 @@ import (
 	"github.com/abtreece/confd/pkg/metrics"
 )
 
+// DefaultPollInterval is the poll interval watch mode uses when
+// Config.PollInterval is zero or less. It matches the default of --interval.
+const DefaultPollInterval = 600 * time.Second
+
 // watchLoop is the lifecycle plumbing shared by watchProcessor and
 // batchWatchProcessor: loading template resources, restarting on reload,
 // running one watch monitor per template resource whose backend can watch,
@@ -127,7 +131,7 @@ func (w *watchLoop) monitor(t *TemplateResource, onChange func() bool) {
 }
 
 // split divides ts into the resources whose backend can watch and those whose
-// backend cannot, which are polled every config.PollInterval. It logs each
+// backend cannot, which are polled every pollInterval. It logs each
 // polled resource and sets the watched keys gauge to the number of keys of the
 // watched resources only.
 func (w *watchLoop) split(ts []*TemplateResource) (watched, polled []*TemplateResource) {
@@ -138,7 +142,7 @@ func (w *watchLoop) split(ts []*TemplateResource) (watched, polled []*TemplateRe
 			totalKeys += len(t.prefixedKeys)
 			continue
 		}
-		log.Info("polling %s every %s: %s backend cannot watch", t.path, w.config.PollInterval, backendLabel(t.backendName))
+		log.Info("polling %s every %s: %s backend cannot watch", t.path, w.pollInterval(), backendLabel(t.backendName))
 		polled = append(polled, t)
 	}
 	if metrics.Enabled() {
@@ -157,15 +161,24 @@ func (w *watchLoop) startPoller(ts []*TemplateResource, onTick func([]*TemplateR
 	go w.poll(ts, onTick)
 }
 
-// poll calls onTick with ts immediately and then every config.PollInterval,
-// until the loop is stopped or the context is cancelled. It is used for
-// resources whose backend cannot watch. The caller must have registered the
-// poller with w.wg.
+// pollInterval returns config.PollInterval, or DefaultPollInterval if it is
+// zero or less.
+func (w *watchLoop) pollInterval() time.Duration {
+	if w.config.PollInterval <= 0 {
+		return DefaultPollInterval
+	}
+	return w.config.PollInterval
+}
+
+// poll calls onTick with ts immediately and then every pollInterval, until
+// the loop is stopped or the context is cancelled. It is used for resources
+// whose backend cannot watch. The caller must have registered the poller with
+// w.wg.
 func (w *watchLoop) poll(ts []*TemplateResource, onTick func([]*TemplateResource)) {
 	defer w.wg.Done()
 	ctx := w.context()
 
-	ticker := time.NewTicker(w.config.PollInterval)
+	ticker := time.NewTicker(w.pollInterval())
 	defer ticker.Stop()
 
 	for {
