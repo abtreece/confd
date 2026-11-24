@@ -1,6 +1,8 @@
 package template
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -141,3 +143,40 @@ func TestBackendSectionWarningsCaseInsensitive(t *testing.T) {
 	}
 }
 
+// TestNewTemplateResourceDefersBackendWarnings checks that a load with
+// deferredBackendWarnings set, as CheckWatchSupport does, collects the
+// [backend] warnings for the caller.
+func TestNewTemplateResourceDefersBackendWarnings(t *testing.T) {
+	clearClientCache()
+
+	confDir := t.TempDir()
+	for _, dir := range []string{"conf.d", "templates"} {
+		if err := os.MkdirAll(filepath.Join(confDir, dir), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "templates", "test.tmpl"), []byte("test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	resourcePath := filepath.Join(confDir, "conf.d", "test.toml")
+	resource := "[template]\nsrc = \"test.tmpl\"\ndest = \"/tmp/test.conf\"\nkeys = [\"/foo\"]\n\n[backend]\nbackend = \"env\"\nbasic_auth = true\n"
+	if err := os.WriteFile(resourcePath, []byte(resource), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var deferred []string
+	config := Config{
+		ConfDir:                 confDir,
+		ConfigDir:               filepath.Join(confDir, "conf.d"),
+		TemplateDir:             filepath.Join(confDir, "templates"),
+		deferredBackendWarnings: &deferred,
+	}
+	if _, err := NewTemplateResource(resourcePath, config); err != nil {
+		t.Fatalf("NewTemplateResource: %v", err)
+	}
+
+	want := []string{resourcePath + ": --basic-auth has no effect with the env backend"}
+	if !slices.Equal(deferred, want) {
+		t.Errorf("deferred warnings:\n got %q\nwant %q", deferred, want)
+	}
+}

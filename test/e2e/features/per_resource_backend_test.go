@@ -324,3 +324,51 @@ client_ca_keys = "/ca"
 		})
 	}
 }
+
+// TestPerResourceBackend_WarningsWhenWatchIsRejected verifies that the
+// [backend] warnings are still logged, once, when --watch is rejected because
+// a resource's backend cannot watch. confd exits on that error before the
+// processor loads the resources.
+func TestPerResourceBackend_WarningsWhenWatchIsRejected(t *testing.T) {
+	t.Parallel()
+
+	env := operations.NewTestEnv(t)
+
+	yamlPath := filepath.Join(env.BaseDir, "data.yaml")
+	if err := os.WriteFile(yamlPath, []byte("app:\n  name: demo\n"), 0644); err != nil {
+		t.Fatalf("Failed to write YAML file: %v", err)
+	}
+
+	env.WriteTemplate("app.tmpl", "static\n")
+	resourcePath := env.WriteConfig("app.toml", fmt.Sprintf(`[template]
+src = "app.tmpl"
+dest = "%s"
+keys = ["/app"]
+
+[backend]
+backend = "env"
+basic_auth = true
+client_ca_keys = "/ca"
+`, env.DestPath("app.conf")))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// The global file backend can watch; the resource's env backend cannot.
+	args := []string{"file", "--file", yamlPath, "--watch", "--confdir", env.ConfDir}
+	output, err := exec.CommandContext(ctx, operations.BuildConfd(t), args...).CombinedOutput()
+	if err == nil {
+		t.Fatalf("confd %v succeeded; want the watch support error:\n%s", args, output)
+	}
+	if !strings.Contains(string(output), "watch mode not supported for env backend") {
+		t.Errorf("want the watch support error in the output:\n%s", output)
+	}
+	for _, want := range []string{
+		resourcePath + `: unknown key "client_ca_keys" in [backend] is ignored; use "client_cakeys"`,
+		resourcePath + ": --basic-auth has no effect with the env backend",
+	} {
+		if strings.Count(string(output), want) != 1 {
+			t.Errorf("want the warning %q exactly once in the output:\n%s", want, output)
+		}
+	}
+}
