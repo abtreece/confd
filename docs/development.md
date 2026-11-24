@@ -389,7 +389,7 @@ func (c *Client) Close() error {
 }
 ```
 
-`WatchPrefix` is not part of `StoreClient`. It belongs to the optional `backends.Watcher` interface, which marks a backend as watch-capable. A polling-only backend omits the method: confd then refuses to start in `--watch` mode with that backend, whether it is the global backend or set in a template resource's `[backend]` section. Add the backend to `TestWatcher_ImplementedOnlyByWatchCapableBackends` in `pkg/backends/watcher_test.go` either way.
+`WatchPrefix` is not part of `StoreClient`. It belongs to the optional `backends.Watcher` interface, which marks a backend as watch-capable. A polling-only backend omits the method: confd then refuses to start in `--watch` mode with that backend as the global backend, and polls template resources that set it in their `[backend]` section every `--interval`. Add the backend to `TestWatcher_ImplementedOnlyByWatchCapableBackends` in `pkg/backends/watcher_test.go` either way.
 
 ### 3. Register in Factory
 

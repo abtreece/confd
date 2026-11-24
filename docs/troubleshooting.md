@@ -58,7 +58,7 @@ Target config <dest> in sync
 
 ### Changes in the backend are picked up slowly
 
-**Cause:** without `--watch`, confd polls. The default `--interval` is 600 seconds.
+**Cause:** without `--watch`, confd polls. With `--watch`, a resource whose `[backend]` cannot watch is polled too, and logs `polling <path> every <interval>: <backend> backend cannot watch` when resources load. The default `--interval` is 600 seconds in both cases.
 
 **Fix:** lower `--interval`, or use `--watch` if your backend supports it (see [Watch Mode Problems](#watch-mode-problems)).
 
@@ -309,7 +309,7 @@ run command: <error>
 
 **Retry:** the destination file has already been replaced when `reload_cmd` runs, so the application keeps running with its old configuration until a reload succeeds. confd remembers the failed reload and retries `reload_cmd` the next time it processes the resource, even though the destination is now in sync. It logs `Retrying reload_cmd for <dest> after an earlier failure` at info level, and a retry that fails is reported like the first failure. The retry stops after the first success.
 
-- With `--interval` the retry runs on every cycle until it succeeds. With `--watch` the resource is only processed when a watched key changes, so the retry waits for the next change.
+- With `--interval` the retry runs on every cycle until it succeeds. With `--watch` a watched resource is only processed when a watched key changes, so the retry waits for the next change; a polled resource retries on the next poll.
 - A retry skips writing the file and running `check_cmd`, but the template is still fetched from the backend and still rendered first, so a backend or rendering error is reported instead and `reload_cmd` is not retried on that cycle. The retry resumes once the resource fetches and renders cleanly again.
 - `{{.src}}` in `reload_cmd` names a file that exists and holds the rendered content: the destination path, because the stage file has been moved onto it, or the kept stage file with `--keep-stage-file`. A retry always uses the destination path.
 - The pending retry is held in memory. It is lost when confd restarts or reloads its template resources on `SIGHUP`, and a `--onetime` run cannot retry: it exits non-zero, and a second run finds the destination in sync and does not run `reload_cmd`. In those cases reload the application yourself, or remove the destination file so that confd regenerates it and reruns the commands.
@@ -344,24 +344,23 @@ command timed out after <timeout>
 check watch support: watch mode not supported for <backend> backend
 ```
 
-```text
-check watch support: watch mode not supported for <backend> backend (template resource <path>)
-```
-
-**Cause:** `--watch` (or `watch = true` in `confd.toml`, or `CONFD_WATCH`) is set and a backend in use cannot watch. The first form names the global backend. The second names a template resource whose own `[backend]` section uses a polling-only backend.
+**Cause:** `--watch` (or `watch = true` in `confd.toml`, or `CONFD_WATCH`) is set and the global backend cannot watch.
 
 | Watch supported | Polling only |
 |-----------------|--------------|
 | consul, etcd, file, redis, zookeeper | acm, dynamodb, env, imds, secretsmanager, ssm, vault |
 
-Every backend in use must support watching. confd refuses to start rather than run with some resources silently unwatched, and the check applies to `--onetime` and `--preflight` as well when `--watch` is set.
+The global backend must support watching; with a polling-only global backend nothing would be watched. The check applies to `--onetime` and `--preflight` as well when `--watch` is set.
 
-**Fix:** drop `--watch` and use `--interval` to poll. If only some resources use a polling-only backend, run those in a second confd instance in interval mode. See [Multi-Backend Architectures](multi-backend.md).
+A template resource whose own `[backend]` section uses a polling-only backend does not stop startup. confd polls it every `--interval` instead (default 600 seconds) and logs, at startup and after every `SIGHUP` reload:
 
-Two cases the startup check does not cover:
+```text
+polling <path> every <interval>: <backend> backend cannot watch
+```
 
-- `--check-config` and `--validate` exit before any backend client is created. They succeed for a configuration that would be rejected at startup. Use `--preflight` together with `--watch` to test the real combination.
-- On `SIGHUP`, a resource that was changed to (or added with) a polling-only `[backend]` is not fatal. confd logs `watch mode not supported for <backend> backend (template resource <path>)` as an error, keeps running, and continues to watch the other resources, but that one resource is **not** watched and is not processed. Check the log after every reload.
+**Fix:** drop `--watch` and use `--interval` to poll, or make a watch-capable backend the global one and move the polling-only backend into the `[backend]` section of the resources that need it. See [Multi-Backend Architectures](multi-backend.md).
+
+`--check-config` and `--validate` exit before any backend client is created, so they succeed for a configuration that would be rejected at startup. Use `--preflight` together with `--watch` to test the real combination.
 
 ### Changes are not picked up
 

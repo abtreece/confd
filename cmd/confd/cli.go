@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -632,6 +633,7 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		CheckCmdTimeout:   cli.CheckCmdTimeout,
 		ReloadCmdTimeout:  cli.ReloadCmdTimeout,
 		WatchErrorBackoff: cli.WatchErrorBackoff,
+		PollInterval:      time.Duration(cli.Interval) * time.Second,
 		PreflightTimeout:  cli.PreflightTimeout,
 		FailureMode:       failureMode,
 	}
@@ -652,10 +654,11 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		tmplCfg.BatchInterval = d
 	}
 
-	// Watch mode needs every backend in use to support watching. This is
+	// Watch mode needs the global backend to support watching. This is
 	// checked whenever watch is enabled, including with --preflight and
 	// --onetime, so a configuration that cannot run in watch mode is never
-	// reported as working.
+	// reported as working. Template resources whose own backend cannot watch
+	// are polled every --interval instead.
 	if cli.Watch {
 		if err := template.CheckWatchSupport(tmplCfg); err != nil {
 			return fmt.Errorf("check watch support: %w", err)
@@ -676,6 +679,18 @@ func run(cli *CLI, backendCfg backends.Config) error {
 			return fmt.Errorf("process templates: %w", err)
 		}
 		return nil
+	}
+
+	// Watch mode polls resources whose backend cannot watch every --interval,
+	// and a ticker needs a positive interval that fits in a time.Duration.
+	if cli.Watch {
+		const maxIntervalSeconds = math.MaxInt64 / int64(time.Second)
+		if cli.Interval < 1 {
+			return fmt.Errorf("invalid --interval %d: must be at least 1 second with --watch", cli.Interval)
+		}
+		if int64(cli.Interval) > maxIntervalSeconds {
+			return fmt.Errorf("invalid --interval %d: must be at most %d seconds with --watch", cli.Interval, maxIntervalSeconds)
+		}
 	}
 
 	// Continuous mode with processor

@@ -21,7 +21,7 @@ For a string setting, an environment variable set to an empty value (`CONFD_LOG_
 > Note: The backend is not a configuration file option. It is chosen on the command line as a subcommand (e.g., `confd etcd`).
 
 * `confdir` (string) - The path to confd configs. Default: `"/etc/confd"`
-* `interval` (int) - The backend polling interval in seconds. Default: `600`
+* `interval` (int) - The backend polling interval in seconds. In watch mode it is the poll interval for template resources whose `[backend]` cannot watch, and must be at least 1 unless `--onetime` or `--preflight` is used. Default: `600`
 * `noop` (bool) - Enable noop mode. Process all template resources; skip target update. Default: `false`
 * `prefix` (string) - The string to prefix to keys. This prefix is concatenated with any prefix set in template resource files (e.g., global `production` + resource `myapp` = `/production/myapp`).
 * `sync_only` (bool) - Write rendered templates to destination files but skip all `check_cmd` and `reload_cmd` execution. Useful when you want to update config files without triggering application reloads — for example, during initial provisioning before the application is running, or when an external orchestrator handles restarts. Default: `false`

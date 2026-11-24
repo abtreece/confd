@@ -409,9 +409,29 @@ confd --noop --diff --color consul
 
 ## Watch Mode Flags
 
+### --interval in watch mode
+
+`--interval` also applies with `--watch`, to template resources whose `[backend]` section uses a backend that cannot watch (acm, dynamodb, env, imds, secretsmanager, ssm, vault). Those resources are processed once when resources load and then every `--interval` seconds; watch-capable resources are watched as usual. The default is 600 seconds, so without `--interval` they are refreshed every 10 minutes. At startup and after every `SIGHUP` reload, confd logs one INFO line per polled resource:
+
+```text
+polling <path> every <interval>: <backend> backend cannot watch
+```
+
+The global backend must still support watch. With `--batch-interval`, polled resources go through the batch like watched ones.
+
+With `--watch`, and neither `--onetime` nor `--preflight`, an `--interval` below 1 is rejected at startup, whether or not any resource is polled:
+
+```text
+invalid --interval <n>: must be at least 1 second with --watch
+```
+
+```bash
+confd --watch --interval 60 consul
+```
+
 ### --debounce
 
-Sets a global debounce duration for watch mode. After detecting a change, confd waits this duration and then processes the template once. Additional changes during the wait do not extend it, so a key that keeps changing is processed about once per debounce period. A resource's own `debounce` key overrides this flag, and neither is applied when `--batch-interval` is set:
+Sets a global debounce duration for watch mode. After detecting a change, confd waits this duration and then processes the template once. Additional changes during the wait do not extend it, so a key that keeps changing is processed about once per debounce period. A resource's own `debounce` key overrides this flag, and neither is applied when `--batch-interval` is set. Debounce is not applied to polled resources either (see [--interval in watch mode](#--interval-in-watch-mode)); the interval already limits how often they are processed:
 
 ```bash
 confd --watch --debounce 2s consul
