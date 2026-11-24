@@ -12,7 +12,9 @@ import (
 )
 
 // DefaultPollInterval is the poll interval watch mode uses when
-// Config.PollInterval is zero or less. It matches the default of --interval.
+// Config.PollInterval is zero or less, and interval mode uses when
+// IntervalProcessor is given an interval of zero or less. It matches the
+// default of --interval.
 const DefaultPollInterval = 600 * time.Second
 
 // watchLoop is the lifecycle plumbing shared by watchProcessor and

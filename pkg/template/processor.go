@@ -113,7 +113,8 @@ type intervalProcessor struct {
 	reloadChan <-chan struct{}
 }
 
-// IntervalProcessor creates a processor that polls for changes at a fixed interval.
+// IntervalProcessor creates a processor that polls for changes every interval
+// seconds. An interval of zero or less means DefaultPollInterval.
 func IntervalProcessor(config Config, stopChan, doneChan chan bool, errChan chan error, interval int, reloadChan <-chan struct{}) Processor {
 	return &intervalProcessor{config, stopChan, doneChan, errChan, interval, reloadChan}
 }
@@ -132,7 +133,11 @@ func (p *intervalProcessor) Process() {
 		return
 	}
 
-	ticker := time.NewTicker(time.Duration(p.interval) * time.Second)
+	interval := DefaultPollInterval
+	if p.interval > 0 {
+		interval = time.Duration(p.interval) * time.Second
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
