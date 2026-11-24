@@ -203,3 +203,38 @@ func TestWatchProcessor_UnsetPollIntervalUsesDefault(t *testing.T) {
 		})
 	}
 }
+
+// TestWatchLoopPoll_DoesNotTickAfterStop verifies that the poller checks for
+// a stop or a cancelled context before each pass, so a stop or reload that
+// arrives before the poller starts does not process the resources again.
+func TestWatchLoopPoll_DoesNotTickAfterStop(t *testing.T) {
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	closedStop := make(chan bool)
+	close(closedStop)
+
+	tests := []struct {
+		name         string
+		ctx          context.Context
+		internalStop chan bool
+	}{
+		{"internal stop closed", context.Background(), closedStop},
+		{"context cancelled", cancelledCtx, make(chan bool)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := &watchLoop{
+				name:         "watch",
+				config:       Config{Ctx: tt.ctx, PollInterval: testPollInterval},
+				internalStop: tt.internalStop,
+			}
+			var ticks atomic.Int64
+			w.wg.Add(1)
+			w.poll([]*TemplateResource{{}}, func([]*TemplateResource) { ticks.Add(1) })
+
+			if got := ticks.Load(); got != 0 {
+				t.Errorf("poller ran %d passes after the stop, want 0", got)
+			}
+		})
+	}
+}

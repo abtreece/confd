@@ -182,7 +182,20 @@ func (w *watchLoop) poll(ts []*TemplateResource, onTick func([]*TemplateResource
 	defer ticker.Stop()
 
 	for {
+		// Check for a stop before each pass, so a stop or reload that is
+		// already pending, or that is ready when the ticker fires, does not
+		// process the resources again.
+		select {
+		case <-ctx.Done():
+			log.Debug("Context cancelled, stopping %s poller", w.name)
+			return
+		case <-w.internalStop:
+			return
+		default:
+		}
+
 		onTick(ts)
+
 		select {
 		case <-ctx.Done():
 			log.Debug("Context cancelled, stopping %s poller", w.name)
