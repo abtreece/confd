@@ -123,6 +123,17 @@ func TestBackendSectionWarningsCaseInsensitive(t *testing.T) {
 			name: "mixed-case setting the backend uses",
 			doc:  "[backend]\nbackend = \"consul\"\nBASIC_AUTH = true\nUsername = \"u\"\n",
 		},
+		{
+			// U+017F folds to s, so the decoder fills BasicAuth from this key.
+			name: "Unicode case folding: decoded setting the backend does not use",
+			doc:  "[backend]\nbackend = \"file\"\n\"baſic_auth\" = true\n",
+			want: []string{path + ": --basic-auth has no effect with the file backend"},
+		},
+		{
+			name: "Unicode case folding: undecoded alias gets the hint and warns once",
+			doc:  "[backend]\nbackend = \"redis\"\n\"client_ca_keyſ\" = \"/ca\"\n",
+			want: []string{path + `: unknown key "client_ca_keyſ" in [backend] is ignored; use "client_cakeys"`},
+		},
 	}
 
 	for _, tt := range tests {
