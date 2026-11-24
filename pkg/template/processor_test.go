@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,6 +143,37 @@ func TestIntervalProcessor_Creation(t *testing.T) {
 	_, ok := processor.(*intervalProcessor)
 	if !ok {
 		t.Error("IntervalProcessor() did not return *intervalProcessor")
+	}
+}
+
+// TestIntervalProcessor_NonPositiveIntervalUsesDefault verifies that an
+// interval of zero or less, which callers other than the CLI may pass, polls
+// at DefaultPollInterval instead of panicking: the resource is processed when
+// it loads and not again within a few test intervals.
+func TestIntervalProcessor_NonPositiveIntervalUsesDefault(t *testing.T) {
+	for _, interval := range []int{0, -1} {
+		t.Run(fmt.Sprint(interval), func(t *testing.T) {
+			t.Cleanup(clearClientCache)
+			env := newProcessorTestEnv(t)
+			dest := writeTickingResource(env, "ticks", "")
+
+			client := &countingWatchClient{fakeWatchClient: newFakeWatchClient(map[string]string{"/ticks": "x"})}
+			stopChan := make(chan bool)
+			doneChan := make(chan bool)
+			errChan := make(chan error, testErrorChannelBuffer)
+
+			go IntervalProcessor(pollTestConfig(env, client), stopChan, doneChan, errChan, interval, make(chan struct{})).Process()
+
+			first := waitForTicks(t, dest, "", 1)
+			time.Sleep(5 * testPollInterval)
+			if content, err := env.readDest("ticks.txt"); err != nil || strings.TrimSpace(content) != first {
+				t.Errorf("resource was processed again within %v (content %q, err %v), want DefaultPollInterval %v", 5*testPollInterval, content, err, DefaultPollInterval)
+			}
+
+			close(stopChan)
+			waitForDone(t, doneChan, testShutdownTimeout)
+			requireNoProcessorError(t, errChan)
+		})
 	}
 }
 

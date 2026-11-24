@@ -224,7 +224,7 @@ acm, consul, dynamodb, env, etcd, file, imds, redis, secretsmanager, ssm, vault,
 
 **Polling only (no watch)**: acm, dynamodb, env, imds, secretsmanager, ssm, vault
 
-In watch mode the global backend must support watch (`confd env --watch` exits at startup with `watch mode not supported for env backend`). A template resource whose own `[backend]` is from the polling-only list is processed when resources load and then every `--interval` (default 600 seconds), without debounce; confd logs `polling <path> every <interval>: <backend> backend cannot watch` for each at startup and after `SIGHUP`. With `--watch` (and neither `--onetime` nor `--preflight`), an `--interval` below 1 is a startup error.
+In watch mode the global backend must support watch (`confd env --watch` exits at startup with `watch mode not supported for env backend`). A template resource whose own `[backend]` is from the polling-only list is processed when resources load and then every `--interval` (default 600 seconds), without debounce; confd logs `polling <path> every <interval>: <backend> backend cannot watch` for each at startup and after `SIGHUP`. Unless `--onetime` or `--preflight` is set, an `--interval` below 1 or above 9223372036 (the largest that fits a `time.Duration`) is a startup error, in interval mode and in watch mode (`validateInterval` in `cmd/confd/cli.go`).
 
 ### IMDS Backend
 

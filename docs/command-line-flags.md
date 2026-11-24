@@ -85,6 +85,19 @@ Commands:
 Run "confd <command> --help" for more information on a command.
 ```
 
+### --interval
+
+The polling interval in seconds (default 600). Without `--watch`, confd processes every template resource every `--interval`. With `--watch`, it applies only to resources whose backend cannot watch (see [--interval in watch mode](#--interval-in-watch-mode)).
+
+Unless `--onetime` or `--preflight` is set, `--interval` must be between 1 and 9223372036 seconds, the largest value whose duration fits in a Go `time.Duration`. This applies in interval mode and in watch mode, whether or not any resource is polled. Anything else is rejected at startup:
+
+```text
+invalid --interval <n>: must be at least 1 second
+invalid --interval <n>: must be at most 9223372036 seconds
+```
+
+A negative value has to be written as `--interval=-1`; with a space, `-1` is read as a flag.
+
 ## Backend-Specific Flags
 
 Each backend has its own set of flags. Use `confd <backend> --help` to see all available options.
@@ -419,11 +432,7 @@ polling <path> every <interval>: <backend> backend cannot watch
 
 The global backend must still support watch. With `--batch-interval`, polled resources go through the batch like watched ones.
 
-With `--watch`, and neither `--onetime` nor `--preflight`, an `--interval` below 1 is rejected at startup, whether or not any resource is polled:
-
-```text
-invalid --interval <n>: must be at least 1 second with --watch
-```
+The bounds on `--interval` apply with `--watch` too, whether or not any resource is polled (see [--interval](#--interval)).
 
 ```bash
 confd --watch --interval 60 consul
