@@ -224,6 +224,8 @@ acm, consul, dynamodb, env, etcd, file, imds, redis, secretsmanager, ssm, vault,
 
 **Polling only (no watch)**: acm, dynamodb, env, imds, secretsmanager, ssm, vault
 
+In watch mode the global backend must support watch (`confd env --watch` exits at startup with `watch mode not supported for env backend`). A template resource whose own `[backend]` is from the polling-only list is processed when resources load and then every `--interval` (default 600 seconds), without debounce; confd logs `polling <path> every <interval>: <backend> backend cannot watch` for each at startup and after `SIGHUP`. With `--watch` (and neither `--onetime` nor `--preflight`), an `--interval` below 1 is a startup error.
+
 ### IMDS Backend
 
 Retrieves metadata from AWS EC2 Instance Metadata Service version 2 (IMDSv2).
@@ -326,7 +328,7 @@ confd etcd
 - `confd_template_cache_hits_total` - Counter of template cache hits
 - `confd_template_cache_misses_total` - Counter of template cache misses
 - `confd_templates_loaded` - Gauge of currently loaded templates
-- `confd_watched_keys` - Gauge of keys being watched
+- `confd_watched_keys` - Gauge of keys of watched resources only; keys of polled resources are not counted
 
 **Batch Processing Metrics**:
 - `confd_batch_process_total` - Counter of batch processing runs

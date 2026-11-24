@@ -2,8 +2,6 @@ package template
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -56,79 +54,18 @@ func TestCheckWatchSupport_GlobalBackendRejected(t *testing.T) {
 	}
 }
 
-// TestWatchCapability_PerResourceBackendRejected verifies that watch mode is
-// rejected when a template resource selects a polling-only backend in its own
-// [backend] section, even though the global backend can watch, and that the
-// error names the backend and the offending resource only.
-func TestWatchCapability_PerResourceBackendRejected(t *testing.T) {
+// TestCheckWatchSupport_AllowsPerResourceBackendThatCannotWatch verifies
+// that a template resource selecting a backend that cannot watch in its own
+// [backend] section does not fail the startup check: watch mode polls it.
+func TestCheckWatchSupport_AllowsPerResourceBackendThatCannotWatch(t *testing.T) {
 	t.Cleanup(clearClientCache)
 	env := newProcessorTestEnv(t)
 
 	writeWatchResource(env, "watched", "/key")
+	writePolledResource(env, "polled")
 
-	env.writeTemplate("polling.tmpl", `value={{ getv "/key" }}`)
-	env.writeConfig("polling.toml", fmt.Sprintf(`[template]
-src = "polling.tmpl"
-dest = "%s"
-keys = ["/key"]
-
-[backend]
-backend = "env"
-`, env.destPath("polling.txt")))
-
-	err := CheckWatchSupport(watchCapabilityConfig(env, newFakeWatchClient(map[string]string{}), "etcd"))
-	if err == nil {
-		t.Fatal("CheckWatchSupport() = nil, want an error for the resource with a polling-only backend")
-	}
-
-	msg := err.Error()
-	for _, want := range []string{"watch mode not supported", "env", "polling.toml"} {
-		if !strings.Contains(msg, want) {
-			t.Errorf("error %q does not contain %q", msg, want)
-		}
-	}
-	if strings.Contains(msg, "watched.toml") {
-		t.Errorf("error %q names watched.toml, whose backend can watch", msg)
-	}
-}
-
-// TestWatchMonitor_ReportsBackendThatCannotWatch covers a resource whose
-// backend cannot watch reaching a watch processor without the startup check,
-// as happens when a reload switches a resource to a polling-only backend. The
-// processor must report it instead of blocking silently.
-func TestWatchMonitor_ReportsBackendThatCannotWatch(t *testing.T) {
-	processors := map[string]newWatchModeProcessor{
-		"watch":       WatchProcessor,
-		"batch watch": BatchWatchProcessor,
-	}
-
-	for name, newProcessor := range processors {
-		t.Run(name, func(t *testing.T) {
-			env := newProcessorTestEnv(t)
-			writeWatchResource(env, "app", "/key")
-
-			config := watchCapabilityConfig(env, pollingOnlyClient{}, "vault")
-			config.BatchInterval = 10 * time.Millisecond
-
-			stopChan := make(chan bool)
-			doneChan := make(chan bool)
-			errChan := make(chan error, 10)
-
-			go newProcessor(config, stopChan, doneChan, errChan, nil).Process()
-
-			select {
-			case err := <-errChan:
-				for _, want := range []string{"watch mode not supported for vault backend", "app.toml"} {
-					if !strings.Contains(err.Error(), want) {
-						t.Errorf("error %q does not contain %q", err, want)
-					}
-				}
-			case <-time.After(5 * time.Second):
-				t.Fatal("no error reported for a backend that cannot watch")
-			}
-
-			close(stopChan)
-			waitForDone(t, doneChan, 5*time.Second)
-		})
+	config := watchCapabilityConfig(env, newFakeWatchClient(map[string]string{}), "etcd")
+	if err := CheckWatchSupport(config); err != nil {
+		t.Errorf("CheckWatchSupport() = %v, want nil", err)
 	}
 }

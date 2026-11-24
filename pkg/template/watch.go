@@ -2,6 +2,7 @@ package template
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,9 +11,14 @@ import (
 	"github.com/abtreece/confd/pkg/metrics"
 )
 
+// DefaultPollInterval is the poll interval watch mode uses when
+// Config.PollInterval is zero or less. It matches the default of --interval.
+const DefaultPollInterval = 600 * time.Second
+
 // watchLoop is the lifecycle plumbing shared by watchProcessor and
 // batchWatchProcessor: loading template resources, restarting on reload,
-// and running one watch monitor per template resource.
+// running one watch monitor per template resource whose backend can watch,
+// and polling the rest.
 type watchLoop struct {
 	// name identifies the mode in log messages ("watch" or "batch watch").
 	name            string
@@ -48,15 +54,6 @@ func (w *watchLoop) run(start func(ts []*TemplateResource)) {
 		if err != nil {
 			w.errChan <- err
 			return
-		}
-
-		// Calculate total watched keys for metrics
-		if metrics.Enabled() {
-			totalKeys := 0
-			for _, t := range ts {
-				totalKeys += len(t.prefixedKeys)
-			}
-			metrics.WatchedKeys.Set(float64(totalKeys))
 		}
 
 		// Reset internal stop channel for this iteration
@@ -103,11 +100,10 @@ func (w *watchLoop) monitor(t *TemplateResource, onChange func() bool) {
 	defer w.wg.Done()
 	ctx := w.context()
 
-	// Startup rejects backends that cannot watch (CheckWatchSupport), so this
-	// only fails for a resource that a reload switched to such a backend.
-	watcher, err := t.watcher()
-	if err != nil {
-		trySendErr(w.errChan, err, t.Dest)
+	// split hands only resources whose backend can watch to monitors.
+	watcher, ok := t.watcher()
+	if !ok {
+		trySendErr(w.errChan, fmt.Errorf("watch mode not supported for %s backend (template resource %s)", backendLabel(t.backendName), t.path), t.Dest)
 		return
 	}
 
@@ -130,6 +126,83 @@ func (w *watchLoop) monitor(t *TemplateResource, onChange func() bool) {
 
 		if !onChange() {
 			return
+		}
+	}
+}
+
+// split divides ts into the resources whose backend can watch and those whose
+// backend cannot, which are polled every pollInterval. It logs each
+// polled resource and sets the watched keys gauge to the number of keys of the
+// watched resources only.
+func (w *watchLoop) split(ts []*TemplateResource) (watched, polled []*TemplateResource) {
+	totalKeys := 0
+	for _, t := range ts {
+		if _, ok := t.watcher(); ok {
+			watched = append(watched, t)
+			totalKeys += len(t.prefixedKeys)
+			continue
+		}
+		log.Info("polling %s every %s: %s backend cannot watch", t.path, w.pollInterval(), backendLabel(t.backendName))
+		polled = append(polled, t)
+	}
+	if metrics.Enabled() {
+		metrics.WatchedKeys.Set(float64(totalKeys))
+	}
+	return watched, polled
+}
+
+// startPoller launches poll for ts, registered with w.wg. It does nothing if
+// ts is empty.
+func (w *watchLoop) startPoller(ts []*TemplateResource, onTick func([]*TemplateResource)) {
+	if len(ts) == 0 {
+		return
+	}
+	w.wg.Add(1)
+	go w.poll(ts, onTick)
+}
+
+// pollInterval returns config.PollInterval, or DefaultPollInterval if it is
+// zero or less.
+func (w *watchLoop) pollInterval() time.Duration {
+	if w.config.PollInterval <= 0 {
+		return DefaultPollInterval
+	}
+	return w.config.PollInterval
+}
+
+// poll calls onTick with ts immediately and then every pollInterval, until
+// the loop is stopped or the context is cancelled. It is used for resources
+// whose backend cannot watch. The caller must have registered the poller with
+// w.wg.
+func (w *watchLoop) poll(ts []*TemplateResource, onTick func([]*TemplateResource)) {
+	defer w.wg.Done()
+	ctx := w.context()
+
+	ticker := time.NewTicker(w.pollInterval())
+	defer ticker.Stop()
+
+	for {
+		// Check for a stop before each pass, so a stop or reload that is
+		// already pending, or that is ready when the ticker fires, does not
+		// process the resources again.
+		select {
+		case <-ctx.Done():
+			log.Debug("Context cancelled, stopping %s poller", w.name)
+			return
+		case <-w.internalStop:
+			return
+		default:
+		}
+
+		onTick(ts)
+
+		select {
+		case <-ctx.Done():
+			log.Debug("Context cancelled, stopping %s poller", w.name)
+			return
+		case <-w.internalStop:
+			return
+		case <-ticker.C:
 		}
 	}
 }

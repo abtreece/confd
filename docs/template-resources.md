@@ -37,7 +37,7 @@ Template resources are stored under the `/etc/confd/conf.d` directory by default
 **Watch Mode Tuning:**
 
 * `min_reload_interval` (string) - Minimum time between reload command executions for this resource. Uses Go duration format (e.g., `30s`, `1m`, `500ms`). If changes occur more frequently, reloads are throttled and a warning is logged.
-* `debounce` (string) - Delay processing after a change in watch mode. Uses Go duration format (e.g., `2s`, `500ms`). After detecting a change, confd waits this duration and then processes the template once. Additional changes during the wait are picked up by that run and do not extend the wait, so a key that keeps changing is processed about once per debounce period. Useful for reducing unnecessary reloads when multiple keys change in rapid succession. Not applied when `--batch-interval` is set.
+* `debounce` (string) - Delay processing after a change in watch mode. Uses Go duration format (e.g., `2s`, `500ms`). After detecting a change, confd waits this duration and then processes the template once. Additional changes during the wait are picked up by that run and do not extend the wait, so a key that keeps changing is processed about once per debounce period. Useful for reducing unnecessary reloads when multiple keys change in rapid succession. Not applied when `--batch-interval` is set, and not applied to polled resources (a resource whose `[backend]` cannot watch, processed every `--interval` in watch mode).
 
 ### Per-Resource Backend Configuration
 
@@ -71,7 +71,7 @@ When multiple template resources specify identical backend configurations, confd
 When using the `reload_cmd` feature it's important that the command exits on its own. The reload
 command is not managed by confd, and will block the configuration run until it exits.
 
-If `reload_cmd` fails, the destination file has already been replaced. confd remembers the failure and retries `reload_cmd` the next time it processes the resource, even though the destination is in sync, until the command succeeds. With `--interval` that is the next cycle; in watch mode it is the next change to a watched key. Before a retry the template is still fetched from the backend and still rendered, so a backend or rendering error prevents the retry on that cycle; what a retry skips is writing the file and running `check_cmd`. The pending retry is kept in memory only, so it is lost on restart and on `SIGHUP`. During a retry `{{.src}}` in `reload_cmd` is always the destination path, including with `--keep-stage-file`.
+If `reload_cmd` fails, the destination file has already been replaced. confd remembers the failure and retries `reload_cmd` the next time it processes the resource, even though the destination is in sync, until the command succeeds. With `--interval` that is the next cycle; in watch mode it is the next change to a watched key, or the next poll for a resource whose `[backend]` cannot watch. Before a retry the template is still fetched from the backend and still rendered, so a backend or rendering error prevents the retry on that cycle; what a retry skips is writing the file and running `check_cmd`. The pending retry is kept in memory only, so it is lost on restart and on `SIGHUP`. During a retry `{{.src}}` in `reload_cmd` is always the destination path, including with `--keep-stage-file`.
 
 `check_cmd` and `reload_cmd` run through a shell: `/bin/sh -c` on Unix and `cmd /C` on Windows.
 Shell quoting and expansion (variables, globs, pipes, `&&`) apply to the rendered command string,

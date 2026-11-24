@@ -176,12 +176,22 @@ func WatchProcessor(config Config, stopChan, doneChan chan bool, errChan chan er
 
 func (p *watchProcessor) Process() {
 	p.run(func(ts []*TemplateResource) {
-		// Start watching all templates
-		for _, t := range ts {
+		watched, polled := p.split(ts)
+		for _, t := range watched {
 			p.wg.Add(1)
 			go p.monitorPrefix(t)
 		}
+		p.startPoller(polled, p.processPolled)
 	})
+}
+
+// processPolled processes resources whose backend cannot watch. Debounce does
+// not apply: the poll interval already limits how often they are processed.
+func (p *watchProcessor) processPolled(ts []*TemplateResource) {
+	result := processWithResult(ts, p.config.FailureMode)
+	if err := result.Error(); err != nil {
+		trySendErr(p.errChan, err, "polled template resources")
+	}
 }
 
 func (p *watchProcessor) monitorPrefix(t *TemplateResource) {
@@ -271,12 +281,30 @@ func (p *batchWatchProcessor) Process() {
 		p.wg.Add(1)
 		go p.processBatch()
 
-		// Start monitor goroutines for each template
-		for _, t := range ts {
+		// Start monitor goroutines for each template that can be watched,
+		// and one poller for the rest
+		watched, polled := p.split(ts)
+		for _, t := range watched {
 			p.wg.Add(1)
 			go p.monitorForBatch(t)
 		}
+		p.startPoller(polled, p.queuePolled)
 	})
+}
+
+// queuePolled queues resources whose backend cannot watch for the next batch.
+func (p *batchWatchProcessor) queuePolled(ts []*TemplateResource) {
+	ctx := p.context()
+	for _, t := range ts {
+		select {
+		case p.changeChan <- t:
+			log.Debug("Queued polled resource for batch processing: %s", t.Dest)
+		case <-ctx.Done():
+			return
+		case <-p.internalStop:
+			return
+		}
+	}
 }
 
 func (p *batchWatchProcessor) monitorForBatch(t *TemplateResource) {

@@ -3,12 +3,14 @@
 package features
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -325,11 +327,10 @@ client_ca_keys = "/ca"
 	}
 }
 
-// TestPerResourceBackend_WarningsWhenWatchIsRejected verifies that the
-// [backend] warnings are still logged, once, when --watch is rejected because
-// a resource's backend cannot watch. confd exits on that error before the
-// processor loads the resources.
-func TestPerResourceBackend_WarningsWhenWatchIsRejected(t *testing.T) {
+// TestPerResourceBackend_WarningsInWatchModeWithPolledResource verifies that
+// the [backend] warnings are logged exactly once in watch mode when a
+// resource's backend cannot watch and the resource is polled instead.
+func TestPerResourceBackend_WarningsInWatchModeWithPolledResource(t *testing.T) {
 	t.Parallel()
 
 	env := operations.NewTestEnv(t)
@@ -340,6 +341,7 @@ func TestPerResourceBackend_WarningsWhenWatchIsRejected(t *testing.T) {
 	}
 
 	env.WriteTemplate("app.tmpl", "static\n")
+	destPath := env.DestPath("app.conf")
 	resourcePath := env.WriteConfig("app.toml", fmt.Sprintf(`[template]
 src = "app.tmpl"
 dest = "%s"
@@ -349,26 +351,45 @@ keys = ["/app"]
 backend = "env"
 basic_auth = true
 client_ca_keys = "/ca"
-`, env.DestPath("app.conf")))
+`, destPath))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	// The global file backend can watch; the resource's env backend cannot.
+	// The global file backend can watch; the resource's env backend cannot,
+	// so confd starts and polls the resource.
 	args := []string{"file", "--file", yamlPath, "--watch", "--confdir", env.ConfDir}
-	output, err := exec.CommandContext(ctx, operations.BuildConfd(t), args...).CombinedOutput()
-	if err == nil {
-		t.Fatalf("confd %v succeeded; want the watch support error:\n%s", args, output)
+	var output bytes.Buffer
+	cmd := exec.CommandContext(ctx, operations.BuildConfd(t), args...)
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start confd %v: %v", args, err)
 	}
-	if !strings.Contains(string(output), "watch mode not supported for env backend") {
-		t.Errorf("want the watch support error in the output:\n%s", output)
+
+	// The resources are loaded, and the warnings logged, before the polled
+	// resource is first processed.
+	renderErr := operations.WaitForFile(t, destPath, 15*time.Second, "static\n")
+	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatalf("signal confd: %v", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("confd %v exited with %v after SIGTERM; want a clean stop:\n%s", args, err, output.String())
+	}
+	if renderErr != nil {
+		t.Fatalf("polled resource was not rendered: %v\n%s", renderErr, output.String())
+	}
+	// confd logs the path with symlinks resolved (/private/var on macOS), so
+	// match from the resource path onwards.
+	if want := resourcePath + " every 10m0s: env backend cannot watch"; !strings.Contains(output.String(), want) {
+		t.Errorf("want %q in the output:\n%s", want, output.String())
 	}
 	for _, want := range []string{
 		resourcePath + `: unknown key "client_ca_keys" in [backend] is ignored; use "client_cakeys"`,
 		resourcePath + ": --basic-auth has no effect with the env backend",
 	} {
-		if strings.Count(string(output), want) != 1 {
-			t.Errorf("want the warning %q exactly once in the output:\n%s", want, output)
+		if strings.Count(output.String(), want) != 1 {
+			t.Errorf("want the warning %q exactly once in the output:\n%s", want, output.String())
 		}
 	}
 }

@@ -51,6 +51,8 @@ role_id = "my-role-id"
 secret_id = "my-secret-id"
 ```
 
+With `--watch`, `app-config.toml` is watched in Consul. Vault cannot watch, so `app-secrets.toml` is polled every `--interval`, which is 600 seconds unless set; add `--interval 60` to the command to poll it every minute. Both resources reload `myapp`, so a Consul change and a Vault poll can reload it close together; `min_reload_interval` is per resource and does not prevent this. See [Limitations](#limitations).
+
 ### Example: SSM Parameters with IMDS Metadata
 
 Use SSM as the global backend for application parameters, while fetching EC2 instance metadata from IMDS for a host-info template:
@@ -180,6 +182,6 @@ This keeps environment logic in the deployment layer where it belongs, while con
 
 ## Limitations
 
-- **Watch mode**: Per-resource backends that don't support watch (env, Vault, SSM, ACM, IMDS, DynamoDB, Secrets Manager) cannot be combined with `--watch`. If watch mode is enabled and any template resource uses one of these backends, confd exits at startup with a `watch mode not supported` error naming the backend and the template resource file. For templates using these backends, use `--interval` mode instead, or run separate confd instances for watch-capable and non-watch backends.
+- **Watch mode polls backends that cannot watch**: with `--watch`, a template resource whose `[backend]` cannot watch (env, Vault, SSM, ACM, IMDS, DynamoDB, Secrets Manager) is not watched. confd processes it once when resources load and then every `--interval` (`interval` in `confd.toml`, `CONFD_INTERVAL`), so its changes are picked up on the next poll, not immediately. `--interval` defaults to 600 seconds: if you add `--watch` without setting `--interval`, those resources are refreshed every 10 minutes. With `--watch`, an `--interval` below 1 is rejected at startup unless `--onetime` or `--preflight` is set. At startup and after every `SIGHUP` reload, confd logs one INFO line per polled resource, `polling <path> every <interval>: <backend> backend cannot watch`, with the interval as a Go duration such as `10m0s`. Debounce does not apply to polled resources. With `--batch-interval`, polled resources go through the batch like watched ones. The global backend must still support watch: `confd env --watch` exits at startup with `watch mode not supported for env backend`.
 - **No fallback chains**: If a per-resource backend is unreachable, confd does not automatically try another backend. Use `--failure-mode best-effort` to continue processing other templates.
 - **No per-key backends**: Backend override is per-template, not per-key. If you need keys from different backends in a single template, split them into separate templates and use `include` to compose the output.

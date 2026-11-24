@@ -325,6 +325,8 @@ flowchart TB
 
 Watches the backend for changes and processes templates immediately when keys change.
 
+The global backend must implement `Watcher`. A template resource whose own `[backend]` does not is polled instead: it is processed once when resources load and then every `--interval` (default 600 seconds), without debounce. With `--batch-interval`, polled resources are queued into the batch like watched ones. Resources are split into watched and polled each time they load, including after `SIGHUP`, and confd logs `polling <path> every <interval>: <backend> backend cannot watch` for each polled resource. `confd_watched_keys` counts keys of watched resources only.
+
 ```mermaid
 flowchart TB
     START[Start] --> LOAD[Load Templates]
@@ -513,7 +515,7 @@ type StoreClient interface {
 }
 ```
 
-3. If the backend can watch for changes, also implement the optional `Watcher` interface. Polling-only backends leave it out; `--watch` with a backend that does not implement `Watcher` (globally or in a template resource's `[backend]` section) fails at startup.
+3. If the backend can watch for changes, also implement the optional `Watcher` interface. Polling-only backends leave it out; `--watch` with a global backend that does not implement `Watcher` fails at startup; a template resource whose `[backend]` section uses such a backend is polled every `--interval` instead.
 
 ```go
 type Watcher interface {
