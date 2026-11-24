@@ -464,13 +464,22 @@ Setting one of these for a backend that does not use it changes nothing. confd l
 --retry-max-attempts has no effect with the env backend
 ```
 
-The warning is logged whether the setting came from the command line, its `CONFD_*` environment variable or `confd.toml`, and also when it is set to its default value. It covers the backend chosen on the command line, not per-resource `[backend]` sections.
+The warning is logged whether the setting came from the command line, its `CONFD_*` environment variable or `confd.toml`, and also when it is set to its default value.
 
 consul and etcd use `--username` and `--password` only when `--basic-auth` is set. When either is supplied (on the command line or as `username` / `password` in `confd.toml`) without basic auth, confd logs, for example:
 
 ```
 --username has no effect with the consul backend unless --basic-auth is set
 ```
+
+A per-resource `[backend]` section gets the same warnings for its own backend, prefixed with the resource file. confd also warns about any key in the section that it does not recognise, since such a key is ignored. That includes `client_ca_keys` and `node`, which `confd.toml` accepts but a `[backend]` section does not (use `client_cakeys` and `nodes`):
+
+```
+/etc/confd/conf.d/app.toml: unknown key "client_ca_keys" in [backend] is ignored; use "client_cakeys"
+/etc/confd/conf.d/app.toml: --basic-auth has no effect with the redis backend
+```
+
+These are logged each time the resource is loaded (at startup and on every SIGHUP reload), and with `--check-config` and `--validate`.
 
 ### --watch-error-backoff
 

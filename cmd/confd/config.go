@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -175,70 +174,12 @@ func (s *configSources) isSupplied(name string) bool {
 	return s.isExplicit(name) || s.toml[normalizeConfigName(name)]
 }
 
-// backendFlagScope lists the backends that use each connection timeout, retry,
-// auth and TLS setting that not every backend uses. It mirrors the constructor
-// calls in backends.New (pkg/backends/client.go): a backend uses a setting
-// only if New passes that setting to its constructor. Update this table
-// whenever those calls change.
-var backendFlagScope = []struct {
-	flag   string
-	usedBy []string
-	// tomlAliases are other confd.toml spellings of the setting, as accepted
-	// by loadConfigFile.
-	tomlAliases []string
-}{
-	{flag: "dial-timeout", usedBy: []string{"acm", "dynamodb", "etcd", "imds", "redis", "secretsmanager", "ssm", "zookeeper"}},
-	{flag: "read-timeout", usedBy: []string{"redis"}},
-	{flag: "write-timeout", usedBy: []string{"redis"}},
-	{flag: "retry-max-attempts", usedBy: []string{"redis"}},
-	{flag: "retry-base-delay", usedBy: []string{"redis"}},
-	{flag: "retry-max-delay", usedBy: []string{"redis"}},
-	{flag: "auth-token", usedBy: []string{"consul", "etcd", "vault"}},
-	{flag: "basic-auth", usedBy: []string{"consul", "etcd"}},
-	{flag: "client-cert", usedBy: []string{"consul", "etcd", "vault"}},
-	{flag: "client-ca-keys", usedBy: []string{"consul", "etcd", "vault"}, tomlAliases: []string{"client_cakeys"}},
-}
-
-// ignoredBackendFlagWarnings returns one message for each setting in
-// backendFlagScope that was supplied but is not used by the backend.
-func ignoredBackendFlagWarnings(sources *configSources, backend string) []string {
-	var warnings []string
-	for _, scope := range backendFlagScope {
-		supplied := sources.isSupplied(scope.flag) || slices.ContainsFunc(scope.tomlAliases, sources.isSupplied)
-		if !supplied || slices.Contains(scope.usedBy, backend) {
-			continue
-		}
-		warnings = append(warnings, fmt.Sprintf("--%s has no effect with the %s backend", scope.flag, backend))
-	}
-	return warnings
-}
-
-// basicAuthBackends send --username and --password only when basic auth is
-// enabled. backendFlagScope cannot express this: the backends use the
-// settings, but only when another setting is on.
-var basicAuthBackends = []string{"consul", "etcd"}
-
-// basicAuthCredentialWarnings returns one message for each of --username and
-// --password that was supplied for a backend in basicAuthBackends while basic
-// auth is off. cfg.BasicAuth is the resolved value, after confd.toml and flags.
-func basicAuthCredentialWarnings(sources *configSources, cfg backends.Config) []string {
-	if cfg.BasicAuth || !slices.Contains(basicAuthBackends, cfg.Backend) {
-		return nil
-	}
-	var warnings []string
-	for _, flag := range []string{"username", "password"} {
-		if sources.isSupplied(flag) {
-			warnings = append(warnings, fmt.Sprintf("--%s has no effect with the %s backend unless --basic-auth is set", flag, cfg.Backend))
-		}
-	}
-	return warnings
-}
-
-// warnIgnoredBackendFlags logs the ignoredBackendFlagWarnings and
-// basicAuthCredentialWarnings messages.
+// warnIgnoredBackendFlags logs a warning for each setting supplied on the
+// command line, through its environment variable or in confd.toml that the
+// backend does not use (backends.IgnoredSettingWarnings). cfg must be the
+// resolved config, after confd.toml and flags.
 func warnIgnoredBackendFlags(sources *configSources, cfg backends.Config) {
-	warnings := slices.Concat(ignoredBackendFlagWarnings(sources, cfg.Backend), basicAuthCredentialWarnings(sources, cfg))
-	for _, warning := range warnings {
+	for _, warning := range backends.IgnoredSettingWarnings(cfg, sources.isSupplied) {
 		log.Warning("%s", warning)
 	}
 }

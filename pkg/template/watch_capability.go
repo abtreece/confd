@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/abtreece/confd/pkg/backends"
+	"github.com/abtreece/confd/pkg/log"
 )
 
 // CheckWatchSupport verifies that watch mode can run with config: the global
@@ -23,13 +24,24 @@ func CheckWatchSupport(config Config) error {
 
 	// The global backend can watch, so any resource that cannot is using its
 	// own [backend] section. Per-resource clients come from the client cache,
-	// so loading the resources here does not open extra connections.
+	// so loading the resources here does not open extra connections. The
+	// processor loads them again and logs the [backend] warnings then, so
+	// they are collected here rather than logged twice.
+	var backendWarnings []string
+	config.deferredBackendWarnings = &backendWarnings
 	ts, _ := getTemplateResources(config)
 
 	var errs []error
 	for _, t := range ts {
 		if _, err := t.watcher(); err != nil {
 			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		// confd exits on this error before the processor's load, so this is
+		// the only chance to report them.
+		for _, warning := range backendWarnings {
+			log.Warning("%s", warning)
 		}
 	}
 	return errors.Join(errs...)

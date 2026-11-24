@@ -47,6 +47,13 @@ type Config struct {
 	PreflightTimeout  time.Duration // Preflight check timeout
 	// Error handling mode
 	FailureMode FailureMode // Error handling mode
+
+	// deferredBackendWarnings, when non-nil, collects the [backend] section
+	// warnings from NewTemplateResource instead of logging them. It is for a
+	// load that only inspects the resources before the processor loads them
+	// again (CheckWatchSupport), which logs them itself only if confd is about
+	// to exit before that second load.
+	deferredBackendWarnings *[]string
 }
 
 // TemplateResourceConfig holds the parsed template resource.
@@ -199,9 +206,16 @@ func NewTemplateResource(path string, config Config) (*TemplateResource, error) 
 	tc := &TemplateResourceConfig{TemplateResource: TemplateResource{Uid: -1, Gid: -1}}
 
 	log.Debug("Loading template resource from %s", path)
-	_, err := toml.DecodeFile(path, &tc)
+	md, err := toml.DecodeFile(path, &tc)
 	if err != nil {
 		return nil, fmt.Errorf("cannot process template resource %s: %w", path, err)
+	}
+	// Before the backend client is created, so that the warnings are logged
+	// even when creating it fails.
+	if config.deferredBackendWarnings != nil {
+		*config.deferredBackendWarnings = append(*config.deferredBackendWarnings, backendSectionWarnings(path, md, tc.BackendConfig)...)
+	} else {
+		warnBackendSection(path, md, tc.BackendConfig)
 	}
 
 	tr := tc.TemplateResource

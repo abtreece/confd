@@ -226,7 +226,7 @@ Available backend options:
 - `nodes` - Array of Consul agent addresses
 - `scheme` - `"http"` or `"https"`
 - `basic_auth` - Send `username` and `password` as HTTP basic auth
-- `username` - Username for basic auth; ignored without `basic_auth = true` (no warning is logged for `[backend]` sections)
+- `username` - Username for basic auth; ignored without `basic_auth = true`
 - `password` - Password for basic auth; ignored without `basic_auth = true`
 - `client_cert` - Path to client certificate
 - `client_key` - Path to client private key
