@@ -207,6 +207,15 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 - **Caching**: Template cache (`template_cache.go`) and client cache (`client_cache.go`) for performance
 - **Single Responsibility**: Template package split into focused modules (resource, validation, caching, includes)
 
+## Edge Cases to Test
+
+Review rounds have repeatedly caught these after the main path worked. Before calling a change done, check each one that applies and add a test for it:
+
+- **Empty vs unset**: an empty value (`--password ""`, `CONFD_X=`) must not hide a lower-precedence source unless that is the intended behaviour. Test each source empty and unset against the others in the Configuration Hierarchy.
+- **Numeric overflow**: converting user input to `time.Duration` by multiplying (`time.Duration(n) * time.Second`) overflows for large values. Bound the input or reject it, and test a very large value.
+- **Cancellation**: when the context is cancelled, code waiting on a blocking constructor, retry, or backoff must return instead of waiting for it to finish. Test cancellation while the call is still blocked.
+- **Error wrapping**: `wrapcheck` reports errors from other packages returned as-is, including `context.Cause(ctx)`. Wrap them with `fmt.Errorf("...: %w", err)`.
+
 ## Supported Backends
 
 acm, consul, dynamodb, env, etcd, file, imds, redis, secretsmanager, ssm, vault, zookeeper
