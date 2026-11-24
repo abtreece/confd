@@ -759,3 +759,34 @@ func TestGetBackendNodesFromSRV_Error(t *testing.T) {
 		t.Fatalf("expected no nodes on lookup error, got %v", nodes)
 	}
 }
+
+// TestValidateInterval checks the --interval bounds for interval and watch
+// mode: at least 1 second, and at most the largest number of seconds that
+// fits in a time.Duration.
+func TestValidateInterval(t *testing.T) {
+	tests := []struct {
+		interval int64
+		wantErr  string
+	}{
+		{1, ""},
+		{600, ""},
+		{9223372036, ""},
+		{0, "invalid --interval 0: must be at least 1 second"},
+		{-1, "invalid --interval -1: must be at least 1 second"},
+		{9223372037, "invalid --interval 9223372037: must be at most 9223372036 seconds"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprint(tt.interval), func(t *testing.T) {
+			err := validateInterval(tt.interval)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("validateInterval(%d) = %v, want nil", tt.interval, err)
+				}
+				return
+			}
+			if err == nil || err.Error() != tt.wantErr {
+				t.Errorf("validateInterval(%d) = %v, want %q", tt.interval, err, tt.wantErr)
+			}
+		})
+	}
+}

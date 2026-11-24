@@ -495,6 +495,23 @@ func (i *IMDSCmd) backendConfig(_ *CLI) (backends.Config, error) {
 	}, nil
 }
 
+// maxIntervalSeconds is the largest --interval, in seconds, whose duration
+// fits in a time.Duration.
+const maxIntervalSeconds = math.MaxInt64 / int64(time.Second)
+
+// validateInterval reports an error if interval, in seconds, cannot drive a
+// ticker: below 1 second, or too large for a time.Duration. It takes an int64
+// because the upper bound does not fit in a 32-bit int.
+func validateInterval(interval int64) error {
+	if interval < 1 {
+		return fmt.Errorf("invalid --interval %d: must be at least 1 second", interval)
+	}
+	if interval > maxIntervalSeconds {
+		return fmt.Errorf("invalid --interval %d: must be at most %d seconds", interval, maxIntervalSeconds)
+	}
+	return nil
+}
+
 // run is the shared execution function for all backends
 func run(cli *CLI, backendCfg backends.Config) error {
 	// Load TOML config file if it exists (for defaults)
@@ -681,16 +698,10 @@ func run(cli *CLI, backendCfg backends.Config) error {
 		return nil
 	}
 
-	// Watch mode polls resources whose backend cannot watch every --interval,
-	// and a ticker needs a positive interval that fits in a time.Duration.
-	if cli.Watch {
-		const maxIntervalSeconds = math.MaxInt64 / int64(time.Second)
-		if cli.Interval < 1 {
-			return fmt.Errorf("invalid --interval %d: must be at least 1 second with --watch", cli.Interval)
-		}
-		if int64(cli.Interval) > maxIntervalSeconds {
-			return fmt.Errorf("invalid --interval %d: must be at most %d seconds with --watch", cli.Interval, maxIntervalSeconds)
-		}
+	// Interval mode processes every resource every --interval, and watch mode
+	// polls resources whose backend cannot watch every --interval.
+	if err := validateInterval(int64(cli.Interval)); err != nil {
+		return err
 	}
 
 	// Continuous mode with processor
