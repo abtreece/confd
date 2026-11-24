@@ -55,7 +55,7 @@ confd logs a warning, naming the resource file, for a key in the section that it
 * `client_cert` (string) - Path to client certificate file.
 * `client_key` (string) - Path to client key file.
 * `client_cakeys` (string) - Path to CA certificate file.
-* `client_insecure` (bool) - Skip TLS verification.
+* `client_insecure` (bool) - Skip TLS verification (etcd only).
 * `basic_auth` (bool) - Enable basic authentication.
 * `username` (string) - Username for authentication.
 * `password` (string) - Password for authentication.

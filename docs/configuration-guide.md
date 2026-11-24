@@ -51,7 +51,7 @@ For a string setting, an environment variable set to an empty value (`CONFD_LOG_
 * `password` (string) - Password for authentication.
 * `auth_token` (string) - Auth token: the consul ACL token, an etcd JWT, or the vault token (consul, etcd and vault backends).
 
-Setting `client_cert`, `client_cakeys`, `basic_auth` or `auth_token` for a backend that does not use it logs `--<flag> has no effect with the <backend> backend` at startup.
+Setting `client_cert`, `client_cakeys`, `client_insecure`, `basic_auth` or `auth_token` for a backend that does not use it logs `--<flag> has no effect with the <backend> backend` at startup.
 
 ## Timeout Options
 

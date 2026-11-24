@@ -204,10 +204,11 @@ func TestIgnoredAuthFlagWarnings(t *testing.T) {
 	// The backends that use each setting, read from the constructor calls in
 	// backends.New.
 	usedBy := map[string][]string{
-		"--auth-token":     {"consul", "etcd", "vault"},
-		"--basic-auth":     {"consul", "etcd"},
-		"--client-cert":    {"consul", "etcd", "vault"},
-		"--client-ca-keys": {"consul", "etcd", "vault"},
+		"--auth-token":      {"consul", "etcd", "vault"},
+		"--basic-auth":      {"consul", "etcd"},
+		"--client-cert":     {"consul", "etcd", "vault"},
+		"--client-ca-keys":  {"consul", "etcd", "vault"},
+		"--client-insecure": {"etcd"},
 	}
 	want := func(flag, backend string) []string {
 		if slices.Contains(usedBy[flag], backend) {
@@ -226,6 +227,8 @@ func TestIgnoredAuthFlagWarnings(t *testing.T) {
 			{"--client-cert", `client_cert = "/cert"`},
 			{"--client-ca-keys", `client_cakeys = "/ca"`},
 			{"--client-ca-keys", `client_ca_keys = "/ca"`},
+			{"--client-insecure", `client_insecure = true`},
+			{"--client-insecure", `client_insecure = false`},
 		}
 		for backend := range backendArgs {
 			for _, key := range keys {
@@ -242,16 +245,17 @@ func TestIgnoredAuthFlagWarnings(t *testing.T) {
 	t.Run("flag", func(t *testing.T) {
 		// The commands that accept each flag.
 		accepted := map[string][]string{
-			"--auth-token":     {"consul", "etcd", "redis", "vault"},
-			"--basic-auth":     {"consul", "etcd", "redis"},
-			"--client-cert":    {"consul", "etcd", "redis", "vault"},
-			"--client-ca-keys": {"consul", "etcd", "redis", "vault"},
+			"--auth-token":      {"consul", "etcd", "redis", "vault"},
+			"--basic-auth":      {"consul", "etcd", "redis"},
+			"--client-cert":     {"consul", "etcd", "redis", "vault"},
+			"--client-ca-keys":  {"consul", "etcd", "redis", "vault"},
+			"--client-insecure": {"etcd"},
 		}
 		for flag, backends := range accepted {
 			for _, backend := range backends {
 				t.Run(backend+"/"+flag, func(t *testing.T) {
 					args := []string{flag, "value"}
-					if flag == "--basic-auth" {
+					if flag == "--basic-auth" || flag == "--client-insecure" {
 						args = []string{flag}
 					}
 					got := flagWarnings(t, backend, nil, args, "")
